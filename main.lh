@@ -20,6 +20,7 @@ require^"src/sprite.lh"
 require^"src/chara/yui/skills.lh"
 require^"src/stage.lh"
 require^"src/stages/school/skills.lh"
+require^"src/hud.lh"
 
 let^Fighter = vp.fighter.Fighter
 
@@ -38,6 +39,7 @@ let^WALL = 40                # how close to the stage's edge the feet may go (li
 let^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - 120, GROUND)
 let^foe = Fighter.new("assets/characters/ゆい", WORLD_W / 2 + 120, GROUND)
 let^school = vp.stages.school.index
+let^hud = vp.hud.load("assets/system/ヴァンガードプリンセス")
 let^stage = vp.stage.load("assets/stages/スクール", school.install, school.layers, school.players)
 
 # FM2K skill numbers: the character's built-in skills (its .player settings)
@@ -52,6 +54,8 @@ let^FALL = 7
 let^CROUCH_DOWN = 11
 let^CROUCH = 12
 let^STAND_UP = 13
+let^START = 21
+let^SHADOW = 28          # the built-in shadow skill
 
 var^clock = 0
 var^frame = 0
@@ -197,10 +201,16 @@ public^let^load = p^{
     vp.skills.yui.index.install(me)
     vp.skills.yui.index.install(foe)
     foe.palette := 1
-    face(me, foe)
-    face(foe, me)
-    me.begin(STAND)
-    foe.begin(STAND)
+    me.enemy := foe
+    foe.enemy := me
+    me.facing := 1
+    foe.facing := -1
+    # The round starts with each character's built-in start skill, which also
+    # puts up its part of the HUD (support gauge, stun, hit count, ...).
+    me.begin(START)
+    vp.fighter.castShadow(me, SHADOW)
+    foe.begin(START)
+    vp.fighter.castShadow(foe, SHADOW)
 }
 
 let^tick = p^{
@@ -219,6 +229,7 @@ let^tick = p^{
     foe.guarding := dummyGuard > 0 and^free(foe)
 
     vp.stage.step(stage)
+    vp.hud.step(hud)
     me.step()
     foe.step()
     vp.fighter.stepObjects(me)
@@ -289,8 +300,12 @@ public^let^draw = p^{
     vp.stage.draw(stage, camX, camY, stage.players, stage.layers.length^)
     love.graphics.pop()
     love.graphics.setColor(1, 1, 1, 1)
-    lifeBar(me, 16, 60, false^)
-    lifeBar(foe, love.graphics.getWidth() - 16 - 500, 60, true^)
+    love.graphics.push()
+    love.graphics.scale(SCALE)
+    vp.hud.draw(hud, me, foe)
+    vp.fighter.drawScreenObjects(foe)
+    vp.fighter.drawScreenObjects(me)
+    love.graphics.pop()
     love.graphics.print($"{me.skillName}  image {me.image}  palette {me.palette + 1}  fps {love.timer.getFPS()}", 16, 16)
     love.graphics.print($"arrows move  z x c a s d = A-F  h boxes  1-8 palette  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
 }

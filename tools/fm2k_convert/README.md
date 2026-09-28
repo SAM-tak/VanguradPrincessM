@@ -78,6 +78,12 @@ Stages go through the same generator: their scripts are layers
 python tools/fm2k_convert/gen_skills.py <json dir>/スクール.json school --stage
 ```
 
+The system file's skills (the HUD) likewise:
+
+```sh
+python tools/fm2k_convert/gen_skills.py <json dir>/ヴァンガードプリンセス.json system --out src
+```
+
 ## Checking the LTON
 
 Check the LTON with lhat:

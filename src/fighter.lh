@@ -93,6 +93,10 @@ public^let^Fighter = def^{
         onHit : t^{number^[]} = { 0, 0, 0 },
         onGuard : t^{number^[]} = { 0, 0, 0 },
         life = 1000, lifeMax = 1000,
+        # The special gauge: `special` points, `specialPer` to a stock (one
+        # level), at most `stockMax` stocks.
+        special = 0, specialPer = 300, stockMax = 5,
+        enemy : Fighter|nil^= nil^, # the opponent (GP adds to its gauges too)
         guarding = false^,          # set by the controller: holding back where a guard is allowed
         stop = 0,                   # hitstop frames left: the fighter is frozen
         stopMine = 0, stopTheirs = 0,   # the last PS block: hitstop when this attack connects
@@ -103,8 +107,11 @@ public^let^Fighter = def^{
         objects : t^{Fighter[]} = {},
         slots : t^{[number^]:Fighter|nil^} = {},    # managed numbers 0-9
         depth = 75,                 # draw order: characters are 70-80, below is behind them
-        follow = false^,            # "parent": moves with its owner
-        lastOwnerX = 0, lastOwnerY = 0,
+        parent : Fighter|nil^= nil^,   # what spawned it (the character or another object)
+        follow = false^,            # "parent": moves with its parent
+        shadowOf = false^,          # a character's shadow: stays under it, on the floor
+        onScreen = false^,          # "picXY": x, y are in view coordinates
+        lastOwnerX = 0, lastOwnerY = 0, # the parent's position last frame
         spins = 0,
         alive = true^,
     },
@@ -228,12 +235,15 @@ public^let^Fighter = def^{
 
     # The image faces the fighter's way unless the I block says ignoreDirection;
     # turnX / turnY mirror it once more.
+    # A "picXY" object lives in view coordinates and stays put on the screen.
     draw = p^self^{
         let^face = if^self^.fixed: 1 el^: self^.facing;
         let^sx = if^self^.turnX: -face el^: face;
         let^sy = if^self^.turnY: -1 el^: 1;
+        let^ox = if^self^.onScreen: viewX el^: 0;
+        let^oy = if^self^.onScreen: viewY el^: 0;
         vp.sprite.setBlend(self^.blend, self^.alpha)
-        self^.sheet.draw(self^.image, self^.x + self^.ix * self^.facing, self^.y + self^.iy, self^.palette, sx, sy, self^.tintR, self^.tintG, self^.tintB)
+        self^.sheet.draw(self^.image, ox + self^.x + self^.ix * self^.facing, oy + self^.y + self^.iy, self^.palette, sx, sy, self^.tintR, self^.tintG, self^.tintB)
         vp.sprite.resetBlend()
     },
 
@@ -510,13 +520,33 @@ public^let^chance = p^me:Fighter, total:number^, above:number^-> bool^{
     return^love.math.random(0, total - 1) > above
 }
 
-# GL / GS: gauge conditions. Not yet: never met.
-public^let^lifeGauge = p^me:Fighter, isMore:bool^, amount:number^-> bool^{
-    return^false^
+# The character a skill belongs to (an object's gauges are its owner's).
+let^charOf = p^me:Fighter-> Fighter{
+    return^me.owner ?? me
 }
 
+# GL / GS are forks: when the condition holds the skill goes on, otherwise it
+# goes to the block's skill ("if it failed"). The generated code jumps when
+# these answer true, so they answer whether the condition FAILED.
+#
+# GL: life above `amount` (isMore), or below it. (The compendium's wording is
+# ambiguous; this reading makes "GL more 0" the usual "still alive" check.)
+public^let^lifeGauge = p^me:Fighter, isMore:bool^, amount:number^-> bool^{
+    let^life = charOf(me).life
+    let^met = if^isMore: life > amount el^: life < amount;
+    return^!met
+}
+
+# GS: the special gauge's level (whole stocks, 0-9) at least `level` (isMore),
+# or below it; when it holds, `amount` stocks are added (negative: spent).
 public^let^specialGauge = p^me:Fighter, level:number^, isMore:bool^, amount:number^-> bool^{
-    return^false^
+    let^b = charOf(me)
+    let^stocks = (b.special / b.specialPer).floor()
+    let^met = if^isMore: stocks >= level el^: stocks < level;
+    if^met and^amount != 0 {
+        b.special := (b.special + amount * b.specialPer).clamp(0, b.specialPer * b.stockMax)
+    }
+    return^!met
 }
 
 # ---------------------------------------------------------------------------
@@ -672,6 +702,7 @@ public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^
     let^root = me.owner ?? me
     let^o = Fighter.new(root.dir, x, y)
     o.owner := root
+    o.parent := me
     o.sheet := root.sheet
     o.sounds := root.sounds
     o.skills := root.skills
@@ -680,8 +711,8 @@ public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^
     o.facing := me.facing
     o.ground := root.ground        # objects stand on the same floor (FM2K keeps a ground Y per object)
     o.depth := depth
-    o.lastOwnerX := root.x
-    o.lastOwnerY := root.y
+    o.lastOwnerX := me.x
+    o.lastOwnerY := me.y
     o.start(n, b)
     root.objects.push^(o)
     return^o
@@ -694,9 +725,10 @@ public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^
 # (0-9) replaces the object already there. The "it's out" skill is not used yet.
 public^let^spawn = p^me:Fighter, n:number^, b:number^, x:number^, y:number^, slot:number^, depth:number^, outSkill:number^, outBlock:number^, flags:string^{
     if^n <= 0 { return^}
+    # "picXY" objects, and whatever they spawn, live in view coordinates.
     let^atView = flags.find("picXY") != nil^
-    let^wx = if^atView: viewX + x el^: me.x + x * me.facing;
-    let^wy = if^atView: viewY + y el^: me.y + y;
+    let^wx = if^atView: x el^: me.x + x * me.facing;
+    let^wy = if^atView: y el^: me.y + y;
     let^d = if^flags.find("out") != nil^: 127 el^flags.find("point") != nil^: depth el^: 0;
     let^root = me.owner ?? me
     if^flags.find("unCond") is^nil^ and^slot >= 0 and^slot < 10 {
@@ -705,30 +737,56 @@ public^let^spawn = p^me:Fighter, n:number^, b:number^, x:number^, y:number^, slo
     }
     let^o = makeObject(me, n, b, wx, wy, d)
     o.follow := flags.find("parent") != nil^
+    o.onScreen := atView or^me.onScreen
     if^flags.find("unCond") is^nil^ and^slot >= 0 and^slot < 10 { root.slots[slot] := o }
 }
 
+# The character's shadow: its built-in shadow skill run as an object that
+# stays at the character's x on the floor (FM2K runs it by itself).
+public^let^castShadow = p^me:Fighter, n:number^{
+    let^o = makeObject(me, n, 0, me.x, me.ground, 10)
+    o.shadowOf := true^
+}
+
 # One frame of a character's objects; finished ones are dropped.
+# A "parent" object moves with whatever spawned it (FM2K's child attach).
 public^let^stepObjects = p^p:Fighter{
     var^live : t^{Fighter[]} = {}
     for^o in^p.objects {
-        if^o.follow {
-            o.x += p.x - o.lastOwnerX
-            o.y += p.y - o.lastOwnerY
+        let^par = o.parent ?? p
+        if^o.shadowOf {
+            o.x := p.x
+            o.y := p.ground
+            o.facing := p.facing
+        elseif^o.follow:
+            o.x += par.x - o.lastOwnerX
+            o.y += par.y - o.lastOwnerY
         }
-        o.lastOwnerX := p.x
-        o.lastOwnerY := p.y
+        o.lastOwnerX := par.x
+        o.lastOwnerY := par.y
         o.step()
         if^o.alive and^!o.finished() { live.push^(o) }
     }
     p.objects := live
 }
 
-# Draws a character's objects behind (front = false) or in front of the characters.
+# Draws a character's objects in the world behind (front = false) or in
+# front of the characters.
 public^let^drawObjects = p^p:Fighter, front:bool^{
     for^o in^p.objects {
-        if^(o.depth > 80) = front { o.draw() }
+        if^!o.onScreen and^(o.depth > 80) = front { o.draw() }
     }
+}
+
+# Draws a character's "picXY" objects (its part of the HUD) over everything,
+# stage foreground included. Call it in view coordinates.
+public^let^drawScreenObjects = p^p:Fighter{
+    let^x, y = viewX, viewY
+    setView(0, 0)
+    for^o in^p.objects {
+        if^o.onScreen { o.draw() }
+    }
+    setView(x, y)
 }
 
 # C — cancel window: into skill `n` (or any skill of level from..to) on "hits" / "uncond" / "fails".
@@ -754,8 +812,18 @@ public^let^pause = p^me:Fighter, mine:number^, theirs:number^{
     me.stopTheirs := theirs
 }
 
-# GP — add to the gauges.
+# GP — add to this character's and the opponent's life and special gauge
+# (special in points; a stock is `specialPer` of them).
+let^addGauges = p^f:Fighter, life:number^, special:number^{
+    f.life := (f.life + life).clamp(0, f.lifeMax)
+    f.special := (f.special + special).clamp(0, f.specialPer * f.stockMax)
+}
+
 public^let^gauges = p^me:Fighter, life:number^, special:number^, enemyLife:number^, enemySpecial:number^{
+    let^b = charOf(me)
+    addGauges(b, life, special)
+    let^e = b.enemy
+    if^e != nil^ { addGauges(e, enemyLife, enemySpecial) }
 }
 
 # EB — screen / background effect.

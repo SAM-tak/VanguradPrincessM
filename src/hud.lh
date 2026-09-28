@@ -1,0 +1,99 @@
+# The game's own HUD, from the system (.kgt) file's skills: the frame layouts
+# and the life / special gauges, drawn in view (640x480) coordinates.
+# Each character's own part (support gauge, stun, hit count, ...) comes from
+# its start skill's objects instead. See TechnicalDocuments/0010.
+module^vp.hud
+
+import^love.graphics
+
+require^"fighter.lh"
+require^"sprite.lh"
+require^"system/skills.lh"
+
+let^Fighter = vp.fighter.Fighter
+
+# The system file's built-in skill numbers (its KGTBuiltInSkills).
+let^LAYOUTS : t^{number^[]} = { 57, 58, 59, 60, 61, 62, 63, 64, 65, 66 }
+let^LIFE_1P = 67
+let^LIFE_2P = 68
+let^SPECIAL_1P = 69
+let^SPECIAL_2P = 70
+
+public^let^Hud = def^{
+    self^{
+        layers : t^{Fighter[]} = {},
+        life1 : Fighter|nil^= nil^,
+        life2 : Fighter|nil^= nil^,
+        special1 : Fighter|nil^= nil^,
+        special2 : Fighter|nil^= nil^,
+    },
+}
+
+let^run = p^dir:string^, n:number^-> Fighter{
+    let^l = Fighter.new(dir, 0, 0)
+    vp.skills.system.index.install(l)
+    l.begin(n)
+    l.ground := 1000000
+    return^l
+}
+
+public^let^load = p^dir:string^-> Hud{
+    let^h = Hud.new()
+    for^n in^LAYOUTS { h.layers.push^(run(dir, n)) }
+    h.life1 := run(dir, LIFE_1P)
+    h.life2 := run(dir, LIFE_2P)
+    h.special1 := run(dir, SPECIAL_1P)
+    h.special2 := run(dir, SPECIAL_2P)
+    return^h
+}
+
+let^each = p^h:Hud-> t^{Fighter[]}{
+    var^all : t^{Fighter[]} = {}
+    for^l in^h.layers { all.push^(l) }
+    for^l in^{ h.life1, h.life2, h.special1, h.special2 } {
+        if^l fits^Fighter { all.push^(l) }
+    }
+    return^all
+}
+
+public^let^step = p^h:Hud{
+    for^l in^each(h) { l.step() }
+}
+
+# A layout layer's image at its script position (top-left), as it is.
+let^drawWhole = p^l:Fighter{
+    let^w, h = l.sheet.size(l.image)
+    if^w = 0 { return^}
+    vp.sprite.setBlend(l.blend, l.alpha)
+    l.sheet.drawPart(l.image, l.x + l.ix, l.y + l.iy, 0, w, l.turnX, l.tintR, l.tintG, l.tintB)
+    vp.sprite.resetBlend()
+}
+
+# A gauge's image cut to `fraction` of its width. `fromEnd`: the part kept is
+# the end of the image (the side towards the middle of the screen for the 1P
+# life gauge); a mirrored (turnX) gauge keeps the mirrored side.
+let^drawGauge = p^l:Fighter|nil^, fraction:number^, fromEnd:bool^{
+    if^!(l fits^Fighter) { return^}
+    let^w, h = l.sheet.size(l.image)
+    if^w = 0 { return^}
+    let^kept = (w * fraction.clamp(0, 1)).floor()
+    let^from = if^fromEnd: w - kept el^: 0;
+    vp.sprite.setBlend(l.blend, l.alpha)
+    l.sheet.drawPart(l.image, l.x + l.ix, l.y + l.iy, from, kept, l.turnX, l.tintR, l.tintG, l.tintB)
+    vp.sprite.resetBlend()
+}
+
+# The fraction of the current stock that is filled.
+let^stockFraction = f^p:Fighter-> number^{
+    if^p.special >= p.specialPer * p.stockMax { return^1 }
+    return^(p.special % p.specialPer) / p.specialPer
+}
+
+# Draws the HUD in view coordinates (call it with the view's transform).
+public^let^draw = p^h:Hud, p1:Fighter, p2:Fighter{
+    for^l in^h.layers { drawWhole(l) }
+    drawGauge(h.life1, p1.life / p1.lifeMax, true^)
+    drawGauge(h.life2, p2.life / p2.lifeMax, true^)
+    drawGauge(h.special1, stockFraction(p1), false^)
+    drawGauge(h.special2, stockFraction(p2), false^)
+}

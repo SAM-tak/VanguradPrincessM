@@ -22,4 +22,5 @@
 - [0006-engine-built-in-behaviour.md](0006-engine-built-in-behaviour.md) — エンジン側の挙動（ジャンプ・落下・着地、攻撃の割り当て）
 - [0007-stage-and-commands.md](0007-stage-and-commands.md) — ステージ（レイヤー・多重スクロール・透過色）、コマンド表、キャンセル、ヒット判定
 - [0008-hit-reactions.md](0008-hit-reactions.md) — 相手の反応（反応番号の 3 段の表、ガードの規則＝下段・中段、ダメージ、ヒットストップ）
-- [0009-objects.md](0009-objects.md) — オブジェクト（O）: ボイス・エフェクト・ヒットスパーク・飛び道具、変数の共有範囲
+- [0009-objects.md](0009-objects.md) — オブジェクト（O）: ボイス・エフェクト・ヒットスパーク・飛び道具、変数の共有範囲、影、parent＝生成元への追従
+- [0010-gauges-and-hud.md](0010-gauges-and-hud.md) — ゲージ（体力・必殺、GP / GL / GS）と HUD（システムの枠とゲージ、キャラの開始時技が出す HUD）

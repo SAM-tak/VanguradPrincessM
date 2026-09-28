@@ -8,5 +8,6 @@ assets/
 src/chara/*/skills/
 src/chara/*/skills.lh
 src/stages/
+src/system/
 tools/fm2k_convert/.venv/
 __pycache__/

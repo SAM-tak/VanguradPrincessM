@@ -93,6 +93,8 @@ class SkillWriter:
     # -- control transfer -------------------------------------------------
     def goto(self, ref):
         n, b = ref
+        if n == self.n and b >= len(self.blocks):
+            return ["return^"]          # past the last block: the skill ends
         if n == self.n:
             if self.dispatch:
                 return ["pc := %d" % b]
@@ -102,7 +104,8 @@ class SkillWriter:
     def branch(self, cond, ref):
         if self.dispatch and ref[0] == self.n:
             nxt = self.here + 1 if self.here + 1 < len(self.blocks) else -1
-            return ["pc := %d" % nxt, "if^%s { pc := %d }" % (cond, ref[1])]
+            to = ref[1] if ref[1] < len(self.blocks) else -1     # past the end: finish
+            return ["pc := %d" % nxt, "if^%s { pc := %d }" % (cond, to)]
         return ["if^%s {" % cond] + ["    " + s for s in self.goto(ref)] + ["}"]
 
     # -- one block -> (lines, ends_flow) -----------------------------------
@@ -292,6 +295,12 @@ class SkillWriter:
         return [head] + ["    " + s for s in body] + ["}"]
 
 
+def fighter_from(folder):
+    """src/fighter.lh as a require^ path relative to `folder`."""
+    import os
+    return os.path.relpath(Path("src/fighter.lh"), folder).replace("\\", "/")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("json", type=Path)
@@ -320,7 +329,7 @@ def main():
     for first in range(0, len(skills), PER_FILE):
         mod = "s%04d" % first
         lines = header + ["module^vp.%s.%s.%s" % (kind, args.id, mod), "",
-                          'require^"../../../fighter.lh"', ""]
+                          'require^"%s"' % fighter_from(root / "skills"), ""]
         for name in ("Fighter", "show", "showEx", "hurt", "body", "fd", "noHurt", "hit", "fa", "noHit", "motion",
                      "sound", "jump", "call", "spin", "settings", "layer", "on", "off", "v", "setv", "addv", "chance", "command",
                      "lifeGauge", "specialGauge", "spawn", "cancel", "reactions", "pause", "gauges", "screen",
@@ -332,7 +341,7 @@ def main():
         (root / "skills" / (mod + ".lh")).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         chunks.append((mod, first, min(first + PER_FILE, len(skills))))
 
-    index = header + ["module^vp.%s.%s.index" % (kind, args.id), "", 'require^"../../fighter.lh"']
+    index = header + ["module^vp.%s.%s.index" % (kind, args.id), "", 'require^"%s"' % fighter_from(root)]
     index += ['require^"skills/%s.lh"' % mod for mod, _, _ in chunks]
     index += ["", "# Skills by number, the character's command table (in priority order) and",
               "# each skill's level (what C blocks cancel against).",
@@ -353,6 +362,9 @@ def main():
         st = d["settings"]
         index.append("    me.lifeMax := %d" % st["lifeGaugeMax"])
         index.append("    me.life := %d" % st["lifeGaugeMax"])
+        index.append("    me.specialPer := %d" % st["specialGaugeMax"])
+        index.append("    me.stockMax := %d" % st["specialMaxStock"])
+        index.append("    me.special := %d" % (st["specialGaugeMax"] * min(st["startStock"], st["specialMaxStock"])))
     for c in d.get("commands", []):
         dirs, buttons = steps_of(c["steps"])
         refs = [c[k]["number"] for k in ("airSkill", "standSkill", "standFarSkill", "crouchedSkill")]
