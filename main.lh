@@ -59,6 +59,7 @@ var^lastSkill = ""            # skill changes are printed to the console, for de
 var^showBoxes = false^
 var^pressed = 0               # buttons pressed since the last frame (A = 1 ... F = 32)
 var^dummyGuard = 0            # G cycles: 0 no guard, 1 standing guard, 2 crouching guard
+var^soundLog = false^         # L: print every sound to the console
 let^GUARD_NAMES : t^{string^[]} = { "off", "standing", "crouching" }
 
 # Skills the player may leave at any moment on the ground / in the air.
@@ -306,6 +307,10 @@ public^let^keypressed = p^key:string^, scancode:string^, isrepeat:bool^{
     }
     if^key = "h" { showBoxes := !showBoxes }
     if^key = "g" { dummyGuard := (dummyGuard + 1) % 3 }
+    if^key = "l" {
+        soundLog := !soundLog
+        vp.fighter.setSoundLog(soundLog)
+    }
     let^n = key.tonumber()
     if^n fits^number^ {
         if^n >= 1 and^n <= 8 { me.palette := n - 1 }

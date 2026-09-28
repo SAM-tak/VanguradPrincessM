@@ -89,11 +89,7 @@ public^let^Sheet = def^{
     # Size of image i (0, 0 when it cannot be loaded).
     size = p^self^, i:number^-> (number^, number^){
         let^tex = self^.image(i)
-        if^tex fits^love.graphics.Texture {
-            # bound first: returning the call's two values directly faults at run time
-            let^w, h = tex.getDimensions()
-            return^w, h
-        }
+        if^tex fits^love.graphics.Texture { return^tex.getDimensions() }
         return^0, 0
     },
 

@@ -77,6 +77,8 @@ src/chara/yui/skills.lh           install(me): 全技を fighter の表（me.ski
   `too many registers or constants`（`LHAT_MAX_REGISTERS` = 250。1 個あたり約 4 レジスタが残る計算）。
   コルーチンか否かに関係なく同じ上限で当たる。`if^` だけ・`await^` だけなら数百個でも通る。
   → 生成器は状態機械で `next^` を使わない形にして回避した
+  → **lhat 側で修正済み**（2026-09-28 18:00 ビルドの lovec で、1 ループに `next^` 120 個でも通ることを確認）。
+  生成器の形はそのままでよい（`next^` を使わない形のほうが読みやすさも変わらない）
 - **lovec はコンパイル失敗の詳細を出さない**（`Could not compile the program.` だけ）。
   詳細は lhat CLI で、LÖVE を使わない代わりの fighter モジュールに対してコンパイルして得た
 - `def^` の中の表の型から Fighter 自身を指すには `Self^^`（1 つ外の型リテラル）。`Self^` だと表の型を指してしまう

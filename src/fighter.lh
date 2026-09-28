@@ -175,13 +175,17 @@ public^let^Fighter = def^{
         }
     },
 
-    # Asks for an event's handler (DS) to take over.
+    # Asks for an event's handler (DS) to take over. A handler is used up when
+    # it fires (FM2K consumes the DS slot): otherwise a landing that jumps to a
+    # hop would land again and again (the stun's chicks chirped for ever).
     fire = p^self^, event:string^{
         let^n = self^.onSkill[event]
         let^b = self^.onBlock[event]
         if^n fits^number^ and^b fits^number^ {
             self^.jumpSkill := n
             self^.jumpBlock := b
+            self^.onSkill[event] := nil^
+            self^.onBlock[event] := nil^
         }
     },
 
@@ -206,11 +210,12 @@ public^let^Fighter = def^{
         # FM2K: pos += vel; vel += accel, once a frame.
         self^.x += self^.vx
         self^.vx += self^.ax
-        let^flying = self^.airborne()
         self^.y += self^.vy
         self^.vy += self^.ay
-        if^flying and^self^.y >= self^.ground {
-            # FM2K stops everything on landing, sideways motion included
+        # FM2K lands whenever the feet are at or below the ground while moving
+        # down, whatever the previous frame was (so nothing can sink through).
+        if^self^.y >= self^.ground and^self^.vy > 0 {
+            # It stops everything on landing, sideways motion included
             # (otherwise a knockback's friction goes on pushing the other way)
             self^.y := self^.ground
             self^.vx := 0
@@ -624,8 +629,16 @@ public^let^move = p^me:Fighter, vx:number^, ax:number^{
     motion(me, vx, 0, ax, 0, "keepVY keepAY")
 }
 
+# Debugging: when on, every S block is printed with who played it.
+var^logSounds = false^
+public^let^setSoundLog = p^on:bool^{ logSounds := on }
+
 # S — a sound by its FM2K number.
 public^let^sound = p^me:Fighter, n:number^{
+    if^logSounds {
+        let^who = if^me.owner?: "object" el^: "fighter";
+        print($"sound {n} by {who} {me.skillName}")
+    }
     var^src = me.sounds[n]
     if^src is^nil^{
         let^loaded = love.audio.newSource($"{me.soundDir}/{n:%04d}.wav", love.audio.SourceType.static) catch^nil^
@@ -665,7 +678,7 @@ public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^
     o.levels := root.levels
     o.palette := root.palette
     o.facing := me.facing
-    o.ground := 1000000            # objects fly; nothing lands
+    o.ground := root.ground        # objects stand on the same floor (FM2K keeps a ground Y per object)
     o.depth := depth
     o.lastOwnerX := root.x
     o.lastOwnerY := root.y

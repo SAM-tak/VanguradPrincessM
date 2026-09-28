@@ -75,8 +75,10 @@
 
 - 多値を返す呼び出しをそのまま `return^` すると、型検査は通るのに実行時に誤り
   （`this call and what it called disagree on how many values come back`）。いったん `let^ w, h = …` で受けてから返すと通る
+  → **lhat 側で修正済み**。`Sheet.size` は直接 `return^tex.getDimensions()` に戻した
 - **後ろで定義される名前を参照すると、無関係な誤りになる**（0006 のメソッドと同じ。モジュールの変数でも起きる）。
   「this name is already defined in this scope: fighter / sprite」「this name is read before its let^ has run」
+  → **lhat 側で修正済み**（2026-09-28 18:00 ビルドで確認）
 - `let^` で別名にした定義（`let^Fighter = vp.fighter.Fighter`）を `fits^` に使うと、実行時に一致しないらしい。
   注釈（`p^me:Fighter`）では問題なく使える。配列は `for^k, l in^ 配列` で回せば絞り込み不要
 
