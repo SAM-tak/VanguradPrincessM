@@ -1,0 +1,9 @@
+.vs
+.vscode
+
+vanpri108/
+Locale.Emulator*/
+assets/
+src/
+tools/fm2k_convert/.venv/
+__pycache__/

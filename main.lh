@@ -1,0 +1,275 @@
+# Sample: ゆい against a standing ゆい, running the skills generated from the
+# FM2K data (src/chara/yui/skills, TechnicalDocuments/0005 and 0006).
+#
+#   arrows         move / jump / crouch (and command motions)
+#   z x c a s d    buttons A B C D E F
+#   h              show boxes      1-8         palette
+#   escape         quit
+#
+# What a button or motion does comes from the character's command table.
+module^vp.main
+
+import^love.graphics
+import^love.keyboard
+import^love.event
+import^love.timer
+import^std.math
+
+require^"src/fighter.lh"
+require^"src/sprite.lh"
+require^"src/chara/yui/skills.lh"
+require^"src/stage.lh"
+require^"src/stages/school/skills.lh"
+
+let^Fighter = vp.fighter.Fighter
+
+let^FRAME = 1 / 100          # FM2K runs at 100 fps
+
+# The world is the stage's 1280x960. The original shows a 640x480 part of it at
+# 1:1 and scrolls; the window here is that view at twice the size.
+let^WORLD_W = 1280
+let^WORLD_H = 960
+let^VIEW_W = 640
+let^VIEW_H = 480
+let^SCALE = 2
+let^GROUND = 935             # feet at y = 455 of the view, as in the original (to be read from the stage)
+let^WALL = 40                # how close to the stage's edge the feet may go (likewise)
+
+let^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - 120, GROUND)
+let^foe = Fighter.new("assets/characters/ゆい", WORLD_W / 2 + 120, GROUND)
+let^school = vp.stages.school.index
+let^stage = vp.stage.load("assets/stages/スクール", school.install, school.layers, school.players)
+
+# FM2K skill numbers: the character's built-in skills (its .player settings)
+# and what its commands map A / B / C to.
+let^STAND = 1
+let^FORWARD = 2
+let^BACK = 3
+let^JUMP_UP = 4
+let^JUMP_FORWARD = 5
+let^JUMP_BACK = 6
+let^FALL = 7
+let^CROUCH_DOWN = 11
+let^CROUCH = 12
+let^STAND_UP = 13
+
+var^clock = 0
+var^frame = 0
+var^lastSkill = ""            # skill changes are printed to the console, for debugging
+var^showBoxes = false^
+var^pressed = 0               # buttons pressed since the last frame (A = 1 ... F = 32)
+
+# Skills the player may leave at any moment on the ground / in the air.
+let^groundIdle = f^n:number^-> bool^{
+    return^n = STAND or^n = FORWARD or^n = BACK or^n = CROUCH or^n = CROUCH_DOWN or^n = STAND_UP
+}
+let^airIdle = f^n:number^-> bool^{
+    return^n = JUMP_UP or^n = JUMP_FORWARD or^n = JUMP_BACK or^n = FALL
+}
+let^crouching = f^n:number^-> bool^{
+    return^n = CROUCH or^n = CROUCH_DOWN
+}
+
+# Skills that end in a crouch: crouching and the command table's crouching moves.
+let^endsCrouched = p^p:Fighter, n:number^-> bool^{
+    if^crouching(n) { return^true^ }
+    for^c in^p.commands {
+        if^c.crouch = n and^c.stand != n { return^true^ }
+    }
+    return^false^
+}
+
+# What the built-in part of FM2K does: pick the next skill from the input.
+# forward / back are relative to the way the fighter faces.
+let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, buttons:number^{
+    let^n = p.skillNo
+    let^air = p.airborne()
+
+    let^dx = if^forward: 1 el^back: -1 el^: 0;
+    let^dy = if^up: 1 el^down: -1 el^: 0;
+    vp.fighter.record(p, 5 + dx + 3 * dy, buttons)
+
+    # The command table (buttons, motions, jumps), where the running skill allows it.
+    let^wanted = vp.fighter.fromCommands(p, down)
+    if^wanted > 0 and^wanted != n and^vp.fighter.mayStart(p, wanted) {
+        p.begin(wanted)
+        return^
+    }
+
+    if^p.finished() {
+        if^air {
+            p.start(FALL, 0)           # the jump's motion and landing handler carry on
+            return^
+        }
+        # On the ground, pick from this frame's input (below) rather than going
+        # through standing first: a walk that runs off its end starts again at once.
+        p.skillNo := -1
+    elseif^air or^!groundIdle(n):
+        return^
+    }
+    let^m = p.skillNo
+
+    let^wasCrouched = m < 0 and^endsCrouched(p, n)
+    if^down {
+        if^!crouching(m) { p.begin(if^wasCrouched: CROUCH el^: CROUCH_DOWN;) }
+    elseif^crouching(m) or^wasCrouched:
+        p.begin(STAND_UP)
+    elseif^forward:
+        if^m != FORWARD { p.begin(FORWARD) }
+    elseif^back:
+        if^m != BACK { p.begin(BACK) }
+    elseif^m != STAND and^m != STAND_UP:
+        p.begin(STAND)
+    }
+}
+
+# Turning: on the ground and free to move, a fighter faces the other one. The
+# FM2K turn skills (#16, #17) are empty, so turning is just the flip.
+let^face = p^p:Fighter, other:Fighter{
+    if^p.airborne() or^!groundIdle(p.skillNo) { return^}
+    if^other.x > p.x + 1 { p.facing := 1 }
+    if^other.x < p.x - 1 { p.facing := -1 }
+}
+
+# Pushing: on the ground, body boxes (FD "collide") may not overlap; each
+# fighter gives way by half. In the air they pass, so a jump can cross over.
+let^bodyOf = f^p:Fighter-> vp.fighter.Box|nil^{
+    for^slot, b in^p.hurts {
+        if^b fits^vp.fighter.Box {
+            if^b.body { return^b }
+        }
+    }
+    return^nil^
+}
+
+let^push = p^a:Fighter, b:Fighter{
+    if^a.airborne() or^b.airborne() { return^}
+    let^ba = bodyOf(a)
+    let^bb = bodyOf(b)
+    if^!(ba fits^vp.fighter.Box and^bb fits^vp.fighter.Box) { return^}
+    let^al, at, aw, ah = a.rect(ba)
+    let^bl, bt, bw, bh = b.rect(bb)
+    let^overlapX = std.math.min(al + aw, bl + bw) - std.math.max(al, bl)
+    let^overlapY = std.math.min(at + ah, bt + bh) - std.math.max(at, bt)
+    if^overlapX <= 0 or^overlapY <= 0 { return^}
+    let^dir = if^a.x < b.x: -1 el^a.x > b.x: 1 el^: -a.facing;
+    a.x += dir * overlapX / 2
+    b.x -= dir * overlapX / 2
+}
+
+# Hits: an attack box of a over a hurt box of b. For now only a's side is
+# played out (its C "hits" windows and DS "attacking"); b does not react yet.
+let^overlaps = p^a:Fighter, ba:vp.fighter.Box, b:Fighter, bb:vp.fighter.Box-> bool^{
+    let^al, at, aw, ah = a.rect(ba)
+    let^bl, bt, bw, bh = b.rect(bb)
+    return^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah
+}
+
+let^strike = p^a:Fighter, b:Fighter{
+    for^s1, atk in^a.hits {
+        if^atk fits^vp.fighter.Box {
+            for^s2, hurt in^b.hurts {
+                if^hurt fits^vp.fighter.Box {
+                    if^!hurt.body or^hurt.flags.find("damaged") != nil^ {
+                        if^overlaps(a, atk, b, hurt) {
+                            vp.fighter.landed(a, atk)
+                            return^
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+public^let^load = p^{
+    vp.skills.yui.index.install(me)
+    vp.skills.yui.index.install(foe)
+    foe.palette := 1
+    face(me, foe)
+    face(foe, me)
+    me.begin(STAND)
+    foe.begin(STAND)
+}
+
+let^tick = p^{
+    let^right = love.keyboard.isDown("right")
+    let^left = love.keyboard.isDown("left")
+    let^forward = if^me.facing > 0: right el^: left;
+    let^back = if^me.facing > 0: left el^: right;
+    control(me, love.keyboard.isDown("up"), love.keyboard.isDown("down"), forward, back, pressed)
+    pressed := 0
+    control(foe, false^, false^, false^, false^, 0)
+
+    vp.stage.step(stage)
+    me.step()
+    foe.step()
+    strike(me, foe)
+    strike(foe, me)
+    push(me, foe)
+    me.x := me.x.clamp(WALL, WORLD_W - WALL)
+    foe.x := foe.x.clamp(WALL, WORLD_W - WALL)
+    face(me, foe)
+    face(foe, me)
+
+    frame += 1
+    if^me.skillName != lastSkill {
+        print($"{frame}: {me.skillName}  x={me.x:%.0f} y={me.y:%.0f} facing={me.facing}")
+        lastSkill := me.skillName
+    }
+}
+
+public^let^update = p^dt:number^{
+    clock += dt
+    if^clock > 0.1 { clock := 0.1 }
+    repeat^while^clock >= FRAME {
+        clock -= FRAME
+        tick()
+    }
+}
+
+let^cross = p^p:Fighter{
+    love.graphics.setColor(1, 1, 0, 1)
+    love.graphics.line(p.x - 8, p.y, p.x + 8, p.y)
+    love.graphics.line(p.x, p.y - 8, p.x, p.y + 8)
+}
+
+public^let^draw = p^{
+    let^camX = ((me.x + foe.x) / 2 - VIEW_W / 2).clamp(0, WORLD_W - VIEW_W).floor()
+    let^camY = WORLD_H - VIEW_H
+    love.graphics.push()
+    love.graphics.scale(SCALE)
+    love.graphics.translate(-camX, -camY)
+    love.graphics.setColor(1, 1, 1, 1)
+    vp.stage.draw(stage, camX, camY, 0, stage.players)
+    foe.draw()
+    me.draw()
+    if^showBoxes {
+        foe.drawBoxes()
+        me.drawBoxes()
+        cross(foe)
+        cross(me)
+    }
+    vp.stage.draw(stage, camX, camY, stage.players, stage.layers.length^)
+    love.graphics.pop()
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print($"{me.skillName}  image {me.image}  palette {me.palette + 1}  fps {love.timer.getFPS()}", 16, 16)
+    love.graphics.print("arrows move  z x c a s d = A-F  h boxes  1-8 palette", 16, 36)
+}
+
+public^let^keypressed = p^key:string^, scancode:string^, isrepeat:bool^{
+    if^key = "escape" { love.event.quit() }
+    if^!isrepeat {
+        if^key = "z" { pressed += 1 }
+        if^key = "x" { pressed += 2 }
+        if^key = "c" { pressed += 4 }
+        if^key = "a" { pressed += 8 }
+        if^key = "s" { pressed += 16 }
+        if^key = "d" { pressed += 32 }
+    }
+    if^key = "h" { showBoxes := !showBoxes }
+    let^n = key.tonumber()
+    if^n fits^number^ {
+        if^n >= 1 and^n <= 8 { me.palette := n - 1 }
+    }
+}

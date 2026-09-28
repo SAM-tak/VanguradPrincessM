@@ -1,0 +1,9 @@
+# The world is 1280x960, the size the original's art is drawn at (it shows it at
+# half size in a 640x480 window).
+identity = "vanguard-princess",
+version = "12.0",
+window = {
+    title = "Vanguard Princess",
+    width = 1280,
+    height = 960,
+},
