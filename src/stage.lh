@@ -1,0 +1,76 @@
+# A stage: its scripts run as layers (the same way a character's skills run,
+# see TechnicalDocuments/0007) and are drawn back to front, with the players
+# between them where the stage's プレーヤー位置 script stands.
+module^vp.stage
+
+import^love.graphics
+
+require^"fighter.lh"
+require^"sprite.lh"
+
+let^Fighter = vp.fighter.Fighter
+
+# The view is 640x480 of the 1280x960 stage. A layer that scrolls at ratio s
+# moves s px for each px the camera moves, and sits where its script puts it
+# when the camera is at the stage's top-left. (The school's foreground is
+# 1388 = 1280 + 640 * 0.16 wide at 116%, and 789 + 267 - 480 * 0.2 = 960 at 120%:
+# made to fit exactly that way.)
+let^VIEW_W = 640
+let^VIEW_H = 480
+
+public^let^Stage = def^{
+    self^{
+        layers : t^{Fighter[]} = {},
+        players = 0,               # layers before this index are behind the players
+    },
+}
+
+public^let^load = p^dir:string^, install:p^Fighter;, numbers:t^{number^[]}, players:number^-> Stage{
+    let^st = Stage.new()
+    for^n in^numbers {
+        let^l = Fighter.new(dir, 0, 0)
+        install(l)
+        l.begin(n)
+        l.ground := 1000000        # layers move freely; nothing lands
+        if^n = players { st.players := st.layers.length^ }
+        st.layers.push^(l)
+    }
+    return^st
+}
+
+public^let^step = p^st:Stage{
+    for^l in^st.layers { l.step() }
+}
+
+# Draws one layer, in world coordinates (the caller has moved to the camera).
+let^drawLayer = p^l:Fighter, camX:number^, camY:number^{
+    let^w, h = l.sheet.size(l.image)
+    if^w = 0 { return^}
+    var^x = l.x + l.ix + camX * (1 - l.scrollX)
+    var^y = l.y + l.iy + camY * (1 - l.scrollY)
+    var^countX = 1
+    var^countY = 1
+    if^l.loopX {
+        x := camX - ((camX - x) % w + w) % w
+        countX := (VIEW_W / w).ceil() + 1
+    }
+    if^l.loopY {
+        y := camY - ((camY - y) % h + h) % h
+        countY := (VIEW_H / h).ceil() + 1
+    }
+    vp.sprite.setBlend(l.blend, l.alpha)
+    for^i from^0 to^countX - 1 {
+        for^j from^0 to^countY - 1 {
+            # Sheet.draw takes the bottom-centre; stage images are placed by their top-left.
+            l.sheet.draw(l.image, x + i * w + (w / 2).floor(), y + j * h + h, 0, 1, 1, l.tintR, l.tintG, l.tintB)
+        }
+    }
+    vp.sprite.resetBlend()
+}
+
+# Layers [from, to).
+public^let^draw = p^st:Stage, camX:number^, camY:number^, from:number^, to:number^{
+    for^k, l in^st.layers {
+        if^k >= from and^k < to { drawLayer(l, camX, camY) }
+    }
+}

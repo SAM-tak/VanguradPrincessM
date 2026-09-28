@@ -1,0 +1,130 @@
+# Sprites converted by tools/fm2k_convert: 8-bit index PNGs drawn through a
+# palette row, so one set of images serves every colour variant.
+module^vp.sprite
+
+import^love.graphics
+import^std.lton
+
+# Indexed images look their colour up in a palette row; images that carried
+# their own palette are already RGBA. Either way FM2K's COLOR tint is added:
+# each channel + offset / 32 (-32..32).
+let^spriteCode = "extern Image palette;
+extern number row;
+extern number indexed;
+extern vec3 tint;
+vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+    vec4 c = Texel(tex, tc);
+    if (indexed > 0.5) {
+        float index = floor(c.r * 255.0 + 0.5);
+        c = Texel(palette, vec2((index + 0.5) / 256.0, (row + 0.5) / 8.0));
+    }
+    c.rgb = clamp(c.rgb + tint, 0.0, 1.0);
+    return c * color;
+}
+"
+
+var^shader : love.graphics.Shader|nil^= nil^
+
+# FM2K's COLOR blends: 0 normal, 1 half transparent, 2 additive, 3 subtractive,
+# 4 custom alpha. `alpha` is the opacity for 1 and 4.
+public^let^setBlend = p^mode:number^, alpha:number^{
+    if^mode = 2 {
+        love.graphics.setBlendMode(love.graphics.BlendMode.add)
+    elseif^mode = 3:
+        love.graphics.setBlendMode(love.graphics.BlendMode.subtract)
+    else^:
+        love.graphics.setBlendMode(love.graphics.BlendMode.alpha)
+    }
+    love.graphics.setColor(1, 1, 1, if^mode = 1 or^mode = 4: alpha el^: 1;)
+}
+
+public^let^resetBlend = p^{
+    love.graphics.setBlendMode(love.graphics.BlendMode.alpha)
+    love.graphics.setColor(1, 1, 1, 1)
+}
+
+# One character's (or stage's) converted images.
+public^let^Sheet = def^{
+    self^{
+        dir = "",
+        palette : love.graphics.Texture|nil^= nil^,
+        paletteTried = false^,     # stages have no palettes.png
+        images : t^{[number^]:love.graphics.Texture|nil^} = {},
+        indexed : t^{[number^]:bool^|nil^} = {},    # from images.lton
+        formatsRead = false^,
+    },
+    override^new = f^dir:string^{ self^{ dir = dir } },
+
+    # Whether image i is palette-indexed (images.lton says "indexed" or "rgba").
+    isIndexed = p^self^, i:number^-> bool^{
+        if^!self^.formatsRead {
+            self^.formatsRead := true^
+            let^list = std.lton.load($"{self^.dir}/images.lton") catch^nil^
+            if^list fits^t^{} {
+                # position = image number; unused numbers are nil^
+                for^k from^0 to^list.length^ - 1 {
+                    let^e = list[k]
+                    if^e fits^t^{ format : string^ } {
+                        self^.indexed[k] := e.format = "indexed"
+                    }
+                }
+            }
+        }
+        return^self^.indexed[i] ?? false^
+    },
+
+    # Texture for an FM2K image number, loaded on first use.
+    image = p^self^, i:number^-> love.graphics.Texture|nil^{
+        let^cached = self^.images[i]
+        if^cached fits^love.graphics.Texture { return^cached }
+        let^path = $"{self^.dir}/images/{i:%04d}.png"
+        let^loaded = love.graphics.newImage(path) catch^nil^
+        if^loaded fits^love.graphics.Texture {
+            loaded.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
+            self^.images[i] := loaded
+        }
+        return^loaded
+    },
+
+    # Size of image i (0, 0 when it cannot be loaded).
+    size = p^self^, i:number^-> (number^, number^){
+        let^tex = self^.image(i)
+        if^tex fits^love.graphics.Texture {
+            # bound first: returning the call's two values directly faults at run time
+            let^w, h = tex.getDimensions()
+            return^w, h
+        }
+        return^0, 0
+    },
+
+    # Draws image i with its bottom-centre at (x, y), coloured by palette row
+    # and tinted by (tr, tg, tb), mirrored when sx / sy is -1.
+    draw = p^self^, i:number^, x:number^, y:number^, row:number^, sx:number^, sy:number^, tr:number^, tg:number^, tb:number^{
+        let^tex = self^.image(i)
+        if^!(tex fits^love.graphics.Texture) { return^}
+        if^shader is^nil^{
+            shader := love.graphics.newShader(spriteCode) catch^nil^
+        }
+        if^!self^.paletteTried {
+            self^.paletteTried := true^
+            let^p = love.graphics.newImage($"{self^.dir}/palettes.png") catch^nil^
+            if^p fits^love.graphics.Texture {
+                p.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
+                self^.palette := p
+            }
+        }
+        let^s = shader
+        let^pal = self^.palette
+        if^s fits^love.graphics.Shader {
+            let^useIndex = pal fits^love.graphics.Texture and^self^.isIndexed(i)
+            if^pal fits^love.graphics.Texture { s.send("palette", pal) }
+            s.send("row", row)
+            s.send("indexed", if^useIndex: 1 el^: 0;)
+            s.send("tint", { tr, tg, tb })
+            love.graphics.setShader(s)
+        }
+        let^w, h = tex.getDimensions()
+        love.graphics.draw(tex, x, y - h + (h / 2).floor(), 0, sx, sy, (w / 2).floor(), (h / 2).floor())
+        love.graphics.setShader()
+    },
+}

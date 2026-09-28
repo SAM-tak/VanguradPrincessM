@@ -344,6 +344,15 @@ def main():
         lv = sk["blocks"][0].get("level", 0) if sk["blocks"] and sk["blocks"][0]["type"] == "Settings" else 0
         if lv:
             index.append("    me.levels[%d] := %d" % (n, lv))
+    # Reaction number (the attacker's R block) -> this character's hit skill and spark.
+    for i, r in enumerate(d.get("hitJunctionsSkills", [])):
+        hit, spark = r["hitJunction"]["number"], r["spark"]["number"]
+        if hit or spark:
+            index.append("    vp.fighter.reactsWith(me, %d, %d, %d)" % (i, hit, spark))
+    if "settings" in d:
+        st = d["settings"]
+        index.append("    me.lifeMax := %d" % st["lifeGaugeMax"])
+        index.append("    me.life := %d" % st["lifeGaugeMax"])
     for c in d.get("commands", []):
         dirs, buttons = steps_of(c["steps"])
         refs = [c[k]["number"] for k in ("airSkill", "standSkill", "standFarSkill", "crouchedSkill")]

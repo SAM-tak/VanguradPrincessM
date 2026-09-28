@@ -34,9 +34,10 @@ from PIL import Image
 KIND_DIRS = {"game": "system", "character": "characters", "stage": "stages", "demo": "demos"}
 PALETTE_BYTES = 0x400
 
-# Fields fm2ndparser emits that the port does not need: derived duplicates and raw
-# byte blobs whose meaning is only relevant to the original engine.
-DROP_KEYS = {"pointer", "data", "offset", "settings"}
+# Fields fm2ndparser emits that the port does not need: raw byte blobs whose
+# meaning is only relevant to the original engine. (A skill's derived
+# "settings" copy is dropped in slim_skill.)
+DROP_KEYS = {"pointer", "data", "offset"}
 
 # Per block type, fields fm2ndparser derives from other fields (see its json-spec.md).
 DERIVED_BLOCK_KEYS = {

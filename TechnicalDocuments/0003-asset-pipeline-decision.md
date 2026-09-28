@@ -75,7 +75,12 @@ assets/<system|characters|stages|demos>/<名前>/
 ## 使う実行ファイル
 
 - LTON の一括検査: `lhat/build/release/lhat.exe --compile`（`clang-release` は古い）
-- ゲームの実行と実行時の確認: `lhat-love/build/love/Release/lovec.exe`（LÖVE API の定義を含む。`--compile` はない）
+- ゲームの実行と実行時の確認: `lhat-love/build/love/Release/lovec.exe`（LÖVE API の定義を含む）
+  - 2026-09-28 の更新で、コンパイル失敗の詳細を表示するようになった
+  - `lovec --compile -o <出力先> main.lh` でゲームを実行せずに検査・コンパイルできる（`--compile-game` で丸ごと）
+  - `lovec --no-panic-screen .` で、panic 時に青い画面のまま止まらず終了する（自動テスト向き）
+- 画面を出さずに確かめたいときは、プロジェクト直下に小さな `.lh` を置いて `lovec that.lh` で走らせ、
+  `load` の中で `print` して `love.event.quit()` する（`update` / `draw` の中の `print` は、プロセスを強制終了すると失われる）
 
 ## 今後の方針（2026-09-28 決定）
 
@@ -86,7 +91,7 @@ assets/<system|characters|stages|demos>/<名前>/
 - **技の制御は L^ のコードで書く。** LTON のデータを解釈して動かすインタプリタ的な作り（KGT の方式）はとらない。
   技 = L^ の関数・手続きそのもの。LTON に残すのは純粋なデータ（画像表・効果音表・パレット・当たり判定の矩形など）に限る方向。
   → 現状の `skills/*.lton`（fm2ndparser のブロック列の写し）は、L^ コードへ変換するための中間物という位置づけになる。
-- **透過（番号 0）**: ざっと見る限り正しい。ただし、パレットを当てた「意図された見た目」をまだ確認していないので、最終判断は保留。
+- **透過**: 純黒 (0,0,0) が透明（0007 で確定・訂正）。
 
 ## 未決
 

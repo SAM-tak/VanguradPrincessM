@@ -4,6 +4,9 @@
 vanpri108/
 Locale.Emulator*/
 assets/
-src/
+# generated from the original data by tools/fm2k_convert/gen_skills.py
+src/chara/*/skills/
+src/chara/*/skills.lh
+src/stages/
 tools/fm2k_convert/.venv/
 __pycache__/

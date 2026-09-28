@@ -1,0 +1,212 @@
+# ゆい — skills hand-ported from the FM2K data (tools/fm2k_convert/dump_skill.py).
+#
+# The comment on each skill gives the FM2K skill it comes from. Blocks the port
+# does not handle yet are left as comments: V (variables), C (cancels),
+# R (hit reactions), O (effect objects), DS, COM, AI, COLOR.
+module^vp.chara.yui
+
+import^love.math
+
+require^"../fighter.lh"
+
+public^let^dir = "assets/characters/ゆい"
+
+let^Fighter = vp.fighter.Fighter
+let^show = vp.fighter.show
+let^hurt = vp.fighter.hurt
+let^body = vp.fighter.body
+let^noHurt = vp.fighter.noHurt
+let^hit = vp.fighter.hit
+let^noHit = vp.fighter.noHit
+let^move = vp.fighter.move
+let^sound = vp.fighter.sound
+
+let^standBoxes = p^me:Fighter{
+    body(me, 0, 0, -100, 40, 120)
+    hurt(me, 1, 1, -110, 28, 51)
+    hurt(me, 2, -10, -19, 50, 43)
+    hurt(me, 3, 1, -167, 38, 60)
+}
+
+# #1 通常立ち. One idle loop in five starts with a blink (Rnd 10, above 7).
+public^let^stand = p^me:Fighter{
+    repeat^{
+        standBoxes(me)
+        if^love.math.random(0, 9) > 7 {
+            await^show(me, 20, 7, -40, 25)
+            await^show(me, 21, 7, -40, 25)
+            await^show(me, 22, 7, -39, 25)
+            await^show(me, 23, 7, -39, 25)
+        else^:
+            await^show(me, 8, 7, -40, 25)
+            await^show(me, 9, 6, -40, 25)
+            await^show(me, 10, 5, -39, 25)
+            await^show(me, 11, 7, -39, 25)
+        }
+        await^show(me, 12, 5, -39, 25)
+        await^show(me, 13, 6, -40, 25)
+        for^i from^14 to^19 {
+            await^show(me, i, 7, -40, 25)
+        }
+    }
+}
+
+# #2 前歩き. The Unknown blocks between frames are left out.
+public^let^walkForward = p^me:Fighter{
+    body(me, 0, 0, -90, 40, 120)
+    hurt(me, 1, 1, -110, 33, 51)
+    hurt(me, 2, 16, -192, 21, 38)
+    hurt(me, 3, -9, -19, 41, 43)
+    move(me, 380, -6)
+    await^show(me, 24, 6, -51, 33)
+    await^show(me, 25, 6, -52, 33)
+    await^show(me, 26, 6, -52, 33)
+    await^show(me, 27, 6, -52, 33)
+    await^show(me, 28, 6, -54, 33)
+    await^show(me, 29, 6, -48, 33)
+    move(me, 380, -6)
+    await^show(me, 30, 6, -54, 33)
+    await^show(me, 31, 6, -56, 33)
+    await^show(me, 32, 6, -54, 33)
+    await^show(me, 33, 6, -52, 33)
+    await^show(me, 34, 6, -52, 33)
+    await^show(me, 35, 6, -45, 33)
+}
+
+# #3 後歩き
+public^let^walkBack = p^me:Fighter{
+    body(me, 0, 0, -90, 40, 120)
+    hurt(me, 1, 1, -110, 33, 51)
+    hurt(me, 2, -15, -193, 18, 34)
+    hurt(me, 3, 1, -19, 51, 43)
+    let^xs = { -29, -33, -36, -41, -40, -34 }
+    move(me, -280, 4)
+    await^show(me, 46, 7, xs[0], 39)
+    await^show(me, 47, 7, xs[1], 39)
+    for^k from^2 to^5 {
+        await^show(me, 34 + k, 7, xs[k], 39)
+    }
+    move(me, -280, 4)
+    for^k from^0 to^5 {
+        await^show(me, 40 + k, 7, xs[k], 39)
+    }
+}
+
+let^crouchBoxes = p^me:Fighter{
+    body(me, 0, 0, -40, 40, 70)
+    hurt(me, 1, -18, -16, 65, 42)
+    hurt(me, 2, -1, -90, 43, 36)
+}
+
+# #11 しゃがみ中 — going down. Runs off its end into crouch.
+public^let^crouchDown = p^me:Fighter{
+    body(me, 0, 0, -40, 40, 70)
+    hurt(me, 1, 1, -19, 51, 43)
+    hurt(me, 2, -1, -95, 35, 36)
+    await^show(me, 66, 3, -41, 25)
+    await^show(me, 67, 4, -31, 25)
+    await^show(me, 69, 4, -31, 25)
+    await^show(me, 68, 3, -21, 25)
+    await^show(me, 60, 2, -29, 25)
+}
+
+let^crouchCycle = p^me:Fighter{
+    await^show(me, 62, 8, -32, 27)
+    await^show(me, 63, 8, -30, 25)
+    await^show(me, 64, 8, -29, 25)
+    await^show(me, 65, 7, -27, 25)
+}
+
+# #12 しゃがみ. Two breaths per loop; three in ten start with a fidget instead.
+public^let^crouch = p^me:Fighter{
+    repeat^{
+        crouchBoxes(me)
+        if^love.math.random(0, 9) > 6 {
+            await^show(me, 91, 4, -29, 25)
+            await^show(me, 92, 4, -29, 25)
+            await^show(me, 93, 3, -31, 26)
+            await^show(me, 94, 3, -31, 26)
+        else^:
+            await^show(me, 60, 7, -29, 25)
+            await^show(me, 61, 7, -31, 26)
+        }
+        await^crouchCycle(me)
+        await^show(me, 60, 7, -29, 25)
+        await^show(me, 61, 7, -31, 26)
+        await^crouchCycle(me)
+    }
+}
+
+# #13 しゃがみからの立上り
+public^let^standUp = p^me:Fighter{
+    body(me, 0, 0, -100, 40, 120)
+    hurt(me, 1, 1, -19, 51, 43)
+    hurt(me, 2, 1, -110, 33, 51)
+    await^show(me, 70, 2, -38, 25)
+    await^show(me, 71, 4, -43, 25)
+    await^show(me, 66, 2, -41, 25)
+}
+
+# #213 弱キック (A standing). Level 50.
+public^let^lightKick = p^me:Fighter{
+    body(me, 2, -10, -100, 50, 120)
+    hurt(me, 1, 12, -41, 35, 56)
+    hurt(me, 0, 3, -167, 39, 62)
+    # O: a follow-up object (#352) — effects are not ported yet
+    await^show(me, 225, 3, -46, 17)
+    sound(me, 115)
+    await^show(me, 226, 4, -56, 17)
+    # V/R: hit reactions — not ported yet
+    hit(me, 0, 83, -40, 46, 23, 20)
+    hurt(me, 5, 116, -39, 15, 22)
+    hurt(me, 4, 84, -57, 24, 20)
+    hurt(me, 3, 50, -75, 22, 22)
+    hurt(me, 0, 0, -87, 26, 104)
+    hurt(me, 1, 17, -200, 28, 28)
+    await^show(me, 227, 4, -32, 17)
+    noHit(me, 0)
+    hurt(me, 1, 23, -199, 26, 27)
+    hurt(me, 0, -1, -83, 31, 103)
+    hurt(me, 3, 37, -93, 19, 26)
+    hurt(me, 5, 103, -37, 19, 19)
+    hurt(me, 4, 70, -62, 22, 25)
+    await^show(me, 228, 4, -32, 17)
+    hurt(me, 5, 39, -87, 12, 20)
+    noHurt(me, 4)
+    noHurt(me, 3)
+    await^show(me, 229, 3, -68, 17)
+    await^show(me, 225, 3, -46, 17)
+    hurt(me, 0, -9, -167, 39, 75)
+    hurt(me, 1, -7, -37, 51, 58)
+    await^show(me, 230, 3, -36, 20)
+    await^show(me, 8, 2, -40, 25)
+}
+
+# #214 しゃがみ弱パンチ (A crouching). Level 51.
+public^let^crouchJab = p^me:Fighter{
+    body(me, 2, -10, -40, 50, 70)
+    hurt(me, 1, -17, -6, 48, 36)
+    hurt(me, 0, -23, -97, 46, 57)
+    await^show(me, 578, 3, -42, 25)
+    sound(me, 115)
+    # O: two effect objects (#214 block 40) — not ported yet
+    await^show(me, 579, 4, -32, 26)
+    # DS/V/R — not ported yet
+    hit(me, 0, 78, -2, 41, 11, 10)
+    hurt(me, 0, -46, -98, 51, 54)
+    hurt(me, 3, 75, -6, 50, 21)
+    hurt(me, 4, 25, -72, 33, 13)
+    await^show(me, 577, 6, -46, 25)
+    noHit(me, 0)
+    hurt(me, 0, -36, -88, 42, 55)
+    hurt(me, 1, -17, -6, 48, 36)
+    hurt(me, 3, 47, -13, 30, 19)
+    hurt(me, 4, 25, -72, 33, 13)
+    await^show(me, 580, 6, -61, 25)
+    await^show(me, 581, 3, -32, 25)
+    noHurt(me, 4)
+    noHurt(me, 3)
+    hurt(me, 0, -9, -95, 54, 55)
+    await^show(me, 578, 3, -42, 25)
+    await^show(me, 60, 3, -29, 25)
+}
