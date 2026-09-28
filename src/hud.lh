@@ -18,6 +18,10 @@ let^LIFE_1P = 67
 let^LIFE_2P = 68
 let^SPECIAL_1P = 69
 let^SPECIAL_2P = 70
+let^STOCK_NUMBER_0 = 45        # "special stock number 0".."9": 45-54
+let^STOCK_1P_X = 12            # the "position: special stock" skills (74 / 75)
+let^STOCK_2P_X = 627
+let^STOCK_Y = 476
 
 public^let^Hud = def^{
     self^{
@@ -26,19 +30,30 @@ public^let^Hud = def^{
         life2 : Fighter|nil^= nil^,
         special1 : Fighter|nil^= nil^,
         special2 : Fighter|nil^= nil^,
+        dir = "",
+        # The special stock numbers: each side's number skill, restarted when
+        # its stock count changes.
+        stock1 : Fighter|nil^= nil^,
+        stock2 : Fighter|nil^= nil^,
+        shown1 = -1, shown2 = -1,
     },
 }
 
-let^run = p^dir:string^, n:number^-> Fighter{
-    let^l = Fighter.new(dir, 0, 0)
+let^runAt = p^dir:string^, n:number^, x:number^, y:number^-> Fighter{
+    let^l = Fighter.new(dir, x, y)
     vp.skills.system.index.install(l)
     l.begin(n)
     l.ground := 1000000
     return^l
 }
 
+let^run = p^dir:string^, n:number^-> Fighter{
+    return^runAt(dir, n, 0, 0)
+}
+
 public^let^load = p^dir:string^-> Hud{
     let^h = Hud.new()
+    h.dir := dir
     for^n in^LAYOUTS { h.layers.push^(run(dir, n)) }
     h.life1 := run(dir, LIFE_1P)
     h.life2 := run(dir, LIFE_2P)
@@ -50,13 +65,28 @@ public^let^load = p^dir:string^-> Hud{
 let^each = p^h:Hud-> t^{Fighter[]}{
     var^all : t^{Fighter[]} = {}
     for^l in^h.layers { all.push^(l) }
-    for^l in^{ h.life1, h.life2, h.special1, h.special2 } {
+    for^l in^{ h.life1, h.life2, h.special1, h.special2, h.stock1, h.stock2 } {
         if^l fits^Fighter { all.push^(l) }
     }
     return^all
 }
 
-public^let^step = p^h:Hud{
+# A side's stock count, as the number skill to show (0-9).
+let^stocks = f^p:Fighter-> number^{
+    return^(p.special / p.specialPer).floor().clamp(0, 9)
+}
+
+public^let^step = p^h:Hud, p1:Fighter, p2:Fighter{
+    let^n1 = stocks(p1)
+    if^n1 != h.shown1 {
+        h.shown1 := n1
+        h.stock1 := runAt(h.dir, STOCK_NUMBER_0 + n1, STOCK_1P_X, STOCK_Y)
+    }
+    let^n2 = stocks(p2)
+    if^n2 != h.shown2 {
+        h.shown2 := n2
+        h.stock2 := runAt(h.dir, STOCK_NUMBER_0 + n2, STOCK_2P_X, STOCK_Y)
+    }
     for^l in^each(h) { l.step() }
 }
 
@@ -96,4 +126,7 @@ public^let^draw = p^h:Hud, p1:Fighter, p2:Fighter{
     drawGauge(h.life2, p2.life / p2.lifeMax, true^)
     drawGauge(h.special1, stockFraction(p1), false^)
     drawGauge(h.special2, stockFraction(p2), false^)
+    for^l in^{ h.stock1, h.stock2 } {
+        if^l fits^Fighter { drawWhole(l) }
+    }
 }

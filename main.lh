@@ -229,7 +229,7 @@ let^tick = p^{
     foe.guarding := dummyGuard > 0 and^free(foe)
 
     vp.stage.step(stage)
-    vp.hud.step(hud)
+    vp.hud.step(hud, me, foe)
     me.step()
     foe.step()
     vp.fighter.stepObjects(me)

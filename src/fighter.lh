@@ -771,20 +771,23 @@ public^let^stepObjects = p^p:Fighter{
 }
 
 # Draws a character's objects in the world behind (front = false) or in
-# front of the characters.
+# front of the characters. "picXY" objects in front are left to
+# drawScreenObjects; those behind (a super's backdrop, depth 68) stay here.
 public^let^drawObjects = p^p:Fighter, front:bool^{
     for^o in^p.objects {
-        if^!o.onScreen and^(o.depth > 80) = front { o.draw() }
+        let^inFront = o.depth > 80
+        if^inFront = front and^!(o.onScreen and^inFront) { o.draw() }
     }
 }
 
-# Draws a character's "picXY" objects (its part of the HUD) over everything,
-# stage foreground included. Call it in view coordinates.
+# Draws a character's "picXY" objects in front of the characters (its part
+# of the HUD, a super's cut-in) over everything, stage foreground included.
+# Call it in view coordinates.
 public^let^drawScreenObjects = p^p:Fighter{
     let^x, y = viewX, viewY
     setView(0, 0)
     for^o in^p.objects {
-        if^o.onScreen { o.draw() }
+        if^o.onScreen and^o.depth > 80 { o.draw() }
     }
     setView(x, y)
 }
