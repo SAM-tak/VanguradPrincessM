@@ -69,11 +69,15 @@ let^drawLayer = p^l:Fighter, camX:number^, camY:number^{
         y := camY - ((camY - y) % h + h) % h
         countY := (VIEW_H / h).ceil() + 1
     }
+    # turnX / turnY mirror the image in place (瓦礫's light rays, #13, come
+    # from the top-left so; they were drawn as stored, from the top-right).
+    let^sx = if^l.turnX: -1 el^: 1;
+    let^sy = if^l.turnY: -1 el^: 1;
     vp.sprite.setBlend(l.blend, l.alpha)
     for^i from^0 to^countX - 1 {
         for^j from^0 to^countY - 1 {
             # Sheet.draw takes the bottom-centre; stage images are placed by their top-left.
-            l.sheet.draw(l.image, x + i * w + (w / 2).floor(), y + j * h + h, 0, 1, 1, l.tintR, l.tintG, l.tintB)
+            l.sheet.draw(l.image, x + i * w + (w / 2).floor(), y + j * h + h, 0, sx, sy, l.tintR, l.tintG, l.tintB)
         }
     }
     vp.sprite.resetBlend()

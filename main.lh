@@ -8,6 +8,7 @@
 #   z x c a s d    buttons A B C D E F
 #   h              show boxes      1-8         palette
 #   k              the dummy at 1 life (the next hit KOs)
+#   t              (select screen) the stage: random, or one of them in turn
 #   escape         quit
 #
 # What a button or motion does comes from the character's command table.
@@ -50,6 +51,8 @@ let^VIEW_EDGE = 50           # how close to the view's edge a fighter may go
 
 let^SYSTEM = "assets/system/ヴァンガードプリンセス"
 let^STAGES : t^{string^[]} = { "スクール", "プール", "神社", "瓦礫", "夜", "丘", "ラスト" }
+# The same in ASCII, for the debugging text (LÖVE's default font has no Japanese).
+let^STAGE_LABELS : t^{string^[]} = { "school", "pool", "shrine", "ruins", "night", "hill", "last" }
 
 # The match's fighters and stage are made when a battle starts.
 var^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - START_X, GROUND)
@@ -61,6 +64,7 @@ var^selecting : vp.select.Select|nil^= nil^    # the select screen, while it is 
 let^demos = vp.title.loadDemos(SYSTEM)
 var^scene : vp.title.Scene|nil^= nil^           # the opening or the title screen
 var^opening = true^                              # which of the two it is
+var^stageChoice = 0            # T on the select screen: 0 random, 1.. a fixed stage (debugging)
 var^upPressed = false^
 var^downPressed = false^
 
@@ -288,7 +292,8 @@ let^startBattle = p^s:vp.select.Select{
     me.enemy := foe
     foe.enemy := me
     love.audio.stop()              # the select screen's music
-    stage := vp.stage.load($"assets/stages/{STAGES[love.math.random(0, STAGES.length^ - 1)] ?? "スクール"}")
+    let^pick = if^stageChoice > 0: stageChoice - 1 el^: love.math.random(0, STAGES.length^ - 1);
+    stage := vp.stage.load($"assets/stages/{STAGES[pick] ?? "スクール"}")
     flow := vp.round.load(SYSTEM)
     selecting := nil^
     startRound()
@@ -435,6 +440,18 @@ let^cross = p^p:Fighter{
     love.graphics.line(p.x, p.y - 8, p.x, p.y + 8)
 }
 
+# Debugging text, outlined in black so it reads over bright scenes too.
+let^debugText = p^text:string^, x:number^, y:number^{
+    love.graphics.setColor(0, 0, 0, 1)
+    for^dx from^-1 to^1 {
+        for^dy from^-1 to^1 {
+            if^dx != 0 or^dy != 0 { love.graphics.print(text, x + dx, y + dy) }
+        }
+    }
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print(text, x, y)
+}
+
 public^let^draw = p^{
     let^sc = scene
     if^sc != nil^ {
@@ -450,6 +467,8 @@ public^let^draw = p^{
         love.graphics.scale(SCALE)
         vp.select.draw(s)
         love.graphics.pop()
+        let^stageName = if^stageChoice > 0: STAGE_LABELS[stageChoice - 1] ?? "" el^: "random";
+        debugText($"t stage: {stageName}", 16, 16)
         return^
     }
     love.graphics.push()
@@ -458,12 +477,27 @@ public^let^draw = p^{
     love.graphics.setColor(1, 1, 1, 1)
     vp.fighter.setView(camX, camY)
     vp.stage.draw(stage, camX, camY, 0, stage.players)
+    # The round's things below the characters (KO's burst of light at 50
+    # replaces the stage's back layers, 12, behind the fighters and the
+    # stage's front, 100) and those between the fighters and the front.
+    let^roundItems = vp.round.items(flow)
+    vp.round.byDepth(roundItems)
+    let^roundBetween = p^from:number^, to:number^{
+        love.graphics.push()
+        love.graphics.translate(camX, camY)
+        for^i in^roundItems {
+            if^i.depth >= from and^i.depth < to { vp.round.drawItem(i) }
+        }
+        love.graphics.pop()
+    }
+    roundBetween(0, 70)
     vp.fighter.drawObjects(foe, false^)
     vp.fighter.drawObjects(me, false^)
     foe.draw()
     me.draw()
     vp.fighter.drawObjects(foe, true^)
     vp.fighter.drawObjects(me, true^)
+    roundBetween(70, 100)
     if^showBoxes {
         foe.drawBoxes()
         me.drawBoxes()
@@ -477,8 +511,11 @@ public^let^draw = p^{
     love.graphics.scale(SCALE)
     # In view coordinates, by depth: the HUD (100), the characters' screen
     # objects in front of them (their part of the HUD, cut-ins) and the
-    # round's (VS screen, READY / FIGHT, KO, victory marks).
-    var^list = vp.round.items(flow)
+    # round's from 100 on (VS screen, READY / FIGHT, KO, victory marks).
+    var^list : t^{vp.round.Item[]} = {}
+    for^i in^roundItems {
+        if^i.depth >= 100 { list.push^(i) }
+    }
     list.push^(vp.round.Item.new())          # f nil^: the system HUD
     let^last = list[list.length^ - 1]
     if^last != nil^ { last.depth := 100 }
@@ -499,8 +536,8 @@ public^let^draw = p^{
     }
     vp.fighter.setView(camX, camY)
     love.graphics.pop()
-    love.graphics.print($"{me.skillName}  image {me.image}  palette {me.palette + 1}  fps {love.timer.getFPS()}", 16, 16)
-    love.graphics.print($"arrows move  z x c a s d = A-F  h boxes  1-8 palette  k dummy at 1  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
+    debugText($"{me.skillName}  image {me.image}  palette {me.palette + 1}  fps {love.timer.getFPS()}", 16, 16)
+    debugText($"arrows move  z x c a s d = A-F  h boxes  1-8 palette  k dummy at 1  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
 }
 
 public^let^keypressed = p^key:string^, scancode:string^, isrepeat:bool^{
@@ -517,7 +554,8 @@ public^let^keypressed = p^key:string^, scancode:string^, isrepeat:bool^{
     }
     if^key = "h" { showBoxes := !showBoxes }
     if^key = "g" { dummyGuard := (dummyGuard + 1) % 3 }
-    if^key = "k" { foe.life := 1 }        # the next hit is a KO (for trying the round flow)
+    if^key = "k" { foe.life := 1 }
+    if^key = "t" and^selecting != nil^ { stageChoice := (stageChoice + 1) % (STAGES.length^ + 1) }        # the next hit is a KO (for trying the round flow)
     if^key = "l" {
         soundLog := !soundLog
         vp.fighter.setSoundLog(soundLog)
