@@ -54,6 +54,7 @@ public^let^Fighter = def^{
     self^{
         abstract^sheet : vp.sprite.Sheet,
         soundDir = "",
+        loopSounds = false^,        # a stage's: its sounds (the BGM) play in a loop
         palette = 0,
         x = 0, y = 0,               # feet, world px
         ground = 0,
@@ -548,7 +549,7 @@ public^let^v = p^me:Fighter, n:number^-> number^{
     if^n = 195 { return^viewY }
     if^n = 196 { return^(me.parent ?? me).x }
     if^n = 197 { return^(me.parent ?? me).y }
-    if^n = 198 { return^(roundFrames / 100).floor() }
+    if^n = 198 { return^(std.math.max(roundFrames - 1, 0) / 100).floor() }   # a frame behind the display
     if^n = 199 { return^roundNumber }
     return^home(me, n)[n] ?? 0
 }
@@ -724,7 +725,11 @@ public^let^sound = p^me:Fighter, n:number^{
     }
     var^src = me.sounds[n]
     if^src is^nil^{
-        let^loaded = love.audio.newSource($"{me.soundDir}/{n:%04d}.wav", love.audio.SourceType.static) catch^nil^
+        # A stage's music is long: streamed, and looped over the whole file
+        # (it has no loop points and ends in a fade; TechnicalDocuments/0014).
+        let^kind = if^me.loopSounds: love.audio.SourceType.stream el^: love.audio.SourceType.static;
+        let^loaded = love.audio.newSource($"{me.soundDir}/{n:%04d}.wav", kind) catch^nil^
+        if^loaded fits^love.audio.Source { loaded.setLooping(me.loopSounds) }
         me.sounds[n] := loaded
         src := loaded
     }

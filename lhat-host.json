@@ -1022,6 +1022,8 @@
     {"kind": "hostvalue_member", "module": "std.math.vector2", "type": "Vector2", "name": "/", "signature": "f^self^, number^ -> std.math.vector2.Vector2;"},
     {"kind": "hostvalue_member", "module": "std.math.vector2", "type": "Vector2", "name": "/", "signature": "f^self^, std.math.vector2.Vector2 -> std.math.vector2.Vector2;"},
     {"kind": "hostvalue_member", "module": "std.math.vector2", "type": "Vector2", "name": "lerp", "signature": "f^self^, std.math.vector2.Vector2, number^ -> std.math.vector2.Vector2;"},
+    {"kind": "hostvalue_member", "module": "std.math.vector2", "type": "Vector2", "name": "clamp", "signature": "f^self^, number^, number^ -> std.math.vector2.Vector2;"},
+    {"kind": "hostvalue_member", "module": "std.math.vector2", "type": "Vector2", "name": "clamp", "signature": "f^self^, std.math.vector2.Vector2, std.math.vector2.Vector2 -> std.math.vector2.Vector2;"},
     {"kind": "hostvalue_member", "module": "std.math.vector2", "type": "Vector2", "name": "angle", "signature": "f^self^ -> number^;"},
     {"kind": "hostvalue_member", "module": "std.math.vector2", "type": "Vector2", "name": "rotate", "signature": "f^self^, number^ -> std.math.vector2.Vector2;"},
     {"kind": "hostvalue_member", "module": "std.math.vector2", "type": "Vector2", "name": "dot", "signature": "f^self^, std.math.vector2.Vector2 -> number^;"},

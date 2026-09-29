@@ -14,6 +14,7 @@ let^Fighter = vp.fighter.Fighter
 
 # The system file's built-in skill numbers (its KGTBuiltInSkills).
 let^LAYOUTS : t^{number^[]} = { 57, 58, 59, 60, 61, 62, 63, 64, 65, 66 }
+let^LAYOUT_TIME = 61          # layout 5: the big "60" / "70" / "80" / "∞" through a round's start
 let^LIFE_1P = 67
 let^LIFE_2P = 68
 let^SPECIAL_1P = 69
@@ -68,12 +69,32 @@ public^let^load = p^dir:string^-> Hud{
     let^h = Hud.new()
     h.dir := dir
     script := vp.script.load($"{dir}/script.lton") ?? vp.script.Script.new()
-    for^n in^LAYOUTS { h.layers.push^(run(dir, n)) }
-    h.life1 := run(dir, LIFE_1P)
-    h.life2 := run(dir, LIFE_2P)
-    h.special1 := run(dir, SPECIAL_1P)
-    h.special2 := run(dir, SPECIAL_2P)
+    restart(h)
     return^h
+}
+
+# A round starts the HUD's skills over (layout 5, the big "60", times itself
+# by the round: 699 frames in round 1, 349 after).
+public^let^restart = p^h:Hud{
+    h.layers := {}
+    for^n in^LAYOUTS { h.layers.push^(run(h.dir, n)) }
+    h.life1 := run(h.dir, LIFE_1P)
+    h.life2 := run(h.dir, LIFE_2P)
+    h.special1 := run(h.dir, SPECIAL_1P)
+    h.special2 := run(h.dir, SPECIAL_2P)
+    h.shown1 := -1
+    h.shown2 := -1
+    h.shownSeconds := -2
+}
+
+# The clock starts: layout 5's big "60" goes (it outlasts the round's start
+# by some frames and showed under "59") and the timer's digits start over
+# (started hidden, they would look again only hundreds of frames later).
+public^let^fightBegins = p^h:Hud{
+    for^l in^h.layers {
+        if^l.skillNo = LAYOUT_TIME { l.alive := false^ }
+    }
+    h.shownSeconds := -2
 }
 
 let^each = p^h:Hud-> t^{Fighter[]}{

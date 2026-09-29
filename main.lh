@@ -70,10 +70,12 @@ var^camY = WORLD_H - VIEW_H
 var^aimX = camX                      # where the camera heads next frame
 var^aimY = camY
 # The round's clock, 100 frames a second; it runs only while they fight. It
-# reads 5999 through the start: the system's layout 5 checks for 59 there to
-# show "60" (anything else: "∞").
-var^roundFrames = ROUND_SECONDS * 100 - 1
+# shows 60 through the start and 59 from the fight's first frame (as the
+# original); the round time the skills read is one frame behind (59 through
+# the start: the system's layout 5 checks for it to show "60", else "∞").
+var^roundFrames = ROUND_SECONDS * 100
 var^frame = 0
+var^wasTiming = false^
 var^lastSkill = ""            # skill changes are printed to the console, for debugging
 var^showBoxes = false^
 var^pressed = 0               # buttons pressed since the last frame (A = 1 ... F = 32)
@@ -241,9 +243,10 @@ let^place = p^p:Fighter, x:number^, facing:number^{
 }
 
 let^startRound = p^{
+    vp.hud.restart(hud)
     place(me, WORLD_W / 2 - START_X, 1)
     place(foe, WORLD_W / 2 + START_X, -1)
-    roundFrames := ROUND_SECONDS * 100 - 1
+    roundFrames := ROUND_SECONDS * 100
     camX := (WORLD_W - VIEW_W) / 2
     camY := WORLD_H - VIEW_H
     aimX := camX
@@ -292,11 +295,18 @@ let^tick = p^{
     me.guarding := live and^back and^free(me)
     foe.guarding := live and^dummyGuard > 0 and^free(foe)
 
-    if^live and^roundFrames > 0 { roundFrames -= 1 }
+    # The clock runs while they fight and the timer shows (system variable
+    # 128, which FIGHT clears a couple of frames after its show time).
+    let^timing = live and^vp.fighter.v(me, 128) <= 9999
+    if^timing and^roundFrames > 0 { roundFrames -= 1 }
     vp.fighter.setRound(roundFrames, flow.number)
     vp.round.step(flow, me, foe, roundFrames <= 0, startRound)
     vp.stage.step(stage)
-    vp.hud.step(hud, me, foe, (roundFrames / 100).floor())
+    if^timing and^!wasTiming { vp.hud.fightBegins(hud) }
+    wasTiming := timing
+    # The digits follow the round time the scripts read (59 through the
+    # start, hidden then; layout 5 shows "60").
+    vp.hud.step(hud, me, foe, (std.math.max(roundFrames - 1, 0) / 100).floor())
     # The stage's walls, and the camera's: nobody leaves the view.
     for^p in^{ me, foe } {
         p.minX := std.math.max(WALL_GROUND, camX + VIEW_EDGE)

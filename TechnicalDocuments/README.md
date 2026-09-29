@@ -27,3 +27,4 @@
 - [0011-measured-in-the-original.md](0011-measured-in-the-original.md) — 原作のメモリから測った値（地面 920、壁、画面の端とカメラ、開始位置、移動は速度が先、I の待ちは足し算）
 - [0012-skills-as-data.md](0012-skills-as-data.md) — 技はデータ（script.lton）にして src/script.lh で解釈実行（0005 の L^ 生成を置き換え）。形式と確認結果
 - [0013-round-flow.md](0013-round-flow.md) — ラウンドの流れ（VS 画面・READY / FIGHT・KO・勝ちマーク）とシステムのオブジェクトの規則
+- [0014-music-loop.md](0014-music-loop.md) — BGM のループ（ループポイントなし、ファイル全体の単純ループ）
