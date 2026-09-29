@@ -99,6 +99,7 @@ public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
     let^bs = sk.blocks
     let^count = bs.length^
     var^pc = at
+    var^shown = false^              # an image was shown since the layer last started over
     # Where a jump goes: on in this skill, or into another (which ends this one).
     # false^ when the skill is over.
     let^go = p^s:number^, b:number^-> bool^{
@@ -106,7 +107,7 @@ public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
             if^b >= count {
                 # past the end: a stage's or demo's layer starts over, anything else ends
                 if^!sc.loops { return^false^ }
-                pc := 0
+                pc := count            # the loop below starts it over
                 return^true^
             }
             pc := b
@@ -122,6 +123,11 @@ public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
             # only E ends it (the title screen's flash, #4 of モードセレクト,
             # repeats so). A character's or the system's skill ends.
             if^!sc.loops { return^}
+            # A layer that showed nothing on its way round (only a Settings
+            # block, such as プレーヤー位置) waits a frame before it goes
+            # round again, instead of going round 300 times a frame.
+            if^!shown { yield^ }
+            shown := false^
             pc := 0
         }
         if^fighter.spin(me) { yield^ }
@@ -139,6 +145,7 @@ public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
         let^a6 = a[6] ?? 0
         let^a7 = a[7] ?? 0
         if^op = "I" {
+            shown := true^
             if^b.s = "" { await^fighter.show(me, a0, a1, a2, a3) else^: await^fighter.showEx(me, a0, a1, a2, a3, b.s) }
         elseif^op = "FD":
             # number, x, y, w, h, rate
