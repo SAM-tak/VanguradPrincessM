@@ -99,7 +99,6 @@ public^let^Fighter = def^{
         enemy : Fighter|nil^= nil^, # the opponent (GP adds to its gauges too)
         guarding = false^,          # set by the controller: holding back where a guard is allowed
         stop = 0,                   # hitstop frames left: the fighter is frozen
-        stopMine = 0, stopTheirs = 0,   # the last PS block: hitstop when this attack connects
         # Objects (O blocks): effects, voices, sparks, projectiles. They run the
         # owner's skills as fighters of their own.
         dir = "",
@@ -110,10 +109,14 @@ public^let^Fighter = def^{
         parent : Fighter|nil^= nil^,   # what spawned it (the character or another object)
         follow = false^,            # "parent": moves with its parent
         shadowOf = false^,          # a character's shadow: stays under it, on the floor
+        system = false^,            # the system file's (the round, the HUD): no managed numbers
         onScreen = false^,          # "picXY": x, y are in view coordinates
         lastOwnerX = 0, lastOwnerY = 0, # the parent's position last frame
         spins = 0,
         waitTimer = 0,              # FM2K's I-block timer (see `hold`)
+        # Where x may go, on the ground and in the air (the stage's walls and
+        # the view's edges; the controller sets them each frame).
+        minX = -1000000, maxX = 1000000, minXAir = -1000000, maxXAir = 1000000,
         alive = true^,
     },
     override^new = f^dir:string^, x:number^, y:number^{
@@ -206,6 +209,14 @@ public^let^Fighter = def^{
     step = p^self^{
         if^self^.stop > 0 {
             self^.stop -= 1
+            # Frozen, but a skill just started (the hit reaction) shows its
+            # first frame at once; its waits count from after the stop.
+            let^co = self^.skill
+            if^co fits^c^{p^-> nil^} {
+                if^!co.started() { self^.advance() }
+            elseif^co fits^c^{p^-> nil^ -> -}:
+                if^!co.started() { self^.advance() }
+            }
             return^
         }
         # Motion first, then the script: a landing takes over before the skill
@@ -218,6 +229,14 @@ public^let^Fighter = def^{
         self^.x += self^.vx
         self^.vy += self^.ay
         self^.y += self^.vy
+        # Kept inside the walls as it moves, before the script runs: 2P's
+        # start skill spawns its support after a 300 px dash, which the edge
+        # of the view has already stopped.
+        if^self^.airborne() {
+            self^.x := self^.x.clamp(self^.minXAir, self^.maxXAir)
+        else^:
+            self^.x := self^.x.clamp(self^.minX, self^.maxX)
+        }
         # FM2K lands whenever the feet are at or below the ground while moving
         # down, whatever the previous frame was (so nothing can sink through).
         if^self^.y >= self^.ground and^self^.vy > 0 {
@@ -475,8 +494,6 @@ public^let^struck = p^atk:Fighter, box:Box, def:Fighter, rate:number^, crouched:
     if^!guarded {
         def.life := std.math.max(def.life - box.power * rate / 100, 0)
     }
-    atk.stop := atk.stopMine
-    def.stop := atk.stopTheirs
     atk.hits := {}                 # one box connects once
     if^guarded {
         atk.fire("defending")
@@ -747,6 +764,7 @@ public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^
     o.facing := me.facing
     o.ground := root.ground        # objects stand on the same floor (FM2K keeps a ground Y per object)
     o.depth := depth
+    o.system := root.system
     o.lastOwnerX := me.x
     o.lastOwnerY := me.y
     o.start(n, b)
@@ -759,22 +777,30 @@ public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^
 # the characters, "point" at `depth` (characters are 70-80), neither behind;
 # "parent" moves it with its owner; without "unCond", managed number `slot`
 # (0-9) replaces the object already there. The "it's out" skill is not used yet.
+#
+# The system file's objects (the round, the HUD) are placed at (x, y) of the
+# view whatever the flags, and without "out" / "point" take their spawner's
+# depth (the VS screen's names, spawned by the support name at 122, show in
+# front of the VS frame at 105 in the original).
 public^let^spawn = p^me:Fighter, n:number^, b:number^, x:number^, y:number^, slot:number^, depth:number^, outSkill:number^, outBlock:number^, flags:string^{
     if^n <= 0 { return^}
+    let^root = me.owner ?? me
     # "picXY" objects, and whatever they spawn, live in view coordinates.
-    let^atView = flags.find("picXY") != nil^
+    let^atView = flags.find("picXY") != nil^ or^root.system
     let^wx = if^atView: x el^: me.x + x * me.facing;
     let^wy = if^atView: y el^: me.y + y;
-    let^d = if^flags.find("out") != nil^: 127 el^flags.find("point") != nil^: depth el^: 0;
-    let^root = me.owner ?? me
-    if^flags.find("unCond") is^nil^ and^slot >= 0 and^slot < 10 {
+    let^below = if^root.system: me.depth el^: 0;
+    let^d = if^flags.find("out") != nil^: 127 el^flags.find("point") != nil^: depth el^: below;
+    # FM2K keeps managed numbers for a character and its objects only.
+    let^managed = !root.system and^flags.find("unCond") is^nil^ and^slot >= 0 and^slot < 10
+    if^managed {
         let^old = root.slots[slot]
         if^old fits^Fighter { old.alive := false^ }
     }
     let^o = makeObject(me, n, b, wx, wy, d)
     o.follow := flags.find("parent") != nil^
     o.onScreen := atView or^me.onScreen
-    if^flags.find("unCond") is^nil^ and^slot >= 0 and^slot < 10 { root.slots[slot] := o }
+    if^managed { root.slots[slot] := o }
 }
 
 # The character's shadow: its built-in shadow skill run as an object that
@@ -845,10 +871,16 @@ public^let^reactions = p^me:Fighter, hitStand:number^, hitCrouch:number^, hitAir
     me.onGuard := { guardStand, guardCrouch, guardAir }
 }
 
-# PS — hitstop: frames this fighter and the opponent freeze when the attack connects.
+# PS — stops this character for `mine` frames and the opponent for `theirs`,
+# there and then (wanwan's decompile of FM2K's [PS]). Hitstop comes from the
+# hit reactions' own PS (#135 "hit super": 0 for itself, 16 for the attacker,
+# who stands while it is thrown up), a super's pause from its start (#292:
+# the opponent 110). An object's PS does nothing.
 public^let^pause = p^me:Fighter, mine:number^, theirs:number^{
-    me.stopMine := mine
-    me.stopTheirs := theirs
+    if^me.owner != nil^ { return^}
+    me.stop := mine
+    let^e = me.enemy
+    if^e != nil^ { e.stop := theirs }
 }
 
 # GP — add to this character's and the opponent's life and special gauge

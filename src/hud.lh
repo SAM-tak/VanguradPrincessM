@@ -56,6 +56,7 @@ let^runAt = p^dir:string^, n:number^, x:number^, y:number^-> Fighter{
     vp.script.install(l, script)
     l.begin(n)
     l.ground := 1000000
+    l.system := true^
     return^l
 }
 
@@ -127,7 +128,7 @@ public^let^step = p^h:Hud, p1:Fighter, p2:Fighter, seconds:number^{
 }
 
 # A layout layer's image at its script position (top-left), as it is.
-let^drawWhole = p^l:Fighter{
+public^let^drawWhole = p^l:Fighter{
     if^!l.alive { return^}             # ended with E
     let^w, h = l.sheet.size(l.image)
     if^w = 0 { return^}

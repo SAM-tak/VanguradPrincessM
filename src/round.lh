@@ -1,0 +1,225 @@
+# The flow of a match, as FM2K's engine runs it with the system file's skills
+# (TechnicalDocuments/0013). Each stage of a round is a system skill run for
+# its show time (its Settings block); what it spawns (the VS screen, READY,
+# FIGHT, KO, ...) are its objects, drawn in view coordinates by depth.
+#
+#   start   #13 round start (2)
+#   call    #15.. round 1-9 / #24 final: round 1's is the VS screen (425)
+#   ready   #25 READY ... FIGHT (230)
+#   fight   the fighters are free; the clock runs
+#   ko      #26 KO / time over (100); the loser falls (its #23 "loss")
+#   win     #30 / #31 "1P / 2P WIN" or #32 draw; the winner's #22 "win"
+#   end     #14 round end (150), then the next round or a new match
+module^vp.round
+
+require^"fighter.lh"
+require^"script.lh"
+require^"hud.lh"
+
+let^Fighter = vp.fighter.Fighter
+
+# The system file's built-in skills (its KGTBuiltInSkills).
+let^ROUND_START = 13
+let^ROUND_END = 14
+let^ROUND_1 = 15              # "round 1" .. "round 9": 15-23
+let^ROUND_FINAL = 24
+let^FIGHT = 25
+let^KO = 26
+let^PERFECT = 27
+let^WIN_1P = 30
+let^WIN_2P = 31
+let^DRAW = 32
+let^DOUBLE_KO = 33
+let^MARK_ON = 55
+let^MARK_OFF = 56
+# "position: victory mark 1P / 2P" (76 / 77): the first mark and the step.
+let^MARK_1P_X = 264
+let^MARK_2P_X = 372
+let^MARK_Y = 62
+let^MARK_STEP = 20
+
+# A character's built-in skills used here.
+let^VICTORY = 22
+let^LOSS = 23
+
+public^let^Round = def^{
+    self^{
+        dir = "",
+        script : vp.script.Script|nil^= nil^,
+        phase = "start",
+        left = 0,                   # frames left of this stage
+        number = 1,                 # the round
+        toWin = 2,                  # rounds a side needs to win the match
+        wins1 = 0, wins2 = 0,
+        winner = 0,                 # 1, 2, or 0 for a draw
+        layers : t^{Fighter[]} = {},    # the system skills running now
+        marks : t^{Fighter[]} = {},
+    },
+}
+
+let^runAt = p^r:Round, n:number^, x:number^, y:number^-> Fighter{
+    let^l = Fighter.new(r.dir, x, y)
+    let^sc = r.script
+    if^sc != nil^ { vp.script.install(l, sc) }
+    l.begin(n)
+    l.ground := 1000000
+    l.system := true^
+    l.depth := 125                  # a round's own images: in front of the HUD
+    return^l
+}
+
+# Stage `phase`: system skill n for its show time. The show time is when the
+# engine moves on; the skills already running go on until they end (FIGHT
+# clears the timer's hiding after its show time).
+let^enter = p^r:Round, phase:string^, n:number^{
+    r.phase := phase
+    r.layers.push^(runAt(r, n, 0, 0))
+    let^sc = r.script
+    r.left := if^sc != nil^: vp.script.showTime(sc, n) el^: 0;
+}
+
+let^placeMarks = p^r:Round{
+    r.marks := {}
+    for^k from^0 to^r.toWin - 1 {
+        r.marks.push^(runAt(r, if^r.wins1 > k: MARK_ON el^: MARK_OFF;, MARK_1P_X - MARK_STEP * k, MARK_Y))
+        r.marks.push^(runAt(r, if^r.wins2 > k: MARK_ON el^: MARK_OFF;, MARK_2P_X + MARK_STEP * k, MARK_Y))
+    }
+}
+
+public^let^load = p^dir:string^-> Round{
+    let^r = Round.new()
+    r.dir := dir
+    r.script := vp.script.load($"{dir}/script.lton")
+    enter(r, "start", ROUND_START)
+    placeMarks(r)
+    return^r
+}
+
+public^let^fighting = f^r:Round-> bool^{
+    return^r.phase = "fight"
+}
+
+# One frame. `timeUp`: the clock has run out. `reset` puts the fighters back
+# for the next round (or a new match).
+public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;{
+    var^running : t^{Fighter[]} = {}
+    for^l in^r.layers {
+        l.step()
+        vp.fighter.stepObjects(l)
+        if^!(l.finished() and^l.objects.length^ = 0) { running.push^(l) }
+    }
+    r.layers := running
+    for^m in^r.marks { m.step() }
+
+    if^r.phase = "fight" {
+        let^down1 = p1.life <= 0
+        let^down2 = p2.life <= 0
+        if^!(down1 or^down2 or^timeUp) { return^}
+        r.winner := if^down1 and^down2: 0
+            el^down2: 1
+            el^down1: 2
+            el^p1.life > p2.life: 1
+            el^p2.life > p1.life: 2
+            el^: 0;
+        if^down1 { p1.begin(LOSS) }
+        if^down2 { p2.begin(LOSS) }
+        enter(r, "ko", if^down1 and^down2: DOUBLE_KO el^: KO;)
+        let^w = if^r.winner = 1: p1 el^r.winner = 2: p2 el^: nil^;
+        if^w != nil^ {
+            if^w.life >= w.lifeMax { r.layers.push^(runAt(r, PERFECT, 0, 0)) }
+        }
+        return^
+    }
+
+    if^r.left > 0 {
+        r.left -= 1
+        return^
+    }
+    if^r.phase = "start" {
+        let^call = if^r.number <= 9: ROUND_1 + r.number - 1 el^: ROUND_FINAL;
+        enter(r, "call", call)
+    elseif^r.phase = "call":
+        enter(r, "ready", FIGHT)
+    elseif^r.phase = "ready":
+        r.phase := "fight"
+    elseif^r.phase = "ko":
+        if^r.winner = 1 {
+            r.wins1 += 1
+            p1.begin(VICTORY)
+            enter(r, "win", WIN_1P)
+        elseif^r.winner = 2:
+            r.wins2 += 1
+            p2.begin(VICTORY)
+            enter(r, "win", WIN_2P)
+        else^:
+            enter(r, "win", DRAW)
+        }
+        placeMarks(r)
+    elseif^r.phase = "win":
+        enter(r, "end", ROUND_END)
+    elseif^r.phase = "end":
+        # #14 ends in black (its #112 fades out and stays); the new round
+        # clears the system's objects and #13 fades in.
+        if^r.wins1 >= r.toWin or^r.wins2 >= r.toWin {
+            r.number := 1
+            r.wins1 := 0
+            r.wins2 := 0
+            placeMarks(r)
+        else^:
+            r.number += 1
+        }
+        reset()
+        r.layers := {}
+        enter(r, "start", ROUND_START)
+    }
+}
+
+# What to draw in view coordinates: the running system skills, their objects
+# and the victory marks, with their depths (a skill itself sits at 125).
+public^let^Item = def^{
+    self^{
+        depth = 0,
+        f : Fighter|nil^= nil^,
+        system = false^,            # a system image (top-left), else a character's
+    },
+}
+
+public^let^items = p^r:Round-> t^{Item[]}{
+    var^out : t^{Item[]} = {}
+    let^add = p^f:Fighter, depth:number^{
+        let^i = Item.new()
+        i.depth := depth
+        i.f := f
+        i.system := true^
+        out.push^(i)
+    }
+    for^m in^r.marks { add(m, 100) }
+    for^l in^r.layers {
+        add(l, l.depth)
+        for^o in^l.objects { add(o, o.depth) }
+    }
+    return^out
+}
+
+# Sorts by depth, keeping the order of equal ones.
+public^let^byDepth = p^list:t^{Item[]}{
+    for^i from^1 to^list.length^ - 1 {
+        let^x = list[i]
+        if^x != nil^ {
+            var^j = i - 1
+            repeat^while^j >= 0 {
+                let^y = list[j]
+                if^y is^nil^ or^y.depth <= x.depth { break^}
+                list[j + 1] := y
+                j -= 1
+            }
+            list[j + 1] := x
+        }
+    }
+}
+
+public^let^drawItem = p^i:Item{
+    let^f = i.f
+    if^f is^nil^ { return^}
+    if^i.system { vp.hud.drawWhole(f) else^: f.draw() }
+}

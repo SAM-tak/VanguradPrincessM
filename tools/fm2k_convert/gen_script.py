@@ -39,7 +39,7 @@ def block(b):
             return ["Layer", b["width"], b["height"], flags(
                 b, ["widthEnabled", "heightEnabled", "connectLtRt", "connectUpDw"],
                 {"widthEnabled": "scrollX", "heightEnabled": "scrollY", "connectLtRt": "loopX", "connectUpDw": "loopY"})]
-        return ["Settings", b["level"]]
+        return ["Settings", b["level"], b.get("time", 0)]    # time: a system skill's show time
     if t == "I":
         return ["I", b["i"], b["wait"], b["x"], b["y"], flags(b, ["turnX", "turnY", "ignoreDirection"])]
     if t == "FD":

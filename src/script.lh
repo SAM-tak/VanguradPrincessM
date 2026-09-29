@@ -269,6 +269,17 @@ let^numbers = p^list:t^{}-> t^{number^[]}{
     return^out
 }
 
+# A system skill's show time (frames): how long the engine gives a round's
+# stage (the second number of its Settings block).
+public^let^showTime = p^sc:Script, n:number^-> number^{
+    let^sk = sc.skills[n]
+    if^sk is^nil^ { return^0 }
+    let^b = sk.blocks[0]
+    if^b is^nil^ { return^0 }
+    if^b.op != "Settings" { return^0 }
+    return^b.n[1] ?? 0
+}
+
 # A stage's layers, back to front: the named scripts after "none" that have
 # blocks. The players go where the one named プレーヤー位置 stands.
 public^let^layers = p^sc:Script-> t^{number^[]}{

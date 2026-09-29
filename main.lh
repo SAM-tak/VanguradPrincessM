@@ -4,6 +4,7 @@
 #   arrows         move / jump / crouch (and command motions)
 #   z x c a s d    buttons A B C D E F
 #   h              show boxes      1-8         palette
+#   k              the dummy at 1 life (the next hit KOs)
 #   escape         quit
 #
 # What a button or motion does comes from the character's command table.
@@ -20,6 +21,7 @@ require^"src/sprite.lh"
 require^"src/script.lh"
 require^"src/stage.lh"
 require^"src/hud.lh"
+require^"src/round.lh"
 
 let^Fighter = vp.fighter.Fighter
 
@@ -42,6 +44,7 @@ let^VIEW_EDGE = 50           # how close to the view's edge a fighter may go
 let^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - START_X, GROUND)
 let^foe = Fighter.new("assets/characters/ゆい", WORLD_W / 2 + START_X, GROUND)
 let^hud = vp.hud.load("assets/system/ヴァンガードプリンセス")
+let^flow = vp.round.load("assets/system/ヴァンガードプリンセス")
 let^stage = vp.stage.load("assets/stages/スクール")
 let^yui = vp.script.load("assets/characters/ゆい/script.lton") ?? vp.script.Script.new()
 
@@ -61,20 +64,14 @@ let^START = 21
 let^SHADOW = 28          # the built-in shadow skill
 
 let^ROUND_SECONDS = 60   # as the original shows (the time is not in its data files)
-# The start of a round, until "FIGHT": the clock stands and the timer's digits
-# are hidden (system variable 128 over 9999). Provisional length, until the
-# round flow (round start / round N / FIGHT skills) runs: about as long as the
-# system's layout 5 shows the big "60" in round 1, and before the digit skills
-# look at 128 again (670 frames in round 1).
-let^INTRO_FRAMES = 660
 var^clock = 0
-var^round = 1
 var^camX = (WORLD_W - VIEW_W) / 2    # the view's top-left in the world
 var^camY = WORLD_H - VIEW_H
 var^aimX = camX                      # where the camera heads next frame
 var^aimY = camY
-# The round's clock, 100 frames a second. It reads 5999 through the start: the
-# system's layout 5 checks for 59 there to show "60" (anything else: "∞").
+# The round's clock, 100 frames a second; it runs only while they fight. It
+# reads 5999 through the start: the system's layout 5 checks for 59 there to
+# show "60" (anything else: "∞").
 var^roundFrames = ROUND_SECONDS * 100 - 1
 var^frame = 0
 var^lastSkill = ""            # skill changes are printed to the console, for debugging
@@ -215,20 +212,51 @@ let^strike = p^a:Fighter, b:Fighter{
     }
 }
 
+# Puts a fighter where a round starts: its objects (and so its part of the
+# HUD) go, its built-in start skill brings them back.
+let^place = p^p:Fighter, x:number^, facing:number^{
+    p.x := x
+    p.y := GROUND
+    p.vx := 0
+    p.vy := 0
+    p.ax := 0
+    p.ay := 0
+    p.facing := facing
+    p.life := p.lifeMax
+    p.objects := {}
+    p.slots := {}
+    p.hurts := {}
+    p.hits := {}
+    p.stop := 0
+    # A round starts clean: the character's variables (its objects and its
+    # support read them; kept, the support stood frozen in last round's
+    # win / loss pose) and whatever it left on the stage.
+    p.vars := {}
+    p.onSkill := {}
+    p.onBlock := {}
+    # The round starts with each character's built-in start skill, which also
+    # puts up its part of the HUD (support gauge, stun, hit count, ...).
+    p.begin(START)
+    vp.fighter.castShadow(p, SHADOW)
+}
+
+let^startRound = p^{
+    place(me, WORLD_W / 2 - START_X, 1)
+    place(foe, WORLD_W / 2 + START_X, -1)
+    roundFrames := ROUND_SECONDS * 100 - 1
+    camX := (WORLD_W - VIEW_W) / 2
+    camY := WORLD_H - VIEW_H
+    aimX := camX
+    aimY := camY
+}
+
 public^let^load = p^{
     vp.script.install(me, yui)
     vp.script.install(foe, yui)
     foe.palette := 1
     me.enemy := foe
     foe.enemy := me
-    me.facing := 1
-    foe.facing := -1
-    # The round starts with each character's built-in start skill, which also
-    # puts up its part of the HUD (support gauge, stun, hit count, ...).
-    me.begin(START)
-    vp.fighter.castShadow(me, SHADOW)
-    foe.begin(START)
-    vp.fighter.castShadow(foe, SHADOW)
+    startRound()
 }
 
 # The camera (the view's top-left) moves half the way to its target each
@@ -252,26 +280,30 @@ let^tick = p^{
     let^left = love.keyboard.isDown("left")
     let^forward = if^me.facing > 0: right el^: left;
     let^back = if^me.facing > 0: left el^: right;
-    control(me, love.keyboard.isDown("up"), love.keyboard.isDown("down"), forward, back, pressed)
+    # Only while they fight does input count.
+    let^live = vp.round.fighting(flow)
+    control(me, live and^love.keyboard.isDown("up"), live and^love.keyboard.isDown("down"), live and^forward, live and^back, if^live: pressed el^: 0;)
     pressed := 0
-    control(foe, false^, dummyGuard = 2, false^, false^, 0)
+    control(foe, false^, live and^dummyGuard = 2, false^, false^, 0)
 
     # Guarding: holding back while free to move (on the ground or in the air).
     # The dummy guards while `dummyGuard` is on (G), crouching for 2.
     let^free = f^p:Fighter-> bool^{ return^groundIdle(p.skillNo) or^airIdle(p.skillNo) }
-    me.guarding := back and^free(me)
-    foe.guarding := dummyGuard > 0 and^free(foe)
+    me.guarding := live and^back and^free(me)
+    foe.guarding := live and^dummyGuard > 0 and^free(foe)
 
-    if^frame < INTRO_FRAMES {
-        vp.fighter.setv(me, 128, 10000)
-    elseif^frame = INTRO_FRAMES:
-        vp.fighter.setv(me, 128, 0)
-    elseif^roundFrames > 0:
-        roundFrames -= 1
-    }
-    vp.fighter.setRound(roundFrames, round)
+    if^live and^roundFrames > 0 { roundFrames -= 1 }
+    vp.fighter.setRound(roundFrames, flow.number)
+    vp.round.step(flow, me, foe, roundFrames <= 0, startRound)
     vp.stage.step(stage)
     vp.hud.step(hud, me, foe, (roundFrames / 100).floor())
+    # The stage's walls, and the camera's: nobody leaves the view.
+    for^p in^{ me, foe } {
+        p.minX := std.math.max(WALL_GROUND, camX + VIEW_EDGE)
+        p.maxX := std.math.min(WORLD_W - WALL_GROUND, camX + VIEW_W - VIEW_EDGE)
+        p.minXAir := std.math.max(WALL_AIR, camX + VIEW_EDGE)
+        p.maxXAir := std.math.min(WORLD_W - WALL_AIR, camX + VIEW_W - VIEW_EDGE)
+    }
     me.step()
     foe.step()
     vp.fighter.stepObjects(me)
@@ -281,10 +313,9 @@ let^tick = p^{
     for^o in^me.objects { strike(o, foe) }
     for^o in^foe.objects { strike(o, me) }
     push(me, foe)
-    # The stage's walls, and the camera's: nobody leaves the view.
+    # Pushing may put them past the walls again.
     for^p in^{ me, foe } {
-        let^wall = if^p.airborne(): WALL_AIR el^: WALL_GROUND;
-        p.x := p.x.clamp(wall, WORLD_W - wall).clamp(camX + VIEW_EDGE, camX + VIEW_W - VIEW_EDGE)
+        if^p.airborne() { p.x := p.x.clamp(p.minXAir, p.maxXAir) else^: p.x := p.x.clamp(p.minX, p.maxX) }
     }
     followCamera()
     face(me, foe)
@@ -299,7 +330,9 @@ let^tick = p^{
 
 public^let^update = p^dt:number^{
     clock += dt
-    if^clock > 0.1 { clock := 0.1 }
+    # At most two frames of catching up: after a stall (images loading on first
+    # use) the game slows down instead of skipping what it did not show.
+    if^clock > 2 * FRAME { clock := 2 * FRAME }
     repeat^while^clock >= FRAME {
         clock -= FRAME
         tick()
@@ -346,12 +379,32 @@ public^let^draw = p^{
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.push()
     love.graphics.scale(SCALE)
-    vp.hud.draw(hud, me, foe)
-    vp.fighter.drawScreenObjects(foe)
-    vp.fighter.drawScreenObjects(me)
+    # In view coordinates, by depth: the HUD (100), the characters' screen
+    # objects in front of them (their part of the HUD, cut-ins) and the
+    # round's (VS screen, READY / FIGHT, KO, victory marks).
+    var^list = vp.round.items(flow)
+    list.push^(vp.round.Item.new())          # f nil^: the system HUD
+    let^last = list[list.length^ - 1]
+    if^last != nil^ { last.depth := 100 }
+    for^p in^{ foe, me } {
+        for^o in^p.objects {
+            if^o.onScreen and^o.depth > 80 {
+                let^i = vp.round.Item.new()
+                i.depth := o.depth
+                i.f := o
+                list.push^(i)
+            }
+        }
+    }
+    vp.round.byDepth(list)
+    vp.fighter.setView(0, 0)
+    for^i in^list {
+        if^i.f is^nil^ { vp.hud.draw(hud, me, foe) else^: vp.round.drawItem(i) }
+    }
+    vp.fighter.setView(camX, camY)
     love.graphics.pop()
     love.graphics.print($"{me.skillName}  image {me.image}  palette {me.palette + 1}  fps {love.timer.getFPS()}", 16, 16)
-    love.graphics.print($"arrows move  z x c a s d = A-F  h boxes  1-8 palette  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
+    love.graphics.print($"arrows move  z x c a s d = A-F  h boxes  1-8 palette  k dummy at 1  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
 }
 
 public^let^keypressed = p^key:string^, scancode:string^, isrepeat:bool^{
@@ -366,6 +419,7 @@ public^let^keypressed = p^key:string^, scancode:string^, isrepeat:bool^{
     }
     if^key = "h" { showBoxes := !showBoxes }
     if^key = "g" { dummyGuard := (dummyGuard + 1) % 3 }
+    if^key = "k" { foe.life := 1 }        # the next hit is a KO (for trying the round flow)
     if^key = "l" {
         soundLog := !soundLog
         vp.fighter.setSoundLog(soundLog)
