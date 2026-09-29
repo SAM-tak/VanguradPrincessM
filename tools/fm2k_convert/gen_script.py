@@ -15,6 +15,7 @@ usage: gen_script.py <fm2ndparser json> <asset dir> [--layers]
 
 import argparse
 import json
+import struct
 from pathlib import Path
 
 from gen_skills import DS_EVENTS, flags, steps_of, target
@@ -109,8 +110,34 @@ def block(b):
     if t == "RC":
         return ["RC", b["commonImage"]["number"], b["x"], b["y"], flags(b, ["in", "turnX", "turnY", "same"])]
     if t == "RP":
-        return ["RP", b["hitJunction"]["number"], b["x"], b["y"], flags(b, ["in", "turnX"])]
+        return ["RP", b["hitJunction"]["number"], b["x"], b["y"], flags(b, ["in", "out", "turnX"])]
     return ["Nop"]
+
+
+def raw_command_steps(player, commands):
+    """Each command's steps as (mode, amount) for its active steps, read from
+    the .player file itself: fm2ndparser drops the step's mode bits (0xC000 of
+    the 16-bit step mask: 0 press, 0x4000 repeat, 0x8000 charge, both turn =
+    a rotation). Layout: wanwan docs/editor/player_file_format.md, block 4
+    (82-byte entries: name[32], time, 4 skills, 10 masks, 10 amounts)."""
+    b = player.read_bytes()
+    names = [c["name"].encode("cp932") for c in commands]
+    if not names:
+        return []
+    start = b.find(names[0] + b"\0")
+    while start >= 0:
+        if all(b[start + 82 * k:start + 82 * k + len(n) + 1] == n + b"\0" for k, n in enumerate(names)):
+            break
+        start = b.find(names[0] + b"\0", start + 1)
+    if start < 0:
+        raise SystemExit("commands not found in %s" % player)
+    out = []
+    for k in range(len(commands)):
+        e = b[start + 82 * k:start + 82 * k + 82]
+        masks = struct.unpack("<10H", e[42:62])
+        amounts = struct.unpack("<10H", e[62:82])
+        out.append([(m >> 14, a) for m, a in zip(masks, amounts) if m & 0x2000])
+    return out
 
 
 def lton_list(items):
@@ -121,6 +148,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("json", type=Path)
     ap.add_argument("out", type=Path, help="the converted asset folder, e.g. assets/characters/ゆい")
+    ap.add_argument("--player", type=Path, default=None,
+                    help="the character's .player file, for the command steps' modes (rotation, charge)")
     ap.add_argument("--layers", action="store_true",
                     help="a script that ends with E hides its image (stages, the system file's HUD scripts)")
     args = ap.parse_args()
@@ -146,15 +175,20 @@ def main():
         lines += ["    %s," % lton_list(r) for r in reactions]
         lines.append("},")
     commands = []
-    for c in d.get("commands", []):
+    raw = raw_command_steps(args.player, d.get("commands", [])) if args.player else []
+    for ci, c in enumerate(d.get("commands", [])):
         dirs, buttons = steps_of(c["steps"])
         dl = json.loads(dirs.replace("{", "[").replace("}", "]"))
         bl = json.loads(buttons.replace("{", "[").replace("}", "]"))
         refs = [c[k]["number"] for k in ("airSkill", "standSkill", "standFarSkill", "crouchedSkill")]
         if not any(refs) or not any(bl) and all(x == 0 for x in dl):
             continue
-        commands.append("    { name = %s, time = %d, skills = %s, directions = %s, buttons = %s },"
-                        % (lton_str(c["name"]), c["time"], lton_list(refs), lton_list(dl), lton_list(bl)))
+        steps = raw[ci] if ci < len(raw) else [(0, 1)] * len(dl)
+        modes = [m for m, _ in steps]
+        amounts = [a for _, a in steps]
+        commands.append("    { name = %s, time = %d, skills = %s, directions = %s, buttons = %s, modes = %s, amounts = %s },"
+                        % (lton_str(c["name"]), c["time"], lton_list(refs), lton_list(dl), lton_list(bl),
+                           lton_list(modes), lton_list(amounts)))
     if commands:
         lines.append("commands = {")
         lines += commands

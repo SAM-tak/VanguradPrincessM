@@ -270,11 +270,11 @@ public^let^install = p^me:Fighter, sc:Script{
         let^cs = d.commands
         for^k from^0 to^cs.length^ - 1 {
             let^c = cs[k]
-            if^c fits^t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{} } {
+            if^c fits^t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{}, modes : t^{}, amounts : t^{} } {
                 let^dirs = numbers(c.directions)
                 let^buttons = numbers(c.buttons)
                 let^s = numbers(c.skills)
-                fighter.addCommand(me, c.name, c.time, s[0] ?? 0, s[1] ?? 0, s[2] ?? 0, s[3] ?? 0, dirs, buttons)
+                fighter.addCommand(me, c.name, c.time, s[0] ?? 0, s[1] ?? 0, s[2] ?? 0, s[3] ?? 0, dirs, buttons, numbers(c.modes), numbers(c.amounts))
             }
         }
     }

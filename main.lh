@@ -220,7 +220,11 @@ let^strike = p^a:Fighter, b:Fighter{
                             let^hx = (std.math.max(al, bl) + std.math.min(al + aw, bl + bw)) / 2
                             let^hy = (std.math.max(at, bt) + std.math.min(at + ah, bt + bh)) / 2
                             let^guarded, spark = vp.fighter.struck(a, atk, b, hurt.rate, endsCrouched(b, b.skillNo))
-                            if^spark > 0 { vp.fighter.makeObject(b, spark, 0, hx, hy, 127) }
+                            # The spark's number comes from the defender's table, but it
+                            # runs as the attacker's skill: はるか's and ヒルダ's tables give
+                            # 315 for light hits, their own 315 is a barrier (ばりあんぬ),
+                            # everyone else's 315 is 弱切りエフェクト (inferred, TechnicalDocuments/0008).
+                            if^spark > 0 { vp.fighter.makeObject(a, spark, 0, hx, hy, 127) }
                             let^what = if^guarded: "guard" el^: "hit";
                             print($"{frame}: {what} {a.skillName} -> {b.skillName}  life {b.life}  spark {spark}")
                             return^
@@ -254,6 +258,13 @@ let^place = p^p:Fighter, x:number^, facing:number^{
     p.vars := {}
     p.onSkill := {}
     p.onBlock := {}
+    # and its look: ゆかり's victory (#22) fades her out (COLOR alpha 32) and
+    # nothing in the next round's start sets COLOR again.
+    p.blend := 0
+    p.alpha := 1
+    p.tintR := 0
+    p.tintG := 0
+    p.tintB := 0
     # The round starts with each character's built-in start skill, which also
     # puts up its part of the HUD (support gauge, stun, hit count, ...).
     p.begin(START)

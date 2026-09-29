@@ -37,11 +37,14 @@ public^let^Box = def^{
 
 # One entry of the character's command table: the input steps (FM2K direction
 # codes and button bitmasks, a = 1 ... f = 32), the frames they must fall
-# within, and the skill for each state (0: none).
+# within, and the skill for each state (0: none). A step's mode: 0 a press,
+# 3 a rotation of the stick `amount` times (1 and 2, repeat and charge, are
+# not used by this game).
 public^let^Command = def^{
     self^{
         name = "", time = 0, air = 0, stand = 0, far = 0, crouch = 0,
         dirs : t^{number^[]} = {}, buttons : t^{number^[]} = {},
+        modes : t^{number^[]} = {}, amounts : t^{number^[]} = {},
     },
 }
 
@@ -139,6 +142,10 @@ public^let^Fighter = def^{
         self^.onSkill := {}
         self^.onBlock := {}
         self^.cancelWhen := ""
+        # an attack's reactions are its own skill's R (a throw has none: its
+        # grab gave the last attack's reaction, a jump C's, and はるか flinched)
+        self^.onHit := { 0, 0, 0 }
+        self^.onGuard := { 0, 0, 0 }
         self^.hitConfirmed := false^
         self^.cancelByHit := false^
         for^n from^0 to^16 { self^.vars[n] := nil^ }
@@ -343,7 +350,7 @@ public^let^on = p^me:Fighter, event:string^, n:number^, b:number^{
 # ---------------------------------------------------------------------------
 # Commands and cancels
 
-public^let^addCommand = p^me:Fighter, name:string^, time:number^, air:number^, stand:number^, far:number^, crouch:number^, dirs:t^{number^[]}, buttons:t^{number^[]}{
+public^let^addCommand = p^me:Fighter, name:string^, time:number^, air:number^, stand:number^, far:number^, crouch:number^, dirs:t^{number^[]}, buttons:t^{number^[]}, modes:t^{number^[]}, amounts:t^{number^[]}{
     let^c = Command.new()
     c.name := name
     c.time := time
@@ -353,6 +360,8 @@ public^let^addCommand = p^me:Fighter, name:string^, time:number^, air:number^, s
     c.crouch := crouch
     c.dirs := dirs
     c.buttons := buttons
+    c.modes := modes
+    c.amounts := amounts
     me.commands.push^(c)
 }
 
@@ -393,8 +402,30 @@ let^hasButtons = f^got:number^, need:number^-> bool^{
     return^true^
 }
 
+# The stick went round: forward, down, back and up each at least once.
+let^sideOf = f^d:number^-> number^{
+    # a bit per side: 1 forward, 2 down, 4 back, 8 up
+    var^m = 0
+    if^d = 9 or^d = 6 or^d = 3 { m += 1 }
+    if^d = 3 or^d = 2 or^d = 1 { m += 2 }
+    if^d = 1 or^d = 4 or^d = 7 { m += 4 }
+    if^d = 7 or^d = 8 or^d = 9 { m += 8 }
+    return^m
+}
+
+let^addSides = f^seen:number^, sides:number^-> number^{
+    var^out = seen
+    var^bit = 1
+    repeat^while^bit <= 8 {
+        if^(sides / bit).floor() % 2 = 1 and^(out / bit).floor() % 2 = 0 { out += bit }
+        bit *= 2
+    }
+    return^out
+}
+
 # The steps were entered in order within `time` frames, the last one this frame.
-public^let^entered = p^me:Fighter, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}-> bool^{
+# A rotation step (mode 3) is met by the stick going round `amount` times.
+public^let^entered = p^me:Fighter, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}, modes:t^{number^[]}, amounts:t^{number^[]}-> bool^{
     var^step = dirs.length^ - 1
     if^step < 0 { return^false^ }
     let^limit = std.math.min(std.math.max(time, 1), HISTORY)
@@ -403,25 +434,41 @@ public^let^entered = p^me:Fighter, time:number^, dirs:t^{number^[]}, buttons:t^{
         let^slot = (me.inputFrame - age) % HISTORY
         let^d = me.inDirs[slot] ?? 5
         let^p = me.inPress[slot] ?? 0
-        if^dirFits(dirs[step] ?? 0, d) and^hasButtons(p, buttons[step] ?? 0) {
+        if^(modes[step] ?? 0) = 3 {
+            # going back through the frames, collect the sides the stick visited
+            turnSeen := addSides(turnSeen, sideOf(d))
+            if^turnSeen = 15 {
+                turnRounds += 1
+                turnSeen := 0
+                if^turnRounds >= std.math.max(amounts[step] ?? 1, 1) {
+                    turnRounds := 0
+                    step -= 1
+                }
+            }
+        elseif^dirFits(dirs[step] ?? 0, d) and^hasButtons(p, buttons[step] ?? 0):
             step -= 1
         elseif^age = 0:
             return^false^
         }
         age += 1
     }
+    turnSeen := 0
+    turnRounds := 0
     return^step < 0
 }
 
+var^turnSeen = 0
+var^turnRounds = 0
+
 # COM inside a skill.
 public^let^command = p^me:Fighter, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}-> bool^{
-    return^entered(me, time, dirs, buttons)
+    return^entered(me, time, dirs, buttons, {}, {})
 }
 
 # The skill the command table gives for this frame's input, or 0.
 public^let^fromCommands = p^me:Fighter, crouching:bool^-> number^{
     for^c in^me.commands {
-        if^entered(me, c.time, c.dirs, c.buttons) {
+        if^entered(me, c.time, c.dirs, c.buttons, c.modes, c.amounts) {
             let^n = if^me.airborne(): c.air el^crouching: c.crouch el^: c.stand;
             if^n > 0 { return^n }
         }
@@ -592,7 +639,9 @@ public^let^lifeGauge = p^me:Fighter, isMore:bool^, amount:number^-> bool^{
 public^let^specialGauge = p^me:Fighter, level:number^, isMore:bool^, amount:number^-> bool^{
     let^b = charOf(me)
     let^stocks = (b.special / b.specialPer).floor()
-    let^met = if^isMore: stocks >= level el^: stocks < level;
+    # "more" is strictly more: this game starts everyone at 4 stocks (shown as
+    # 0) and its supers check "more than 4" (shown as 1 or more).
+    let^met = if^isMore: stocks > level el^: stocks < level;
     if^met and^amount != 0 {
         b.special := (b.special + amount * b.specialPer).clamp(0, b.specialPer * b.stockMax)
     }
@@ -972,6 +1021,22 @@ public^let^vanish = p^me:Fighter{
 public^let^commonImage = p^me:Fighter, n:number^, x:number^, y:number^, flags:string^{
 }
 
-# RP — hit junction.
+# RP — hit junction: puts the opponent into its own skill for reaction n
+# (its hit-junction table), standing at (x, y) from `me` (x mirrored by me's
+# facing) and facing me ("turnX": the other way). How throws work: the
+# throw's #250 sends the opponent to "throw start" (#71) in front of the
+# thrower, then to the throw's own reaction. "in" / "out" is not whom it acts
+# on (リリス's throw has "in" and throws the opponent): probably whether the
+# opponent is drawn behind or in front of the thrower (not done yet).
 public^let^hitJunction = p^me:Fighter, n:number^, x:number^, y:number^, flags:string^{
+    let^root = charOf(me)
+    let^who = root.enemy
+    if^who is^nil^ { return^}
+    let^target : Fighter = who
+    let^skill = target.reactHit[n] ?? 0
+    if^skill <= 0 { return^}
+    target.x := me.x + x * me.facing
+    target.y := me.y + y
+    target.facing := if^flags.find("turnX") != nil^: me.facing el^: -me.facing;
+    target.begin(skill)
 }
