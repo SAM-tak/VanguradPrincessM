@@ -208,17 +208,10 @@ public^let^Fighter = def^{
             self^.stop -= 1
             return^
         }
-        self^.spins := 0
-        var^hops = 0
-        self^.advance()
-        repeat^while^self^.jumpSkill >= 0 and^hops < 16 {
-            let^n = self^.jumpSkill
-            self^.jumpSkill := -1
-            self^.start(n, self^.jumpBlock)
-            self^.advance()
-            hops += 1
-        }
-
+        # Motion first, then the script: a landing takes over before the skill
+        # runs its next block (雷撃蹴 #265 lands on the frame it would reach its
+        # second jump; the original lands). An M block's speed moves the
+        # fighter from the next frame.
         # Once a frame: vel += accel, then pos += vel (measured: ゆい's jump
         # peaks 211.7 px up, one frame's speed lower than pos-first gives).
         self^.vx += self^.ax
@@ -236,6 +229,17 @@ public^let^Fighter = def^{
             self^.vy := 0
             self^.ay := 0
             self^.fire("landing")
+        }
+
+        self^.spins := 0
+        var^hops = 0
+        if^self^.jumpSkill < 0 { self^.advance() }
+        repeat^while^self^.jumpSkill >= 0 and^hops < 16 {
+            let^n = self^.jumpSkill
+            self^.jumpSkill := -1
+            self^.start(n, self^.jumpBlock)
+            self^.advance()
+            hops += 1
         }
     },
 
@@ -496,6 +500,11 @@ public^let^off = p^me:Fighter, event:string^{
 # object's are its own), character variables are shared by a character and all
 # its objects, system variables by everyone.
 var^systemVars : t^{[number^]:number^|nil^} = {}
+
+# Clears the system variables (128-143), as a new match does.
+public^let^clearSystemVars = p^{
+    systemVars := {}
+}
 
 let^home = p^me:Fighter, n:number^-> t^{[number^]:number^|nil^}{
     if^n <= 16 { return^me.vars }

@@ -118,6 +118,8 @@ def lton_value(v, indent):
             return "{ " + ", ".join(lton_scalar(x) for x in v) + " }"
         return "{\n" + "".join(pad + lton_value(x, indent + 1) + ",\n" for x in v) + end + "}"
     items = [(k, x) for k, x in v.items() if x is not None]
+    # A block's kind first: it is what one reads a block list by.
+    items.sort(key=lambda kx: kx[0] != "type")
     if not items:
         return "{}"
     if all(is_scalar(x) for _, x in items) and len(items) <= 12:

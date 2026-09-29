@@ -60,32 +60,26 @@ assets/<system|characters|stages|demos>/<name>/
 tools/fm2k_convert/.venv/Scripts/python tools/fm2k_convert/preview_gif.py assets/characters/ゆい 1 2 22 --json-dir <json dir> --palette 0 1
 ```
 
-## Skills as L^ code
+## Skills as data
 
-`gen_skills.py` writes every skill of a character as an L^ procedure
-(`src/chara/<id>/skills/`, see `TechnicalDocuments/0005`). `dump_skill.py` prints skills
-one block per line, for reading them.
+`gen_script.py` writes the skills of a character, a stage or the system file as
+`script.lton` in the converted folder, which `src/script.lh` runs
+(`TechnicalDocuments/0012`). A character's command table, hit reactions and gauge
+settings go in the same file. `dump_skill.py` prints skills one block per line, for
+reading them.
 
 ```sh
-python tools/fm2k_convert/gen_skills.py <json dir>/ゆい.json yui
+python tools/fm2k_convert/gen_script.py <json dir>/ゆい.json assets/characters/ゆい
+python tools/fm2k_convert/gen_script.py <json dir>/スクール.json assets/stages/スクール --layers
+python tools/fm2k_convert/gen_script.py <json dir>/ヴァンガードプリンセス.json assets/system/ヴァンガードプリンセス --layers
 python tools/fm2k_convert/dump_skill.py <json dir>/ゆい.json 1 213
 ```
 
-Stages go through the same generator: their scripts are layers
-(`TechnicalDocuments/0007`).
+`--layers` (stages and the system file's HUD scripts): a script that ends with E hides its
+image; one that runs past its last block keeps showing its last image.
 
-```sh
-python tools/fm2k_convert/gen_skills.py <json dir>/スクール.json school --stage
-```
-
-The system file's skills (the HUD) likewise:
-
-```sh
-python tools/fm2k_convert/gen_skills.py <json dir>/ヴァンガードプリンセス.json system --out src --layers
-```
-
-`--layers` (implied by `--stage`): a script that ends with E hides its image; one that runs
-past its last block keeps showing its last image.
+`gen_skills.py` writes skills as L^ procedures instead (`src/chara/<id>/skills/`,
+`TechnicalDocuments/0005`): a draft to start from when rewriting a skill by hand.
 
 ## Checking the LTON
 

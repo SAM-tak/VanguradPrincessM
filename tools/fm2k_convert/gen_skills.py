@@ -1,4 +1,6 @@
-"""Generate L^ skill procedures from a character's FM2K blocks.
+"""Generate L^ skill procedures from a character's FM2K blocks — drafts for
+rewriting a skill by hand. The game itself runs the skills from data
+(gen_script.py, src/script.lh, TechnicalDocuments/0012).
 
 Each skill becomes `p^me:Fighter, at:number^` (at = block to start at) in
 src/chara/<id>/skills/sNNNN.lh, 100 skills per file, plus skills.lh that puts

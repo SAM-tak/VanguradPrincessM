@@ -1,5 +1,6 @@
-# Compares the hand-written skills (src/chara/yui.lh) with the generated ones
-# (src/chara/yui/skills) frame by frame: image, offset, position and boxes.
+# Compares the hand-written skills (src/chara/yui.lh) with the converted ones
+# (script.lton through src/script.lh) frame by frame: image, offset, position
+# and boxes.
 #
 #   lovec trace.lh
 module^vp.trace
@@ -9,7 +10,7 @@ import^love.math
 
 require^"src/fighter.lh"
 require^"src/chara/yui.lh"
-require^"src/chara/yui/skills.lh"
+require^"src/script.lh"
 
 let^Fighter = vp.fighter.Fighter
 let^yui = vp.chara.yui
@@ -43,7 +44,7 @@ let^handSkill = p^name:string^, me:Fighter{
 let^compare = p^name:string^, number:number^{
     let^a = Fighter.new(yui.dir, 0, 880)
     let^b = Fighter.new(yui.dir, 0, 880)
-    vp.skills.yui.index.install(b)
+    vp.script.install(b, vp.script.load($"{yui.dir}/script.lton") ?? vp.script.Script.new())
     love.math.setRandomSeed(7)
     handSkill(name, a)
     var^left : t^{string^[]} = {}
@@ -57,14 +58,14 @@ let^compare = p^name:string^, number:number^{
     var^diffs = 0
     for^f from^0 to^left.length^ - 1 {
         if^b.finished() {
-            print($"  {name}: generated ended at frame {f}, hand-written runs to {left.length^}")
+            print($"  {name}: converted ended at frame {f}, hand-written runs to {left.length^}")
             diffs += 1
             break^
         }
         b.step()
         let^got = snapshot(b)
         if^got != left[f] {
-            if^diffs < 3 { print($"  {name} frame {f}\n    hand: {left[f]}\n    gen:  {got}") }
+            if^diffs < 3 { print($"  {name} frame {f}\n    hand: {left[f]}\n    data: {got}") }
             diffs += 1
         }
     }

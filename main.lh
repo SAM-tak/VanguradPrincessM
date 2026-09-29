@@ -1,5 +1,5 @@
-# Sample: ゆい against a standing ゆい, running the skills generated from the
-# FM2K data (src/chara/yui/skills, TechnicalDocuments/0005 and 0006).
+# Sample: ゆい against a standing ゆい, running the skills converted from the
+# FM2K data (assets/…/script.lton through src/script.lh, TechnicalDocuments/0012).
 #
 #   arrows         move / jump / crouch (and command motions)
 #   z x c a s d    buttons A B C D E F
@@ -17,9 +17,8 @@ import^std.math
 
 require^"src/fighter.lh"
 require^"src/sprite.lh"
-require^"src/chara/yui/skills.lh"
+require^"src/script.lh"
 require^"src/stage.lh"
-require^"src/stages/school/skills.lh"
 require^"src/hud.lh"
 
 let^Fighter = vp.fighter.Fighter
@@ -42,9 +41,9 @@ let^VIEW_EDGE = 50           # how close to the view's edge a fighter may go
 
 let^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - START_X, GROUND)
 let^foe = Fighter.new("assets/characters/ゆい", WORLD_W / 2 + START_X, GROUND)
-let^school = vp.stages.school.index
 let^hud = vp.hud.load("assets/system/ヴァンガードプリンセス")
-let^stage = vp.stage.load("assets/stages/スクール", school.install, school.layers, school.players)
+let^stage = vp.stage.load("assets/stages/スクール")
+let^yui = vp.script.load("assets/characters/ゆい/script.lton") ?? vp.script.Script.new()
 
 # FM2K skill numbers: the character's built-in skills (its .player settings)
 # and what its commands map A / B / C to.
@@ -217,8 +216,8 @@ let^strike = p^a:Fighter, b:Fighter{
 }
 
 public^let^load = p^{
-    vp.skills.yui.index.install(me)
-    vp.skills.yui.index.install(foe)
+    vp.script.install(me, yui)
+    vp.script.install(foe, yui)
     foe.palette := 1
     me.enemy := foe
     foe.enemy := me

@@ -25,3 +25,4 @@
 - [0009-objects.md](0009-objects.md) — オブジェクト（O）: ボイス・エフェクト・ヒットスパーク・飛び道具、変数の共有範囲、影、parent＝生成元への追従
 - [0010-gauges-and-hud.md](0010-gauges-and-hud.md) — ゲージ（体力・必殺、GP / GL / GS）と HUD（システムの枠とゲージ、キャラの開始時技が出す HUD）
 - [0011-measured-in-the-original.md](0011-measured-in-the-original.md) — 原作のメモリから測った値（地面 920、壁、画面の端とカメラ、開始位置、移動は速度が先、I の待ちは足し算）
+- [0012-skills-as-data.md](0012-skills-as-data.md) — 技はデータ（script.lton）にして src/script.lh で解釈実行（0005 の L^ 生成を置き換え）。形式と確認結果

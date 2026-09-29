@@ -1,0 +1,287 @@
+# Runs FM2K skills from data: the script.lton that tools/fm2k_convert/
+# gen_script.py writes next to a character's (stage's, the system's) assets.
+# Each block does what the generated L^ used to spell out, through the same
+# vocabulary in fighter.lh; jumps are (skill, block) pairs. The block layouts
+# are listed in TechnicalDocuments/0012.
+#
+# A skill written by hand in L^ can still be put into `me.skills[n]` after
+# `install`; the table does not care which kind it holds.
+module^vp.script
+
+import^std.lton
+import^std.math
+
+require^"fighter.lh"
+
+let^Fighter = vp.fighter.Fighter
+let^fighter = vp.fighter
+
+# One block: its type, its numbers in order, and its one string (flags or an
+# event name). A COM block's steps are split into directions and buttons.
+public^let^Block = def^{
+    self^{
+        op = "",
+        n : t^{number^[]} = {},
+        s = "",
+        dirs : t^{number^[]} = {},
+        buttons : t^{number^[]} = {},
+    },
+}
+
+public^let^Skill = def^{
+    self^{
+        name = "",
+        level = 0,
+        blocks : t^{Block[]} = {},
+    },
+}
+
+public^let^Script = def^{
+    self^{
+        skills : t^{Skill[]} = {},     # position = skill number
+        layers = false^,               # E hides the image (stage layers, the HUD)
+        raw : t^{} = {},               # the whole file: commands, reactions, settings
+    },
+}
+
+let^parseBlock = p^raw:t^{}-> Block{
+    let^b = Block.new()
+    for^k from^0 to^raw.length^ - 1 {
+        let^e = raw[k]
+        if^k = 0 {
+            if^e fits^string^ { b.op := e }
+        elseif^e fits^number^:
+            b.n.push^(e)
+        elseif^e fits^string^:
+            b.s := e
+        }
+    }
+    if^b.op = "COM" {
+        # time, skill, block, count, directions..., buttons...
+        let^count = b.n[3] ?? 0
+        for^k from^0 to^count - 1 {
+            b.dirs.push^(b.n[4 + k] ?? 0)
+            b.buttons.push^(b.n[4 + count + k] ?? 0)
+        }
+    }
+    return^b
+}
+
+# Reads a script.lton (nil when it cannot be read).
+public^let^load = p^path:string^-> Script|nil^{
+    let^d = std.lton.load(path) catch^nil^
+    if^!(d fits^t^{}) { return^nil^ }
+    let^sc = Script.new()
+    sc.raw := d
+    if^d fits^t^{ layers : bool^ } { sc.layers := d.layers }
+    for^k from^0 to^d.length^ - 1 {
+        let^e = d[k]
+        let^sk = Skill.new()
+        if^e fits^t^{ name : string^, level : number^, blocks : t^{} } {
+            sk.name := e.name
+            sk.level := e.level
+            let^bs = e.blocks
+            for^i from^0 to^bs.length^ - 1 {
+                let^raw = bs[i]
+                if^raw fits^t^{} { sk.blocks.push^(parseBlock(raw)) }
+            }
+        }
+        sc.skills.push^(sk)
+    }
+    return^sc
+}
+
+# Runs skill n from block `at`. The block cap per frame is FM2K's (spin).
+public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
+    let^sk = sc.skills[n]
+    if^sk is^nil^ { return^}
+    let^bs = sk.blocks
+    let^count = bs.length^
+    var^pc = at
+    # Where a jump goes: on in this skill, or into another (which ends this one).
+    # false^ when the skill is over.
+    let^go = p^s:number^, b:number^-> bool^{
+        if^s = n {
+            if^b >= count { return^false^ }
+            pc := b
+            return^true^
+        }
+        fighter.jump(me, s, b)
+        return^false^
+    }
+    repeat^while^me.alive {
+        if^pc < 0 or^pc >= count { return^}
+        if^fighter.spin(me) { yield^ }
+        let^b = bs[pc]
+        if^b is^nil^ { return^}
+        pc += 1
+        let^op = b.op
+        let^a = b.n
+        let^a0 = a[0] ?? 0
+        let^a1 = a[1] ?? 0
+        let^a2 = a[2] ?? 0
+        let^a3 = a[3] ?? 0
+        let^a4 = a[4] ?? 0
+        let^a5 = a[5] ?? 0
+        let^a6 = a[6] ?? 0
+        let^a7 = a[7] ?? 0
+        if^op = "I" {
+            if^b.s = "" { await^fighter.show(me, a0, a1, a2, a3) else^: await^fighter.showEx(me, a0, a1, a2, a3, b.s) }
+        elseif^op = "FD":
+            # number, x, y, w, h, rate
+            if^a3 = 0 and^a4 = 0 {
+                fighter.noHurt(me, a0)
+            elseif^a5 = 100 and^b.s = "damaged":
+                fighter.hurt(me, a0, a1, a2, a3, a4)
+            elseif^a5 = 100 and^b.s = "collide":
+                fighter.body(me, a0, a1, a2, a3, a4)
+            else^:
+                fighter.fd(me, a0, a1, a2, a3, a4, b.s, a5)
+            }
+        elseif^op = "FA":
+            # number, x, y, w, h, power
+            if^a3 = 0 and^a4 = 0 {
+                fighter.noHit(me, a0)
+            elseif^b.s = "":
+                fighter.hit(me, a0, a1, a2, a3, a4, a5)
+            else^:
+                fighter.fa(me, a0, a1, a2, a3, a4, a5, b.s)
+            }
+        elseif^op = "M":
+            fighter.motion(me, a0, a1, a2, a3, b.s)
+        elseif^op = "S":
+            fighter.sound(me, a0)
+        elseif^op = "V":
+            # var, mode (1 set, 2 add), operand is a variable, operand, compare (1 =, 2 >, 3 <), value, skill, block
+            let^operand = if^a2 = 1: fighter.v(me, a3) el^: a3;
+            if^a1 = 1 {
+                fighter.setv(me, a0, operand)
+            elseif^a1 = 2:
+                fighter.addv(me, a0, operand)
+            }
+            if^a4 > 0 and^a6 >= 0 {
+                let^x = fighter.v(me, a0)
+                let^hit = if^a4 = 1: x = a5 el^a4 = 2: x > a5 el^: x < a5;
+                if^hit and^!go(a6, a7) { return^}
+            }
+        elseif^op = "SG":
+            if^a0 >= 0 and^!go(a0, a1) { return^}
+        elseif^op = "E":
+            if^sc.layers { fighter.vanish(me) }
+            return^
+        elseif^op = "SC" or^op = "SF":
+            if^a0 >= 0 {
+                for^k from^1 to^a2 { await^fighter.call(me, a0, a1) }
+            }
+        elseif^op = "Rnd":
+            if^a2 >= 0 and^fighter.chance(me, a0, a1) and^!go(a2, a3) { return^}
+        elseif^op = "COM":
+            if^a1 >= 0 and^fighter.command(me, a0, b.dirs, b.buttons) and^!go(a1, a2) { return^}
+        elseif^op = "GL":
+            # the gauge procedures answer whether the condition FAILED
+            if^a2 >= 0 and^fighter.lifeGauge(me, a0 = 1, a1) and^!go(a2, a3) { return^}
+        elseif^op = "GS":
+            if^a3 >= 0 and^fighter.specialGauge(me, a0, a1 = 1, a2) and^!go(a3, a4) { return^}
+        elseif^op = "DS":
+            if^a0 >= 0 { fighter.on(me, b.s, a0, a1) else^: fighter.off(me, b.s) }
+        elseif^op = "O":
+            fighter.spawn(me, a0, a1, a2, a3, a4, a5, a6, a7, b.s)
+        elseif^op = "C":
+            fighter.cancel(me, b.s, a0, a1, a2)
+        elseif^op = "R":
+            fighter.reactions(me, a0, a1, a2, a3, a4, a5)
+        elseif^op = "PS":
+            fighter.pause(me, a0, a1)
+        elseif^op = "GP":
+            fighter.gauges(me, a0, a1, a2, a3)
+        elseif^op = "COLOR":
+            fighter.color(me, a0, a1, a2, a3, a4)
+        elseif^op = "Settings":
+            fighter.settings(me, a0)
+        elseif^op = "Layer":
+            fighter.layer(me, a0, a1, b.s)
+        elseif^op = "EB":
+            fighter.screen(me, a0, a1, a2, a3, a4, a5, b.s)
+        elseif^op = "AI":
+            fighter.afterimage(me, a0, a1, a2, a3, a4, a5, a6, a7)
+        elseif^op = "RC":
+            fighter.commonImage(me, a0, a1, a2, b.s)
+        elseif^op = "RP":
+            fighter.hitJunction(me, a0, a1, a2, b.s)
+        }
+    }
+}
+
+# Skill n of the script as an entry for the fighter's skill table.
+let^entry = p^sc:Script, n:number^-> (p^Fighter, number^ -> c^{p^-> nil^};){
+    return^p^me:Fighter, at:number^{ await^run(me, sc, n, at) }
+}
+
+# Puts every skill of the script into the fighter's table, with the levels
+# (what C blocks cancel against); a character's script also brings its hit
+# reactions, gauges and command table.
+public^let^install = p^me:Fighter, sc:Script{
+    for^n, sk in^sc.skills {
+        me.skills[n] := entry(sc, n)
+        if^sk.level != 0 { me.levels[n] := sk.level }
+    }
+    let^d = sc.raw
+    if^d fits^t^{ reactions : t^{} } {
+        let^rs = d.reactions
+        for^k from^0 to^rs.length^ - 1 {
+            let^r = rs[k]
+            if^r fits^t^{} {
+                let^i = r[0]
+                let^hit = r[1]
+                let^spark = r[2]
+                if^i fits^number^ and^hit fits^number^ and^spark fits^number^ { fighter.reactsWith(me, i, hit, spark) }
+            }
+        }
+    }
+    if^d fits^t^{ settings : t^{ lifeMax : number^, specialPer : number^, stockMax : number^, startStock : number^ } } {
+        let^st = d.settings
+        me.lifeMax := st.lifeMax
+        me.life := st.lifeMax
+        me.specialPer := st.specialPer
+        me.stockMax := st.stockMax
+        me.special := st.specialPer * std.math.min(st.startStock, st.stockMax)
+    }
+    if^d fits^t^{ commands : t^{} } {
+        let^cs = d.commands
+        for^k from^0 to^cs.length^ - 1 {
+            let^c = cs[k]
+            if^c fits^t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{} } {
+                let^dirs = numbers(c.directions)
+                let^buttons = numbers(c.buttons)
+                let^s = numbers(c.skills)
+                fighter.addCommand(me, c.name, c.time, s[0] ?? 0, s[1] ?? 0, s[2] ?? 0, s[3] ?? 0, dirs, buttons)
+            }
+        }
+    }
+}
+
+let^numbers = p^list:t^{}-> t^{number^[]}{
+    var^out : t^{number^[]} = {}
+    for^k from^0 to^list.length^ - 1 {
+        let^e = list[k]
+        if^e fits^number^ { out.push^(e) }
+    }
+    return^out
+}
+
+# A stage's layers, back to front: the named scripts after "none" that have
+# blocks. The players go where the one named プレーヤー位置 stands.
+public^let^layers = p^sc:Script-> t^{number^[]}{
+    var^out : t^{number^[]} = {}
+    for^n, sk in^sc.skills {
+        if^n >= 1 and^sk.name != "" and^sk.blocks.length^ > 0 { out.push^(n) }
+    }
+    return^out
+}
+
+public^let^playersLayer = p^sc:Script-> number^{
+    for^n, sk in^sc.skills {
+        if^n >= 1 and^sk.name = "プレーヤー位置" and^sk.blocks.length^ > 0 { return^n }
+    }
+    return^-1
+}

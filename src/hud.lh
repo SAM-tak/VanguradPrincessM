@@ -8,7 +8,7 @@ import^love.graphics
 
 require^"fighter.lh"
 require^"sprite.lh"
-require^"system/skills.lh"
+require^"script.lh"
 
 let^Fighter = vp.fighter.Fighter
 
@@ -49,9 +49,11 @@ public^let^Hud = def^{
     },
 }
 
+var^script = vp.script.Script.new()     # the system file's skills
+
 let^runAt = p^dir:string^, n:number^, x:number^, y:number^-> Fighter{
     let^l = Fighter.new(dir, x, y)
-    vp.skills.system.index.install(l)
+    vp.script.install(l, script)
     l.begin(n)
     l.ground := 1000000
     return^l
@@ -64,6 +66,7 @@ let^run = p^dir:string^, n:number^-> Fighter{
 public^let^load = p^dir:string^-> Hud{
     let^h = Hud.new()
     h.dir := dir
+    script := vp.script.load($"{dir}/script.lton") ?? vp.script.Script.new()
     for^n in^LAYOUTS { h.layers.push^(run(dir, n)) }
     h.life1 := run(dir, LIFE_1P)
     h.life2 := run(dir, LIFE_2P)

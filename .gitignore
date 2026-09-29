@@ -4,10 +4,8 @@
 vanpri108/
 Locale.Emulator*/
 assets/
-# generated from the original data by tools/fm2k_convert/gen_skills.py
+# drafts written by tools/fm2k_convert/gen_skills.py
 src/chara/*/skills/
 src/chara/*/skills.lh
-src/stages/
-src/system/
 tools/fm2k_convert/.venv/
 __pycache__/
