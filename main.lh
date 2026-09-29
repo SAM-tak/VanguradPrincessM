@@ -33,11 +33,15 @@ let^WORLD_H = 960
 let^VIEW_W = 640
 let^VIEW_H = 480
 let^SCALE = 2
-let^GROUND = 935             # feet at y = 455 of the view, as in the original (to be read from the stage)
-let^WALL = 40                # how close to the stage's edge the feet may go (likewise)
+# Measured in the original's memory (TechnicalDocuments/0011).
+let^GROUND = 920
+let^WALL_GROUND = 50         # x stays in [50, 1230] on the ground, [64, 1216] in the air
+let^WALL_AIR = 64
+let^START_X = 270            # the round starts with 1P / 2P at 640 -/+ this
+let^VIEW_EDGE = 50           # how close to the view's edge a fighter may go
 
-let^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - 120, GROUND)
-let^foe = Fighter.new("assets/characters/ゆい", WORLD_W / 2 + 120, GROUND)
+let^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - START_X, GROUND)
+let^foe = Fighter.new("assets/characters/ゆい", WORLD_W / 2 + START_X, GROUND)
 let^school = vp.stages.school.index
 let^hud = vp.hud.load("assets/system/ヴァンガードプリンセス")
 let^stage = vp.stage.load("assets/stages/スクール", school.install, school.layers, school.players)
@@ -57,7 +61,22 @@ let^STAND_UP = 13
 let^START = 21
 let^SHADOW = 28          # the built-in shadow skill
 
+let^ROUND_SECONDS = 60   # as the original shows (the time is not in its data files)
+# The start of a round, until "FIGHT": the clock stands and the timer's digits
+# are hidden (system variable 128 over 9999). Provisional length, until the
+# round flow (round start / round N / FIGHT skills) runs: about as long as the
+# system's layout 5 shows the big "60" in round 1, and before the digit skills
+# look at 128 again (670 frames in round 1).
+let^INTRO_FRAMES = 660
 var^clock = 0
+var^round = 1
+var^camX = (WORLD_W - VIEW_W) / 2    # the view's top-left in the world
+var^camY = WORLD_H - VIEW_H
+var^aimX = camX                      # where the camera heads next frame
+var^aimY = camY
+# The round's clock, 100 frames a second. It reads 5999 through the start: the
+# system's layout 5 checks for 59 there to show "60" (anything else: "∞").
+var^roundFrames = ROUND_SECONDS * 100 - 1
 var^frame = 0
 var^lastSkill = ""            # skill changes are printed to the console, for debugging
 var^showBoxes = false^
@@ -213,6 +232,22 @@ public^let^load = p^{
     vp.fighter.castShadow(foe, SHADOW)
 }
 
+# The camera (the view's top-left) moves half the way to its target each
+# frame, dropping the fraction: x to centre the two, y to keep the higher one
+# 320 px below the top, never lower than the bottom of the stage (measured).
+let^halfway = f^from:number^, to:number^-> number^{
+    let^d = (to - from) / 2
+    return^from + if^d < 0: d.ceil() el^: d.floor();
+}
+
+# It lags a frame: it heads for where the fighters were the frame before.
+let^followCamera = p^{
+    camX := halfway(camX, aimX).clamp(0, WORLD_W - VIEW_W)
+    camY := halfway(camY, aimY).clamp(0, WORLD_H - VIEW_H)
+    aimX := (me.x + foe.x) / 2 - VIEW_W / 2
+    aimY := std.math.min(me.y, foe.y) - 320
+}
+
 let^tick = p^{
     let^right = love.keyboard.isDown("right")
     let^left = love.keyboard.isDown("left")
@@ -228,8 +263,16 @@ let^tick = p^{
     me.guarding := back and^free(me)
     foe.guarding := dummyGuard > 0 and^free(foe)
 
+    if^frame < INTRO_FRAMES {
+        vp.fighter.setv(me, 128, 10000)
+    elseif^frame = INTRO_FRAMES:
+        vp.fighter.setv(me, 128, 0)
+    elseif^roundFrames > 0:
+        roundFrames -= 1
+    }
+    vp.fighter.setRound(roundFrames, round)
     vp.stage.step(stage)
-    vp.hud.step(hud, me, foe)
+    vp.hud.step(hud, me, foe, (roundFrames / 100).floor())
     me.step()
     foe.step()
     vp.fighter.stepObjects(me)
@@ -239,8 +282,12 @@ let^tick = p^{
     for^o in^me.objects { strike(o, foe) }
     for^o in^foe.objects { strike(o, me) }
     push(me, foe)
-    me.x := me.x.clamp(WALL, WORLD_W - WALL)
-    foe.x := foe.x.clamp(WALL, WORLD_W - WALL)
+    # The stage's walls, and the camera's: nobody leaves the view.
+    for^p in^{ me, foe } {
+        let^wall = if^p.airborne(): WALL_AIR el^: WALL_GROUND;
+        p.x := p.x.clamp(wall, WORLD_W - wall).clamp(camX + VIEW_EDGE, camX + VIEW_W - VIEW_EDGE)
+    }
+    followCamera()
     face(me, foe)
     face(foe, me)
 
@@ -277,8 +324,6 @@ let^cross = p^p:Fighter{
 }
 
 public^let^draw = p^{
-    let^camX = ((me.x + foe.x) / 2 - VIEW_W / 2).clamp(0, WORLD_W - VIEW_W).floor()
-    let^camY = WORLD_H - VIEW_H
     love.graphics.push()
     love.graphics.scale(SCALE)
     love.graphics.translate(-camX, -camY)

@@ -22,6 +22,11 @@ let^STOCK_NUMBER_0 = 45        # "special stock number 0".."9": 45-54
 let^STOCK_1P_X = 12            # the "position: special stock" skills (74 / 75)
 let^STOCK_2P_X = 627
 let^STOCK_Y = 476
+let^TIMER_INFINITE = 34        # "timer number ∞"
+let^TIMER_NUMBER_0 = 35        # "timer number 0".."9": 35-44
+let^TIMER_X = 320              # "position: timer" (71): centre, digit spacing 35
+let^TIMER_Y = 65
+let^TIMER_SPACING = 35
 
 public^let^Hud = def^{
     self^{
@@ -36,6 +41,11 @@ public^let^Hud = def^{
         stock1 : Fighter|nil^= nil^,
         stock2 : Fighter|nil^= nil^,
         shown1 = -1, shown2 = -1,
+        # The timer: a number skill per digit, restarted when its digit
+        # changes (under 8 seconds the ones digit flashes and beeps).
+        tens : Fighter|nil^= nil^,
+        ones : Fighter|nil^= nil^,
+        shownSeconds = -2,
     },
 }
 
@@ -65,7 +75,7 @@ public^let^load = p^dir:string^-> Hud{
 let^each = p^h:Hud-> t^{Fighter[]}{
     var^all : t^{Fighter[]} = {}
     for^l in^h.layers { all.push^(l) }
-    for^l in^{ h.life1, h.life2, h.special1, h.special2, h.stock1, h.stock2 } {
+    for^l in^{ h.life1, h.life2, h.special1, h.special2, h.stock1, h.stock2, h.tens, h.ones } {
         if^l fits^Fighter { all.push^(l) }
     }
     return^all
@@ -76,7 +86,30 @@ let^stocks = f^p:Fighter-> number^{
     return^(p.special / p.specialPer).floor().clamp(0, 9)
 }
 
-public^let^step = p^h:Hud, p1:Fighter, p2:Fighter{
+# The timer's digits for `seconds` left (negative: no time limit, "∞").
+let^stepTimer = p^h:Hud, seconds:number^{
+    if^seconds = h.shownSeconds { return^}
+    let^before = h.shownSeconds
+    h.shownSeconds := seconds
+    if^seconds < 0 {
+        h.tens := runAt(h.dir, TIMER_INFINITE, TIMER_X, TIMER_Y)
+        h.ones := nil^
+        return^
+    }
+    let^s = seconds.clamp(0, 99)
+    let^tens = (s / 10).floor()
+    let^ones = s % 10
+    let^half = TIMER_SPACING / 2
+    if^before < 0 or^tens != (before / 10).floor() {
+        h.tens := runAt(h.dir, TIMER_NUMBER_0 + tens, TIMER_X - half, TIMER_Y)
+    }
+    if^before < 0 or^ones != before % 10 {
+        h.ones := runAt(h.dir, TIMER_NUMBER_0 + ones, TIMER_X + half, TIMER_Y)
+    }
+}
+
+public^let^step = p^h:Hud, p1:Fighter, p2:Fighter, seconds:number^{
+    stepTimer(h, seconds)
     let^n1 = stocks(p1)
     if^n1 != h.shown1 {
         h.shown1 := n1
@@ -92,6 +125,7 @@ public^let^step = p^h:Hud, p1:Fighter, p2:Fighter{
 
 # A layout layer's image at its script position (top-left), as it is.
 let^drawWhole = p^l:Fighter{
+    if^!l.alive { return^}             # ended with E
     let^w, h = l.sheet.size(l.image)
     if^w = 0 { return^}
     vp.sprite.setBlend(l.blend, l.alpha)
@@ -126,7 +160,7 @@ public^let^draw = p^h:Hud, p1:Fighter, p2:Fighter{
     drawGauge(h.life2, p2.life / p2.lifeMax, true^)
     drawGauge(h.special1, stockFraction(p1), false^)
     drawGauge(h.special2, stockFraction(p2), false^)
-    for^l in^{ h.stock1, h.stock2 } {
+    for^l in^{ h.stock1, h.stock2, h.tens, h.ones } {
         if^l fits^Fighter { drawWhole(l) }
     }
 }

@@ -81,8 +81,11 @@ python tools/fm2k_convert/gen_skills.py <json dir>/スクール.json school --st
 The system file's skills (the HUD) likewise:
 
 ```sh
-python tools/fm2k_convert/gen_skills.py <json dir>/ヴァンガードプリンセス.json system --out src
+python tools/fm2k_convert/gen_skills.py <json dir>/ヴァンガードプリンセス.json system --out src --layers
 ```
+
+`--layers` (implied by `--stage`): a script that ends with E hides its image; one that runs
+past its last block keeps showing its last image.
 
 ## Checking the LTON
 

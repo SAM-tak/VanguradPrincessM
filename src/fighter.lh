@@ -113,6 +113,7 @@ public^let^Fighter = def^{
         onScreen = false^,          # "picXY": x, y are in view coordinates
         lastOwnerX = 0, lastOwnerY = 0, # the parent's position last frame
         spins = 0,
+        waitTimer = 0,              # FM2K's I-block timer (see `hold`)
         alive = true^,
     },
     override^new = f^dir:string^, x:number^, y:number^{
@@ -136,6 +137,7 @@ public^let^Fighter = def^{
         self^.hitConfirmed := false^
         self^.cancelByHit := false^
         for^n from^0 to^16 { self^.vars[n] := nil^ }
+        self^.waitTimer := 0
         if^!self^.airborne() {
             self^.vx := 0
             self^.ax := 0
@@ -191,6 +193,9 @@ public^let^Fighter = def^{
         if^n fits^number^ and^b fits^number^ {
             self^.jumpSkill := n
             self^.jumpBlock := b
+            # It cuts the running I block's wait short: FM2K zeroes the timer
+            # (else the new skill's first wait adds onto what was left).
+            self^.waitTimer := 0
             self^.onSkill[event] := nil^
             self^.onBlock[event] := nil^
         }
@@ -214,11 +219,12 @@ public^let^Fighter = def^{
             hops += 1
         }
 
-        # FM2K: pos += vel; vel += accel, once a frame.
-        self^.x += self^.vx
+        # Once a frame: vel += accel, then pos += vel (measured: ゆい's jump
+        # peaks 211.7 px up, one frame's speed lower than pos-first gives).
         self^.vx += self^.ax
-        self^.y += self^.vy
+        self^.x += self^.vx
         self^.vy += self^.ay
+        self^.y += self^.vy
         # FM2K lands whenever the feet are at or below the ground while moving
         # down, whatever the previous frame was (so nothing can sink through).
         if^self^.y >= self^.ground and^self^.vy > 0 {
@@ -497,11 +503,27 @@ let^home = p^me:Fighter, n:number^-> t^{[number^]:number^|nil^}{
     return^(me.owner ?? me).vars
 }
 
+# The round's clock (frames left; FM2K counts 100 a second) and number (1-).
+var^roundFrames = 0
+var^roundNumber = 1
+
+public^let^setRound = p^frames:number^, number:number^{
+    roundFrames := frames
+    roundNumber := number
+}
+
+# Data variables (read only): 192 / 193 own x / y, 194 / 195 the map (camera)
+# position, 196 / 197 the parent's (spawner's) x / y, 198 the round time in
+# seconds, 199 the round number.
 public^let^v = p^me:Fighter, n:number^-> number^{
     if^n = 192 { return^me.x }
     if^n = 193 { return^me.y }
-    if^n = 196 { return^(me.owner ?? me).x }
-    if^n = 197 { return^(me.owner ?? me).y }
+    if^n = 194 { return^viewX }
+    if^n = 195 { return^viewY }
+    if^n = 196 { return^(me.parent ?? me).x }
+    if^n = 197 { return^(me.parent ?? me).y }
+    if^n = 198 { return^(roundFrames / 100).floor() }
+    if^n = 199 { return^roundNumber }
     return^home(me, n)[n] ?? 0
 }
 
@@ -552,11 +574,24 @@ public^let^specialGauge = p^me:Fighter, level:number^, isMore:bool^, amount:numb
 # ---------------------------------------------------------------------------
 # Image, boxes, motion, sound
 
-# How many frames an I block with this wait holds: FM2K adds 100 per wait unit
-# to a timer that loses 100 a frame and moves on once it is below zero, so N
-# holds N + 1 frames (at the default game speed); 0 does not hold at all.
-let^holdFrames = f^wait:number^-> number^{
-    return^if^wait = 0: 0 el^: wait + 1;
+# Holds an I block's image for `wait`, as FM2K's timer does: the block ADDS
+# 100 per wait unit to the timer (0 sets it to -1 and does not hold), and each
+# frame the timer loses 100 and the script moves on once it is below zero. The
+# timer keeps what the last image left (-100, or -1 after a wait of 0), so the
+# first image of a skill the engine starts holds N + 1 frames and the ones
+# after it N (measured: #21's 9-frame walk).
+let^hold = p^me:Fighter, wait:number^{
+    if^wait = 0 {
+        me.waitTimer := -1
+        return^
+    }
+    me.waitTimer += 100 * wait
+    repeat^while^true^ {
+        yield^
+        if^me.waitTimer < 0 { return^}
+        me.waitTimer -= 100
+        if^me.waitTimer < 0 { return^}
+    }
 }
 
 # I — show image i, its bottom-centre at (x, y) from the feet.
@@ -567,11 +602,7 @@ public^let^show = p^me:Fighter, i:number^, wait:number^, x:number^, y:number^{
     me.turnX := false^
     me.turnY := false^
     me.fixed := false^
-    var^left = holdFrames(wait)
-    repeat^while^left > 0 {
-        yield^
-        left -= 1
-    }
+    await^hold(me, wait)
 }
 
 # I with its flags: "turnX" / "turnY" mirror the image, "ignoreDirection"
@@ -583,11 +614,7 @@ public^let^showEx = p^me:Fighter, i:number^, wait:number^, x:number^, y:number^,
     me.turnX := flags.find("turnX") != nil^
     me.turnY := flags.find("turnY") != nil^
     me.fixed := flags.find("ignoreDirection") != nil^
-    var^left = holdFrames(wait)
-    repeat^while^left > 0 {
-        yield^
-        left -= 1
-    }
+    await^hold(me, wait)
 }
 
 # FD — a hurt box. `body` marks the push box (FM2K's "collide").
@@ -862,6 +889,12 @@ public^let^layer = p^me:Fighter, x:number^, y:number^, flags:string^{
     me.scrollY := if^flags.find("scrollY") != nil^: y / 100 el^: 0;
     me.loopX := flags.find("loopX") != nil^
     me.loopY := flags.find("loopY") != nil^
+}
+
+# E in a stage layer: the layer is gone (one that runs past its last block
+# keeps showing its last image instead).
+public^let^vanish = p^me:Fighter{
+    me.alive := false^
 }
 
 # RC — overlay a common image.

@@ -71,6 +71,8 @@ def q(s):
 
 
 class SkillWriter:
+    stage = False       # writing layer scripts (a stage's, the system's HUD): E hides the image
+
     def __init__(self, number, skill, entries):
         self.n = number
         self.skill = skill
@@ -148,7 +150,9 @@ class SkillWriter:
         if t == "S":
             return ["sound(me, %d)" % b["sound"]["number"]], False
         if t == "E":
-            return ["return^"], True
+            # A stage layer that ends with E is gone; one that runs past its
+            # last block keeps showing its last image.
+            return (["vanish(me)"] if SkillWriter.stage else []) + ["return^"], True
         if t == "SG":
             ref = target(b["skill"])
             return (self.goto(ref), True) if ref else (["# SG to nothing"], False)
@@ -307,10 +311,13 @@ def main():
     ap.add_argument("id", help="ASCII id for module paths, e.g. yui")
     ap.add_argument("--out", type=Path, default=None, help="default src/chara, or src/stages with --stage")
     ap.add_argument("--stage", action="store_true", help="the file is a stage: its scripts are layers")
+    ap.add_argument("--layers", action="store_true",
+                    help="E hides the script's image (stages always; the system file's HUD scripts)")
     args = ap.parse_args()
 
     d = json.loads(args.json.read_text(encoding="utf-8-sig"))
     skills = d["skills"]
+    SkillWriter.stage = args.stage or args.layers
     entries = {}
     for s in skills:
         for blk in s["blocks"]:
@@ -333,7 +340,7 @@ def main():
         for name in ("Fighter", "show", "showEx", "hurt", "body", "fd", "noHurt", "hit", "fa", "noHit", "motion",
                      "sound", "jump", "call", "spin", "settings", "layer", "on", "off", "v", "setv", "addv", "chance", "command",
                      "lifeGauge", "specialGauge", "spawn", "cancel", "reactions", "pause", "gauges", "screen",
-                     "afterimage", "color", "commonImage", "hitJunction"):
+                     "afterimage", "color", "commonImage", "hitJunction", "vanish"):
             lines.append("let^%s = vp.fighter.%s" % (name, name))
         for n in range(first, min(first + PER_FILE, len(skills))):
             lines.append("")

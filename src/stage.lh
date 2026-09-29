@@ -44,6 +44,7 @@ public^let^step = p^st:Stage{
 
 # Draws one layer, in world coordinates (the caller has moved to the camera).
 let^drawLayer = p^l:Fighter, camX:number^, camY:number^{
+    if^!l.alive { return^}             # ended with E
     let^w, h = l.sheet.size(l.image)
     if^w = 0 { return^}
     var^x = l.x + l.ix + camX * (1 - l.scrollX)
