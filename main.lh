@@ -1,5 +1,5 @@
-# VS mode: the character select screen, then a match (1P against a standing
-# 2P), then back to the select screen. The skills run from the converted FM2K
+# The opening, the title screen, then VS mode: the character select screen, a
+# match (1P against a standing 2P), and back to the select screen. The skills run from the converted FM2K
 # data (assets/…/script.lton through src/script.lh, TechnicalDocuments/0012).
 #
 #   select         up / down a character, left / right its support, a button
@@ -28,6 +28,7 @@ require^"src/stage.lh"
 require^"src/hud.lh"
 require^"src/round.lh"
 require^"src/select.lh"
+require^"src/title.lh"
 
 let^Fighter = vp.fighter.Fighter
 
@@ -57,6 +58,9 @@ let^hud = vp.hud.load(SYSTEM)
 var^flow = vp.round.load(SYSTEM)
 var^stage = vp.stage.Stage.new()
 var^selecting : vp.select.Select|nil^= nil^    # the select screen, while it is up
+let^demos = vp.title.loadDemos(SYSTEM)
+var^scene : vp.title.Scene|nil^= nil^           # the opening or the title screen
+var^opening = true^                              # which of the two it is
 var^upPressed = false^
 var^downPressed = false^
 
@@ -291,6 +295,20 @@ let^startBattle = p^s:vp.select.Select{
 }
 
 public^let^load = p^{
+    scene := vp.title.play(demos, demos.opening)
+}
+
+# The opening ends (a button, or its time): the title screen. The title
+# screen ends (a button): VS mode's select screen (story mode is not made yet).
+let^sceneDone = p^{
+    love.audio.stop()
+    if^opening {
+        opening := false^
+        let^system = vp.script.load($"{SYSTEM}/script.lton") ?? vp.script.Script.new()
+        scene := vp.title.titleScreen(demos, SYSTEM, system)
+        return^
+    }
+    scene := nil^
     toSelect()
 }
 
@@ -311,6 +329,15 @@ let^followCamera = p^{
 }
 
 let^tick = p^{
+    let^sc = scene
+    if^sc != nil^ {
+        vp.title.step(sc, upPressed, downPressed, pressed)
+        upPressed := false^
+        downPressed := false^
+        pressed := 0
+        if^sc.done { sceneDone() }
+        return^
+    }
     let^s = selecting
     if^s != nil^ {
         let^dx = if^love.keyboard.isDown("right"): 1 el^love.keyboard.isDown("left"): -1 el^: 0;
@@ -409,6 +436,14 @@ let^cross = p^p:Fighter{
 }
 
 public^let^draw = p^{
+    let^sc = scene
+    if^sc != nil^ {
+        love.graphics.push()
+        love.graphics.scale(SCALE)
+        vp.title.draw(sc)
+        love.graphics.pop()
+        return^
+    }
     let^s = selecting
     if^s != nil^ {
         love.graphics.push()

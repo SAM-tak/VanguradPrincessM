@@ -1,0 +1,151 @@
+# The opening and the title screen (TechnicalDocuments/0016). Which demo is
+# which comes from the game's demo assignment (demos.lton, read from the
+# .kgt by tools/fm2k_convert/read_demos.py).
+#
+# - The opening demo plays until a button (when the demo may be skipped) or
+#   its time runs out (0: no limit).
+# - The title demo is the mode menu. The engine puts the system's title
+#   cursor (#78) at the chosen item's position (#79 story, #80 VS); the
+#   cursor's #107 reads its y and shows the item's caption.
+module^vp.title
+
+import^std.lton
+
+require^"fighter.lh"
+require^"script.lh"
+require^"stage.lh"
+require^"round.lh"
+
+let^Fighter = vp.fighter.Fighter
+
+let^CURSOR = 78
+let^ITEM_X = 291              # "position: title cursor" story (#79) / VS single (#80)
+let^ITEM_Y : t^{number^[]} = { 70, 92 }
+
+# The game's demo assignment and each demo's settings.
+public^let^Demos = def^{
+    self^{
+        opening = "",
+        title = "",
+        vsSelect = "",
+        skips : t^{[string^]:bool^|nil^} = {},
+        times : t^{[string^]:number^|nil^} = {},
+    },
+}
+
+public^let^loadDemos = p^systemDir:string^-> Demos{
+    let^d = Demos.new()
+    let^raw = std.lton.load($"{systemDir}/demos.lton") catch^nil^
+    if^raw fits^t^{ opening : string^, title : string^, vsSelect : string^ } {
+        d.opening := raw.opening
+        d.title := raw.title
+        d.vsSelect := raw.vsSelect
+    }
+    if^raw fits^t^{ demos : t^{} } {
+        let^list = raw.demos
+        for^k from^0 to^list.length^ - 1 {
+            let^e = list[k]
+            if^e fits^t^{ name : string^, skip : bool^, time : number^ } {
+                d.skips[e.name] := e.skip
+                d.times[e.name] := e.time
+            }
+        }
+    }
+    return^d
+}
+
+# A demo on screen: its layers, and what the engine adds (the title cursor).
+public^let^Scene = def^{
+    self^{
+        name = "",
+        layers : vp.stage.Stage|nil^= nil^,
+        extras : t^{Fighter[]} = {},
+        frames = 0,
+        time = 0,                   # frames it lasts, 0: no limit
+        skip = false^,              # a button ends it
+        item = 0,                   # the title menu's choice (0 story, 1 VS)
+        done = false^,
+    },
+}
+
+public^let^play = p^demos:Demos, name:string^-> Scene{
+    let^s = Scene.new()
+    s.name := name
+    s.layers := vp.stage.load($"assets/demos/{name}")
+    s.time := demos.times[name] ?? 0
+    s.skip := demos.skips[name] ?? false^
+    return^s
+}
+
+let^systemRun = p^systemDir:string^, sc:vp.script.Script, n:number^, x:number^, y:number^-> Fighter{
+    let^l = Fighter.new(systemDir, x, y)
+    vp.script.install(l, sc)
+    l.system := true^
+    l.onScreen := true^
+    l.depth := 101
+    l.begin(n)
+    l.ground := 1000000
+    return^l
+}
+
+# The title screen: the menu demo and the cursor, on story mode as in the
+# original (either choice leads to VS mode's select screen for now).
+public^let^titleScreen = p^demos:Demos, systemDir:string^, system:vp.script.Script-> Scene{
+    let^s = play(demos, demos.title)
+    s.item := 0
+    s.extras := { systemRun(systemDir, system, CURSOR, ITEM_X, ITEM_Y[0] ?? 70) }
+    return^s
+}
+
+# One frame. up / down: pressed this frame; pressed: buttons pressed.
+public^let^step = p^s:Scene, up:bool^, down:bool^, pressed:number^{
+    let^st = s.layers
+    if^st != nil^ { vp.stage.step(st) }
+    s.frames += 1
+    let^cursor = s.extras[0]
+    if^cursor != nil^ {
+        if^up or^down {
+            s.item := (s.item + 1) % 2    # two items: story, VS
+            cursor.y := ITEM_Y[s.item] ?? 92
+        }
+        if^pressed != 0 { s.done := true^ }
+    else^:
+        if^(s.skip and^pressed != 0) or^(s.time > 0 and^s.frames >= s.time) { s.done := true^ }
+    }
+    for^e in^s.extras {
+        e.step()
+        vp.fighter.stepObjects(e)
+    }
+}
+
+# Draws a demo scene in view coordinates, by depth (layers 12 / 100, the
+# cursor 101, its caption 127).
+public^let^draw = p^s:Scene{
+    let^st = s.layers
+    if^st is^nil^{ return^}
+    vp.fighter.setView(0, 0)
+    var^list : t^{vp.round.Item[]} = {}
+    for^e in^s.extras {
+        let^i = vp.round.Item.new()
+        i.depth := e.depth
+        i.f := e
+        i.system := true^
+        list.push^(i)
+        for^o in^e.objects {
+            let^j = vp.round.Item.new()
+            j.depth := o.depth
+            j.f := o
+            j.system := true^
+            list.push^(j)
+        }
+    }
+    vp.round.byDepth(list)
+    vp.stage.draw(st, 0, 0, 0, st.players)
+    for^i in^list {
+        if^i.depth <= 100 { vp.round.drawItem(i) }
+    }
+    vp.stage.draw(st, 0, 0, st.players, st.layers.length^)
+    for^i in^list {
+        if^i.depth > 100 { vp.round.drawItem(i) }
+    }
+}

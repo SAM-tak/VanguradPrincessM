@@ -29,3 +29,4 @@
 - [0013-round-flow.md](0013-round-flow.md) — ラウンドの流れ（VS 画面・READY / FIGHT・KO・勝ちマーク）とシステムのオブジェクトの規則
 - [0014-music-loop.md](0014-music-loop.md) — BGM のループ（ループポイントなし、ファイル全体の単純ループ）
 - [0015-vs-mode-loop.md](0015-vs-mode-loop.md) — 対戦モードのループ（キャラ選択画面の仕組み、試合 → 選択へ戻る）
+- [0016-opening-and-title.md](0016-opening-and-title.md) — 起動からキャラ選択まで（デモの割り当て、オープニング、タイトル画面）

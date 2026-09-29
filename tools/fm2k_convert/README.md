@@ -84,6 +84,17 @@ image; one that runs past its last block keeps showing its last image.
 `gen_skills.py` writes skills as L^ procedures instead (`src/chara/<id>/skills/`,
 `TechnicalDocuments/0005`): a draft to start from when rewriting a skill by hand.
 
+## Demo assignment
+
+`read_demos.py` reads what fm2ndparser leaves out about demos straight from the game's files:
+which demo is the opening, the title screen, the select screens (the .kgt's demo config) and each
+demo's "skip with input" and time (the .demo's last bytes), into
+`assets/system/<game>/demos.lton` (`TechnicalDocuments/0016`).
+
+```sh
+python tools/fm2k_convert/read_demos.py vanpri108/ヴァンガードプリンセス assets
+```
+
 ## Checking the LTON
 
 Check the LTON with lhat:
