@@ -40,6 +40,7 @@ public^let^Script = def^{
     self^{
         skills : t^{Skill[]} = {},     # position = skill number
         layers = false^,               # E hides the image (stage layers, the HUD)
+        loops = false^,                # running off the end starts over (a stage's or demo's layers)
         raw : t^{} = {},               # the whole file: commands, reactions, settings
     },
 }
@@ -102,7 +103,12 @@ public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
     # false^ when the skill is over.
     let^go = p^s:number^, b:number^-> bool^{
         if^s = n {
-            if^b >= count { return^false^ }
+            if^b >= count {
+                # past the end: a stage's or demo's layer starts over, anything else ends
+                if^!sc.loops { return^false^ }
+                pc := 0
+                return^true^
+            }
             pc := b
             return^true^
         }
@@ -110,7 +116,14 @@ public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
         return^false^
     }
     repeat^while^me.alive {
-        if^pc < 0 or^pc >= count { return^}
+        if^pc < 0 { return^}
+        if^pc >= count {
+            # A stage's or demo's layer that runs off its end starts over;
+            # only E ends it (the title screen's flash, #4 of モードセレクト,
+            # repeats so). A character's or the system's skill ends.
+            if^!sc.loops { return^}
+            pc := 0
+        }
         if^fighter.spin(me) { yield^ }
         let^b = bs[pc]
         if^b is^nil^ { return^}

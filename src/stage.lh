@@ -29,8 +29,10 @@ public^let^Stage = def^{
 # A converted stage folder: its script.lton, run as layers.
 public^let^load = p^dir:string^-> Stage{
     let^st = Stage.new()
-    let^sc = vp.script.load($"{dir}/script.lton")
-    if^sc is^nil^ { return^st }
+    let^maybe = vp.script.load($"{dir}/script.lton")
+    if^maybe is^nil^ { return^st }
+    let^sc : vp.script.Script = maybe
+    sc.loops := true^              # its layers start over when they run off their end
     let^players = vp.script.playersLayer(sc)
     for^n in^vp.script.layers(sc) {
         let^l = Fighter.new(dir, 0, 0)

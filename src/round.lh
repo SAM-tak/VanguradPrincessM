@@ -52,6 +52,7 @@ public^let^Round = def^{
         toWin = 2,                  # rounds a side needs to win the match
         wins1 = 0, wins2 = 0,
         winner = 0,                 # 1, 2, or 0 for a draw
+        perfect = false^,           # the winner took no damage
         layers : t^{Fighter[]} = {},    # the system skills running now
         marks : t^{Fighter[]} = {},
     },
@@ -124,10 +125,9 @@ public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, ov
         if^down1 { p1.begin(LOSS) }
         if^down2 { p2.begin(LOSS) }
         enter(r, "ko", if^down1 and^down2: DOUBLE_KO el^: KO;)
+        r.perfect := false^
         let^w = if^r.winner = 1: p1 el^r.winner = 2: p2 el^: nil^;
-        if^w != nil^ {
-            if^w.life >= w.lifeMax { r.layers.push^(runAt(r, PERFECT, 0, 0)) }
-        }
+        if^w != nil^ { r.perfect := w.life >= w.lifeMax }
         return^
     }
 
@@ -154,6 +154,8 @@ public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, ov
         else^:
             enter(r, "win", DRAW)
         }
+        # PERFECT shows with "1P / 2P WIN", not with KO (the original, VS mode)
+        if^r.perfect { r.layers.push^(runAt(r, PERFECT, 0, 0)) }
         placeMarks(r)
     elseif^r.phase = "win":
         enter(r, "end", ROUND_END)

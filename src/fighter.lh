@@ -803,14 +803,15 @@ public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^
 
 # O — an object running skill (n, b), placed (x, y) from `me` (mirrored with
 # its facing), or at (x, y) of the view with "picXY". Flags: "out" in front of
-# the characters, "point" at `depth` (characters are 70-80), neither behind;
+# the characters (127), "point" at `depth` (characters are 70-80), neither
+# just behind its spawner (its depth - 1: measured in the original, a select
+# screen face at 80 spawns its big face at 79; "ROUND 1"'s shadow goes behind
+# its letters so);
 # "parent" moves it with its owner; without "unCond", managed number `slot`
 # (0-9) replaces the object already there. The "it's out" skill is not used yet.
 #
 # The system file's objects (the round, the HUD) are placed at (x, y) of the
-# view whatever the flags, and without "out" / "point" take their spawner's
-# depth (the VS screen's names, spawned by the support name at 122, show in
-# front of the VS frame at 105 in the original).
+# view whatever the flags.
 public^let^spawn = p^me:Fighter, n:number^, b:number^, x:number^, y:number^, slot:number^, depth:number^, outSkill:number^, outBlock:number^, flags:string^{
     if^n <= 0 { return^}
     let^root = me.owner ?? me
@@ -818,7 +819,7 @@ public^let^spawn = p^me:Fighter, n:number^, b:number^, x:number^, y:number^, slo
     let^atView = flags.find("picXY") != nil^ or^root.system
     let^wx = if^atView: x el^: me.x + x * me.facing;
     let^wy = if^atView: y el^: me.y + y;
-    let^below = if^root.system: me.depth el^: 0;
+    let^below = std.math.max(me.depth - 1, 0)
     let^d = if^flags.find("out") != nil^: 127 el^flags.find("point") != nil^: depth el^: below;
     # FM2K keeps managed numbers for a character and its objects only.
     let^managed = !root.system and^flags.find("unCond") is^nil^ and^slot >= 0 and^slot < 10
