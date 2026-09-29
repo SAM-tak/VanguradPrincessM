@@ -1,6 +1,9 @@
-# Sample: ゆい against a standing ゆい, running the skills converted from the
-# FM2K data (assets/…/script.lton through src/script.lh, TechnicalDocuments/0012).
+# VS mode: the character select screen, then a match (1P against a standing
+# 2P), then back to the select screen. The skills run from the converted FM2K
+# data (assets/…/script.lton through src/script.lh, TechnicalDocuments/0012).
 #
+#   select         up / down a character, left / right its support, a button
+#                  confirms (its colour); 1P picks, then the same keys pick 2P
 #   arrows         move / jump / crouch (and command motions)
 #   z x c a s d    buttons A B C D E F
 #   h              show boxes      1-8         palette
@@ -14,6 +17,8 @@ import^love.graphics
 import^love.keyboard
 import^love.event
 import^love.timer
+import^love.math
+import^love.audio
 import^std.math
 
 require^"src/fighter.lh"
@@ -22,6 +27,7 @@ require^"src/script.lh"
 require^"src/stage.lh"
 require^"src/hud.lh"
 require^"src/round.lh"
+require^"src/select.lh"
 
 let^Fighter = vp.fighter.Fighter
 
@@ -41,12 +47,18 @@ let^WALL_AIR = 64
 let^START_X = 270            # the round starts with 1P / 2P at 640 -/+ this
 let^VIEW_EDGE = 50           # how close to the view's edge a fighter may go
 
-let^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - START_X, GROUND)
-let^foe = Fighter.new("assets/characters/ゆい", WORLD_W / 2 + START_X, GROUND)
-let^hud = vp.hud.load("assets/system/ヴァンガードプリンセス")
-let^flow = vp.round.load("assets/system/ヴァンガードプリンセス")
-let^stage = vp.stage.load("assets/stages/スクール")
-let^yui = vp.script.load("assets/characters/ゆい/script.lton") ?? vp.script.Script.new()
+let^SYSTEM = "assets/system/ヴァンガードプリンセス"
+let^STAGES : t^{string^[]} = { "スクール", "プール", "神社", "瓦礫", "夜", "丘", "ラスト" }
+
+# The match's fighters and stage are made when a battle starts.
+var^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - START_X, GROUND)
+var^foe = Fighter.new("assets/characters/ゆい", WORLD_W / 2 + START_X, GROUND)
+let^hud = vp.hud.load(SYSTEM)
+var^flow = vp.round.load(SYSTEM)
+var^stage = vp.stage.Stage.new()
+var^selecting : vp.select.Select|nil^= nil^    # the select screen, while it is up
+var^upPressed = false^
+var^downPressed = false^
 
 # FM2K skill numbers: the character's built-in skills (its .player settings)
 # and what its commands map A / B / C to.
@@ -253,13 +265,33 @@ let^startRound = p^{
     aimY := camY
 }
 
-public^let^load = p^{
-    vp.script.install(me, yui)
-    vp.script.install(foe, yui)
-    foe.palette := 1
+let^toSelect = p^{
+    love.audio.stop()              # the match's music and sounds end with it
+    selecting := vp.select.load(SYSTEM)
+}
+
+# The chosen characters, their colours and a stage at random; the supports
+# chosen on the select screen are in system variables 142 / 143.
+let^startBattle = p^s:vp.select.Select{
+    let^name1, colour1 = vp.select.chosen(s, 0)
+    let^name2, colour2 = vp.select.chosen(s, 1)
+    me := Fighter.new($"assets/characters/{name1}", WORLD_W / 2 - START_X, GROUND)
+    foe := Fighter.new($"assets/characters/{name2}", WORLD_W / 2 + START_X, GROUND)
+    vp.script.install(me, vp.select.scriptOf(name1))
+    vp.script.install(foe, vp.select.scriptOf(name2))
+    me.palette := colour1
+    foe.palette := if^name1 = name2 and^colour1 = colour2: (colour2 + 1) % 8 el^: colour2;
     me.enemy := foe
     foe.enemy := me
+    love.audio.stop()              # the select screen's music
+    stage := vp.stage.load($"assets/stages/{STAGES[love.math.random(0, STAGES.length^ - 1)] ?? "スクール"}")
+    flow := vp.round.load(SYSTEM)
+    selecting := nil^
     startRound()
+}
+
+public^let^load = p^{
+    toSelect()
 }
 
 # The camera (the view's top-left) moves half the way to its target each
@@ -279,6 +311,17 @@ let^followCamera = p^{
 }
 
 let^tick = p^{
+    let^s = selecting
+    if^s != nil^ {
+        let^dx = if^love.keyboard.isDown("right"): 1 el^love.keyboard.isDown("left"): -1 el^: 0;
+        let^dy = if^love.keyboard.isDown("up"): 1 el^love.keyboard.isDown("down"): -1 el^: 0;
+        vp.select.step(s, upPressed, downPressed, 5 + dx + 3 * dy, pressed)
+        upPressed := false^
+        downPressed := false^
+        pressed := 0
+        if^s.done { startBattle(s) }
+        return^
+    }
     let^right = love.keyboard.isDown("right")
     let^left = love.keyboard.isDown("left")
     let^forward = if^me.facing > 0: right el^: left;
@@ -300,7 +343,7 @@ let^tick = p^{
     let^timing = live and^vp.fighter.v(me, 128) <= 9999
     if^timing and^roundFrames > 0 { roundFrames -= 1 }
     vp.fighter.setRound(roundFrames, flow.number)
-    vp.round.step(flow, me, foe, roundFrames <= 0, startRound)
+    vp.round.step(flow, me, foe, roundFrames <= 0, startRound, toSelect)
     vp.stage.step(stage)
     if^timing and^!wasTiming { vp.hud.fightBegins(hud) }
     wasTiming := timing
@@ -366,6 +409,14 @@ let^cross = p^p:Fighter{
 }
 
 public^let^draw = p^{
+    let^s = selecting
+    if^s != nil^ {
+        love.graphics.push()
+        love.graphics.scale(SCALE)
+        vp.select.draw(s)
+        love.graphics.pop()
+        return^
+    }
     love.graphics.push()
     love.graphics.scale(SCALE)
     love.graphics.translate(-camX, -camY)
@@ -419,6 +470,8 @@ public^let^draw = p^{
 
 public^let^keypressed = p^key:string^, scancode:string^, isrepeat:bool^{
     if^key = "escape" { love.event.quit() }
+    if^!isrepeat and^key = "up" { upPressed := true^ }
+    if^!isrepeat and^key = "down" { downPressed := true^ }
     if^!isrepeat {
         if^key = "z" { pressed += 1 }
         if^key = "x" { pressed += 2 }

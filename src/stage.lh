@@ -34,11 +34,13 @@ public^let^load = p^dir:string^-> Stage{
     let^players = vp.script.playersLayer(sc)
     for^n in^vp.script.layers(sc) {
         let^l = Fighter.new(dir, 0, 0)
-        l.loopSounds := true^          # the stage's music loops
         vp.script.install(l, sc)
         l.begin(n)
         l.ground := 1000000        # layers move freely; nothing lands
         if^n = players { st.players := st.layers.length^ }
+        # Measured in the original (TechnicalDocuments/0015): the layers
+        # before the players' marker are at depth 12, those from it on at 100.
+        l.depth := if^n >= players and^players >= 0: 100 el^: 12;
         st.layers.push^(l)
     }
     return^st

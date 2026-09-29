@@ -281,7 +281,8 @@ public^let^showTime = p^sc:Script, n:number^-> number^{
 }
 
 # A stage's layers, back to front: the named scripts after "none" that have
-# blocks. The players go where the one named プレーヤー位置 stands.
+# blocks. The players go where the one named プレーヤー位置 stands (a demo's
+# engine-drawn things, such as the select screen's cursors: ｼｽﾃﾑｲﾒｰｼﾞ位置).
 public^let^layers = p^sc:Script-> t^{number^[]}{
     var^out : t^{number^[]} = {}
     for^n, sk in^sc.skills {
@@ -292,7 +293,7 @@ public^let^layers = p^sc:Script-> t^{number^[]}{
 
 public^let^playersLayer = p^sc:Script-> number^{
     for^n, sk in^sc.skills {
-        if^n >= 1 and^sk.name = "プレーヤー位置" and^sk.blocks.length^ > 0 { return^n }
+        if^n >= 1 and^(sk.name = "プレーヤー位置" or^sk.name = "ｼｽﾃﾑｲﾒｰｼﾞ位置") and^sk.blocks.length^ > 0 { return^n }
     }
     return^-1
 }

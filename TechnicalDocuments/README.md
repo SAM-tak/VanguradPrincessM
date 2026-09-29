@@ -28,3 +28,4 @@
 - [0012-skills-as-data.md](0012-skills-as-data.md) — 技はデータ（script.lton）にして src/script.lh で解釈実行（0005 の L^ 生成を置き換え）。形式と確認結果
 - [0013-round-flow.md](0013-round-flow.md) — ラウンドの流れ（VS 画面・READY / FIGHT・KO・勝ちマーク）とシステムのオブジェクトの規則
 - [0014-music-loop.md](0014-music-loop.md) — BGM のループ（ループポイントなし、ファイル全体の単純ループ）
+- [0015-vs-mode-loop.md](0015-vs-mode-loop.md) — 対戦モードのループ（キャラ選択画面の仕組み、試合 → 選択へ戻る）

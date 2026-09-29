@@ -9,11 +9,14 @@ Background and decisions: `TechnicalDocuments/0003-asset-pipeline-decision.md`.
 
 [xem85/fm2ndparser](https://github.com/xem85/fm2ndparser) (MIT, .NET 10). It rejects the
 game's `2DKGT2G` files as "locked"; disable that check first — the layout is identical.
+It also reads a sound's loop flag from the wrong bit; fix that too.
 
 ```sh
 git clone --depth 1 https://github.com/xem85/fm2ndparser
 cd fm2ndparser
 sed -i 's/if (type.StartsWith("2DKGT2G"))/if (false \&\& type.StartsWith("2DKGT2G"))/' Fm2ndParser/Parsers/BaseParser.cs
+# a sound's loop flag is bit 4 (0x10), not bit 5 (TechnicalDocuments/0014)
+sed -i 's/var endlessLoop = isFlagOn(flags, 5);/var endlessLoop = isFlagOn(flags, 4);/' Fm2ndParser/Parsers/BaseParser.cs
 dotnet build -c Release -o ../fm2nd-bin
 ```
 

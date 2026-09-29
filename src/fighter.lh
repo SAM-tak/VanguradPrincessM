@@ -24,6 +24,7 @@ import^love.graphics
 import^love.audio
 import^love.math
 import^std.math
+import^std.lton
 
 require^"sprite.lh"
 
@@ -54,7 +55,6 @@ public^let^Fighter = def^{
     self^{
         abstract^sheet : vp.sprite.Sheet,
         soundDir = "",
-        loopSounds = false^,        # a stage's: its sounds (the BGM) play in a loop
         palette = 0,
         x = 0, y = 0,               # feet, world px
         ground = 0,
@@ -120,8 +120,9 @@ public^let^Fighter = def^{
         minX = -1000000, maxX = 1000000, minXAir = -1000000, maxXAir = 1000000,
         alive = true^,
     },
-    override^new = f^dir:string^, x:number^, y:number^{
-        self^{ sheet = vp.sprite.Sheet.new(dir), dir = dir, soundDir = $"{dir}/sounds", x = x, y = y, ground = y }
+    # A procedure: the images come from the folder's shared Sheet.
+    override^new = p^dir:string^, x:number^, y:number^{
+        self^{ sheet = vp.sprite.sheetFor(dir), dir = dir, soundDir = $"{dir}/sounds", x = x, y = y, ground = y }
     },
 
     airborne = f^self^-> bool^{
@@ -717,6 +718,28 @@ public^let^move = p^me:Fighter, vx:number^, ax:number^{
 var^logSounds = false^
 public^let^setSoundLog = p^on:bool^{ logSounds := on }
 
+# Which sounds of a converted folder loop: their sounds.lton "endlessLoop"
+# (FM2K's sound flag 0x10; TechnicalDocuments/0014). Read once per folder.
+var^loopFlags : t^{[string^]:t^{[number^]:bool^|nil^}|nil^} = {}
+
+let^loops = p^dir:string^, n:number^-> bool^{
+    var^flags = loopFlags[dir]
+    if^flags is^nil^{
+        var^read : t^{[number^]:bool^|nil^} = {}
+        let^list = std.lton.load($"{dir}/sounds.lton") catch^nil^
+        if^list fits^t^{} {
+            for^k from^0 to^list.length^ - 1 {
+                let^e = list[k]
+                if^e fits^t^{ endlessLoop : bool^ } { read[k] := e.endlessLoop }
+            }
+        }
+        loopFlags[dir] := read
+        flags := read
+    }
+    if^flags != nil^ { return^flags[n] ?? false^ }
+    return^false^
+}
+
 # S — a sound by its FM2K number.
 public^let^sound = p^me:Fighter, n:number^{
     if^logSounds {
@@ -725,11 +748,12 @@ public^let^sound = p^me:Fighter, n:number^{
     }
     var^src = me.sounds[n]
     if^src is^nil^{
-        # A stage's music is long: streamed, and looped over the whole file
-        # (it has no loop points and ends in a fade; TechnicalDocuments/0014).
-        let^kind = if^me.loopSounds: love.audio.SourceType.stream el^: love.audio.SourceType.static;
+        # A looping sound (the music) is long: streamed, looped over the whole
+        # file (the tracks have no loop points and end in a fade).
+        let^loop = loops(me.dir, n)
+        let^kind = if^loop: love.audio.SourceType.stream el^: love.audio.SourceType.static;
         let^loaded = love.audio.newSource($"{me.soundDir}/{n:%04d}.wav", kind) catch^nil^
-        if^loaded fits^love.audio.Source { loaded.setLooping(me.loopSounds) }
+        if^loaded fits^love.audio.Source { loaded.setLooping(loop) }
         me.sounds[n] := loaded
         src := loaded
     }

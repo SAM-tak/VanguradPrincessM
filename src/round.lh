@@ -100,8 +100,8 @@ public^let^fighting = f^r:Round-> bool^{
 }
 
 # One frame. `timeUp`: the clock has run out. `reset` puts the fighters back
-# for the next round (or a new match).
-public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;{
+# for the next round; `over` is called when a side has won the match.
+public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, over:p^;{
     var^running : t^{Fighter[]} = {}
     for^l in^r.layers {
         l.step()
@@ -161,13 +161,10 @@ public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;{
         # #14 ends in black (its #112 fades out and stays); the new round
         # clears the system's objects and #13 fades in.
         if^r.wins1 >= r.toWin or^r.wins2 >= r.toWin {
-            r.number := 1
-            r.wins1 := 0
-            r.wins2 := 0
-            placeMarks(r)
-        else^:
-            r.number += 1
+            over()
+            return^
         }
+        r.number += 1
         reset()
         r.layers := {}
         enter(r, "start", ROUND_START)

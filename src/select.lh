@@ -1,0 +1,225 @@
+# The character select screen, as FM2K's engine runs it (TechnicalDocuments/
+# 0015). The demo "キャラセレ" draws the screen from system variables; the
+# engine moves the cursors on the grid, puts the character under a cursor up
+# as its portrait object (the character's #25, which also picks the support
+# with left / right) and confirms on a button, whose number is the colour.
+#
+# One keyboard: both sides are up at once (VS mode); 1P picks, then the same
+# keys pick 2P's character.
+module^vp.select
+
+import^love.graphics
+
+require^"fighter.lh"
+require^"script.lh"
+require^"stage.lh"
+require^"hud.lh"
+require^"round.lh"
+
+let^Fighter = vp.fighter.Fighter
+
+# The system file's built-in skills and its selection screen settings.
+let^CURSOR_1P = 84
+let^CURSOR_2P = 85
+let^CONFIRMED_1P = 86
+let^CONFIRMED_2P = 87
+let^GRID_X = 320              # charStartPosX / Y, distanceBetweenCharsY, rows
+let^GRID_Y = 50
+let^GRID_STEP = 40
+let^ROWS = 10
+let^PORTRAIT_1P_X = 87        # p1CursorPosX / Y: where the portrait object stands
+let^PORTRAIT_2P_X = 553
+let^PORTRAIT_Y = 55
+let^PORTRAIT = 25             # a character's built-in "select screen face"
+let^AFTER_BOTH = 100          # frames from both confirmed to the battle
+
+# The characters on the grid, top to bottom (the system file's list).
+public^let^CHARACTERS : t^{string^[]} = { "ゆい", "ゆかり", "リリス", "ルナ", "くるみ", "みさき", "かえで", "カテジナ", "ついん", "みこ" }
+
+public^let^Side = def^{
+    self^{
+        row = 0,
+        cursor : Fighter|nil^= nil^,
+        portrait : Fighter|nil^= nil^,
+        confirmed = false^,
+        colour = 0,
+    },
+}
+
+public^let^Select = def^{
+    self^{
+        system : vp.script.Script|nil^= nil^,
+        systemDir = "",
+        demo : vp.stage.Stage|nil^= nil^,
+        sides : t^{Side[]} = {},
+        picking = 0,                # the side choosing now (0 = 1P, 1 = 2P)
+        wait = 0,                   # frames since both confirmed
+        done = false^,
+    },
+}
+
+# Scripts of the characters, loaded once.
+var^scripts : t^{[string^]:vp.script.Script|nil^} = {}
+
+public^let^scriptOf = p^name:string^-> vp.script.Script{
+    let^known = scripts[name]
+    if^known != nil^ { return^known }
+    let^sc = vp.script.load($"assets/characters/{name}/script.lton") ?? vp.script.Script.new()
+    scripts[name] := sc
+    return^sc
+}
+
+let^systemRun = p^s:Select, n:number^, x:number^, y:number^-> Fighter{
+    let^l = Fighter.new(s.systemDir, x, y)
+    let^sc = s.system
+    if^sc != nil^ { vp.script.install(l, sc) }
+    l.system := true^
+    l.depth := 101
+    l.begin(n)
+    l.ground := 1000000
+    return^l
+}
+
+let^slotY = f^row:number^-> number^{
+    return^GRID_Y + GRID_STEP * row
+}
+
+# The character under side k's cursor as its portrait object.
+let^showPortrait = p^s:Select, k:number^{
+    let^maybe = s.sides[k]
+    if^maybe is^nil^{ return^}
+    let^side : Side = maybe
+    let^name = CHARACTERS[side.row] ?? "ゆい"
+    let^p = Fighter.new($"assets/characters/{name}", if^k = 0: PORTRAIT_1P_X el^: PORTRAIT_2P_X;, PORTRAIT_Y)
+    vp.script.install(p, scriptOf(name))
+    p.ground := 1000000
+    p.onScreen := true^
+    p.facing := if^k = 0: 1 el^: -1;
+    p.depth := 100
+    p.begin(PORTRAIT)
+    side.portrait := p
+    side.cursor := systemRun(s, if^k = 0: CURSOR_1P el^: CURSOR_2P;, GRID_X, slotY(side.row))
+}
+
+public^let^load = p^systemDir:string^-> Select{
+    let^s = Select.new()
+    s.systemDir := systemDir
+    s.system := vp.script.load($"{systemDir}/script.lton")
+    s.demo := vp.stage.load("assets/demos/キャラセレ")
+    s.sides := { Side.new(), Side.new() }
+    vp.fighter.clearSystemVars()
+    # VS mode: both sides are up from the start (the 2P cursor #85 moves
+    # system variable 139 off 500, the select screen's "1P only" mark, and
+    # the screen lays itself out for two: 2P's support, no move list).
+    showPortrait(s, 0)
+    showPortrait(s, 1)
+    return^s
+}
+
+# The first button of a pressed set (A = 0 ... F = 5): the colour.
+let^firstButton = f^pressed:number^-> number^{
+    var^rest = pressed
+    for^k from^0 to^5 {
+        if^rest % 2 = 1 { return^k }
+        rest := (rest / 2).floor()
+    }
+    return^0
+}
+
+# Which side's system variable 141 (set when a side confirms) the portraits
+# see: each sees its own side's state (FM2K has one for both players).
+let^confirmFlag = p^side:Side, me:Fighter{
+    vp.fighter.setv(me, 141, if^side.confirmed: 1 el^: 0;)
+}
+
+# One frame. dir: FM2K's direction code (5 = none, 8 up, 2 down, 4 / 6 left
+# / right), pressed: the buttons pressed this frame (A = 1 ... F = 32).
+public^let^step = p^s:Select, up:bool^, down:bool^, dir:number^, pressed:number^{
+    let^st = s.demo
+    if^st != nil^ { vp.stage.step(st) }
+
+    let^k = s.picking
+    let^maybe = s.sides[k]
+    if^maybe != nil^ and^!maybe.confirmed {
+        let^side : Side = maybe
+        if^up or^down {
+            side.row := (side.row + (if^down: 1 el^: -1;) + ROWS) % ROWS
+            showPortrait(s, k)
+        elseif^pressed != 0:
+            side.confirmed := true^
+            side.colour := firstButton(pressed)
+            side.cursor := systemRun(s, if^k = 0: CONFIRMED_1P el^: CONFIRMED_2P;, GRID_X, slotY(side.row))
+        }
+    }
+
+    for^i, sd in^s.sides {
+        let^p = sd.portrait
+        if^p != nil^ {
+            confirmFlag(sd, p)
+            vp.fighter.record(p, if^i = s.picking and^!sd.confirmed: dir el^: 5;, 0)
+            p.step()
+            vp.fighter.stepObjects(p)
+        }
+        let^c = sd.cursor
+        if^c != nil^ {
+            c.step()
+            vp.fighter.stepObjects(c)
+        }
+    }
+
+    let^cur = s.sides[s.picking]
+    if^cur != nil^ and^cur.confirmed {
+        if^s.picking = 0 {
+            s.picking := 1
+        else^:
+            s.wait += 1
+            if^s.wait > AFTER_BOTH { s.done := true^ }
+        }
+    }
+}
+
+# The choices once done.
+public^let^chosen = p^s:Select, k:number^-> (string^, number^){
+    let^side = s.sides[k]
+    if^side is^nil^{ return^"ゆい", 0 }
+    return^CHARACTERS[side.row] ?? "ゆい", side.colour
+}
+
+# Draws the screen in view coordinates, by depth as measured in the original
+# (TechnicalDocuments/0015): the demo's layers before ｼｽﾃﾑｲﾒｰｼﾞ位置 (12), the
+# portraits (80) and their big faces (79), the layers from the marker on
+# (100: the grid's icons), the cursors (101) and the support arrows (127).
+public^let^draw = p^s:Select{
+    let^st = s.demo
+    if^st is^nil^{ return^}
+    vp.fighter.setView(0, 0)
+    vp.stage.draw(st, 0, 0, 0, st.players)
+    var^list : t^{vp.round.Item[]} = {}
+    let^add = p^f:Fighter, system:bool^{
+        let^i = vp.round.Item.new()
+        i.depth := f.depth
+        i.f := f
+        i.system := system
+        list.push^(i)
+    }
+    for^sd in^s.sides {
+        let^p = sd.portrait
+        if^p != nil^ {
+            add(p, false^)
+            for^o in^p.objects { add(o, false^) }
+        }
+        let^c = sd.cursor
+        if^c != nil^ {
+            add(c, true^)
+            for^o in^c.objects { add(o, true^) }
+        }
+    }
+    vp.round.byDepth(list)
+    for^i in^list {
+        if^i.depth <= 100 { vp.round.drawItem(i) }
+    }
+    vp.stage.draw(st, 0, 0, st.players, st.layers.length^)
+    for^i in^list {
+        if^i.depth > 100 { vp.round.drawItem(i) }
+    }
+}

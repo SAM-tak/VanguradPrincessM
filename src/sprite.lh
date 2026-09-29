@@ -52,6 +52,7 @@ public^let^Sheet = def^{
         images : t^{[number^]:love.graphics.Texture|nil^} = {},
         indexed : t^{[number^]:bool^|nil^} = {},    # from images.lton
         formatsRead = false^,
+        count = 0,                  # image numbers in images.lton
     },
     override^new = f^dir:string^{ self^{ dir = dir } },
 
@@ -61,6 +62,7 @@ public^let^Sheet = def^{
             self^.formatsRead := true^
             let^list = std.lton.load($"{self^.dir}/images.lton") catch^nil^
             if^list fits^t^{} {
+                self^.count := list.length^
                 # position = image number; unused numbers are nil^
                 for^k from^0 to^list.length^ - 1 {
                     let^e = list[k]
@@ -146,4 +148,26 @@ public^let^Sheet = def^{
         love.graphics.draw(tex, x, y - h + (h / 2).floor(), 0, sx, sy, (w / 2).floor(), (h / 2).floor())
         love.graphics.setShader()
     },
+}
+
+# One Sheet per folder, shared by every fighter, object and layer made from
+# it: its images load once (a fighter made anew, such as a select screen
+# portrait on each cursor move, read them all over again).
+var^sheets : t^{[string^]:Sheet|nil^} = {}
+
+public^let^sheetFor = p^dir:string^-> Sheet{
+    let^known = sheets[dir]
+    if^known != nil^ { return^known }
+    let^s = Sheet.new(dir)
+    sheets[dir] := s
+    return^s
+}
+
+# Loads every image of a sheet now (about 2 s for a character). Not used
+# yet: the plan is to load everything at start-up (TechnicalDocuments/0015).
+public^let^preload = p^s:Sheet{
+    s.isIndexed(0)
+    for^i from^0 to^s.count - 1 {
+        if^s.indexed[i] != nil^ { s.image(i) }
+    }
 }
