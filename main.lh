@@ -51,8 +51,6 @@ let^VIEW_EDGE = 50           # how close to the view's edge a fighter may go
 
 let^SYSTEM = "assets/system/ヴァンガードプリンセス"
 let^STAGES : t^{string^[]} = { "スクール", "プール", "神社", "瓦礫", "夜", "丘", "ラスト" }
-# The same in ASCII, for the debugging text (LÖVE's default font has no Japanese).
-let^STAGE_LABELS : t^{string^[]} = { "school", "pool", "shrine", "ruins", "night", "hill", "last" }
 
 # The match's fighters and stage are made when a battle starts.
 var^me = Fighter.new("assets/characters/ゆい", WORLD_W / 2 - START_X, GROUND)
@@ -440,8 +438,20 @@ let^cross = p^p:Fighter{
     love.graphics.line(p.x, p.y - 8, p.x, p.y + 8)
 }
 
-# Debugging text, outlined in black so it reads over bright scenes too.
+# Debugging text, outlined in black so it reads over bright scenes too, in
+# a font with Japanese (LÖVE's default has none; the default is kept when
+# the font is missing).
+var^debugFont : love.graphics.Font|nil^= nil^
+var^debugFontTried = false^
+
 let^debugText = p^text:string^, x:number^, y:number^{
+    if^!debugFontTried {
+        debugFontTried := true^
+        let^f = love.graphics.newFont("assets/NotoSansMonoCJKjp-Regular.otf", 13) catch^nil^
+        if^f fits^love.graphics.Font { debugFont := f }
+    }
+    let^font = debugFont
+    if^font != nil^ { love.graphics.setFont(font) }
     love.graphics.setColor(0, 0, 0, 1)
     for^dx from^-1 to^1 {
         for^dy from^-1 to^1 {
@@ -467,7 +477,7 @@ public^let^draw = p^{
         love.graphics.scale(SCALE)
         vp.select.draw(s)
         love.graphics.pop()
-        let^stageName = if^stageChoice > 0: STAGE_LABELS[stageChoice - 1] ?? "" el^: "random";
+        let^stageName = if^stageChoice > 0: STAGES[stageChoice - 1] ?? "" el^: "random";
         debugText($"t stage: {stageName}", 16, 16)
         return^
     }
