@@ -525,7 +525,10 @@ public^let^posture = p^me:Fighter, crouched:bool^-> number^{
 # skill its own table gives for the reaction the attacker's R block names,
 # facing the attacker; a hit takes power x damage rate / 100 off its life.
 # Both freeze for the attacker's PS hitstop. Answers whether it was guarded,
-# and the defender's spark skill for the reaction (0: none).
+# and the spark skill for the reaction (0: none): the ATTACKER's table gives
+# it, and it runs as the attacker's (measured in the original: ゆい's jump C
+# on はるか, reaction 20, spawned ゆい's #317 -- はるか's table names 315;
+# TechnicalDocuments/0008).
 #
 # R's guard slot is what a guarding defender gets. Where it is the same as the
 # hit slot, the attack cannot be guarded in that posture: a low kick has the
@@ -549,7 +552,8 @@ public^let^struck = p^atk:Fighter, box:Box, def:Fighter, rate:number^, crouched:
     else^:
         landed(atk, box)
     }
-    return^guarded, def.reactSpark[reaction] ?? 0
+    let^source = atk.owner ?? atk
+    return^guarded, source.reactSpark[reaction] ?? 0
 }
 
 # DS with no skill: stop handling `event`.

@@ -220,10 +220,7 @@ let^strike = p^a:Fighter, b:Fighter{
                             let^hx = (std.math.max(al, bl) + std.math.min(al + aw, bl + bw)) / 2
                             let^hy = (std.math.max(at, bt) + std.math.min(at + ah, bt + bh)) / 2
                             let^guarded, spark = vp.fighter.struck(a, atk, b, hurt.rate, endsCrouched(b, b.skillNo))
-                            # The spark's number comes from the defender's table, but it
-                            # runs as the attacker's skill: はるか's and ヒルダ's tables give
-                            # 315 for light hits, their own 315 is a barrier (ばりあんぬ),
-                            # everyone else's 315 is 弱切りエフェクト (inferred, TechnicalDocuments/0008).
+                            # The attacker's spark, run as the attacker's object (0008).
                             if^spark > 0 { vp.fighter.makeObject(a, spark, 0, hx, hy, 127) }
                             let^what = if^guarded: "guard" el^: "hit";
                             print($"{frame}: {what} {a.skillName} -> {b.skillName}  life {b.life}  spark {spark}")
