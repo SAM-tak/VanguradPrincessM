@@ -9,3 +9,5 @@ src/chara/*/skills/
 src/chara/*/skills.lh
 tools/fm2k_convert/.venv/
 __pycache__/
+build/
+dist/
