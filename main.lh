@@ -32,6 +32,7 @@ require^"src/select.lh"
 require^"src/title.lh"
 
 let^Fighter = vp.fighter.Fighter
+let^Key = love.keyboard.Key
 
 let^FRAME = 1 / 100          # FM2K runs at 100 fps
 
@@ -351,8 +352,8 @@ let^tick = p^{
     }
     let^s = selecting
     if^s != nil^ {
-        let^dx = if^love.keyboard.isDown("right"): 1 el^love.keyboard.isDown("left"): -1 el^: 0;
-        let^dy = if^love.keyboard.isDown("up"): 1 el^love.keyboard.isDown("down"): -1 el^: 0;
+        let^dx = if^love.keyboard.isDown(Key.right): 1 el^love.keyboard.isDown(Key.left): -1 el^: 0;
+        let^dy = if^love.keyboard.isDown(Key.up): 1 el^love.keyboard.isDown(Key.down): -1 el^: 0;
         vp.select.step(s, upPressed, downPressed, 5 + dx + 3 * dy, pressed)
         upPressed := false^
         downPressed := false^
@@ -360,13 +361,13 @@ let^tick = p^{
         if^s.done { startBattle(s) }
         return^
     }
-    let^right = love.keyboard.isDown("right")
-    let^left = love.keyboard.isDown("left")
+    let^right = love.keyboard.isDown(Key.right)
+    let^left = love.keyboard.isDown(Key.left)
     let^forward = if^me.facing > 0: right el^: left;
     let^back = if^me.facing > 0: left el^: right;
     # Only while they fight does input count.
     let^live = vp.round.fighting(flow)
-    control(me, live and^love.keyboard.isDown("up"), live and^love.keyboard.isDown("down"), live and^forward, live and^back, if^live: pressed el^: 0;)
+    control(me, live and^love.keyboard.isDown(Key.up), live and^love.keyboard.isDown(Key.down), live and^forward, live and^back, if^live: pressed el^: 0;)
     pressed := 0
     control(foe, false^, live and^dummyGuard = 2, false^, false^, 0)
 
@@ -558,28 +559,32 @@ public^let^draw = p^{
     debugText($"arrows move  z x c a s d = A-F  h boxes  1-8 palette  k dummy at 1  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
 }
 
-public^let^keypressed = p^key:string^, scancode:string^, isrepeat:bool^{
-    if^key = "escape" { love.event.quit() }
-    if^!isrepeat and^key = "up" { upPressed := true^ }
-    if^!isrepeat and^key = "down" { downPressed := true^ }
+# The palette keys 1-8.
+let^PALETTE_KEYS : t^{love.keyboard.Key[]} = {
+    Key.digit1, Key.digit2, Key.digit3, Key.digit4, Key.digit5, Key.digit6, Key.digit7, Key.digit8,
+}
+
+public^let^keypressed = p^key:love.keyboard.Key, scancode:love.keyboard.Scancode, isrepeat:bool^{
+    if^key = Key.escape { love.event.quit() }
+    if^!isrepeat and^key = Key.up { upPressed := true^ }
+    if^!isrepeat and^key = Key.down { downPressed := true^ }
     if^!isrepeat {
-        if^key = "z" { pressed += 1 }
-        if^key = "x" { pressed += 2 }
-        if^key = "c" { pressed += 4 }
-        if^key = "a" { pressed += 8 }
-        if^key = "s" { pressed += 16 }
-        if^key = "d" { pressed += 32 }
+        if^key = Key.z { pressed += 1 }
+        if^key = Key.x { pressed += 2 }
+        if^key = Key.c { pressed += 4 }
+        if^key = Key.a { pressed += 8 }
+        if^key = Key.s { pressed += 16 }
+        if^key = Key.d { pressed += 32 }
     }
-    if^key = "h" { showBoxes := !showBoxes }
-    if^key = "g" { dummyGuard := (dummyGuard + 1) % 3 }
-    if^key = "k" { foe.life := 1 }
-    if^key = "t" and^selecting != nil^ { stageChoice := (stageChoice + 1) % (STAGES.length^ + 1) }        # the next hit is a KO (for trying the round flow)
-    if^key = "l" {
+    if^key = Key.h { showBoxes := !showBoxes }
+    if^key = Key.g { dummyGuard := (dummyGuard + 1) % 3 }
+    if^key = Key.k { foe.life := 1 }
+    if^key = Key.t and^selecting != nil^ { stageChoice := (stageChoice + 1) % (STAGES.length^ + 1) }        # the next hit is a KO (for trying the round flow)
+    if^key = Key.l {
         soundLog := !soundLog
         vp.fighter.setSoundLog(soundLog)
     }
-    let^n = key.tonumber()
-    if^n fits^number^ {
-        if^n >= 1 and^n <= 8 { me.palette := n - 1 }
+    for^n from^0 to^PALETTE_KEYS.length^ - 1 {
+        if^key = PALETTE_KEYS[n] { me.palette := n }
     }
 }
