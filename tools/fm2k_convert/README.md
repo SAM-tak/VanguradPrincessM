@@ -40,6 +40,17 @@ tools/fm2k_convert/.venv/Scripts/python tools/fm2k_convert/convert.py <json dir>
 
 About 4 minutes. `--lton-only` rewrites just the LTON (13 s); `--only <stem>...` limits the files.
 
+## Shared assets
+
+After `convert.py`, gather what the characters hold in common (same bytes) into `assets/shared`:
+
+```sh
+tools/fm2k_convert/.venv/Scripts/python tools/fm2k_convert/share_assets.py assets --apply
+```
+
+The listings' entries become `shared = "images/<sha1>.png"`; the skills keep their numbers.
+`--preview <dir>` writes the split for looking at instead. See `TechnicalDocuments/0020`.
+
 ## Patches
 
 Deliberate changes to the original data live in `patches/<json stem>.py` (`def patch(d)`, editing

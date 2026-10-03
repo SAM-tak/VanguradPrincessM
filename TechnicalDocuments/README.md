@@ -33,3 +33,4 @@
 - [0017-distribution-build.md](0017-distribution-build.md) — 配布ビルド（VM のみのエンジン + fused）の手順と、エンジン側の生成物の作り直し
 - [0018-hit-combo-display.md](0018-hit-combo-display.md) — コンボ表示（HIT COMBO）の素材・原作で測った位置と出方・実装
 - [0019-data-patches.md](0019-data-patches.md) — 原作データの差し替え（変換時のパッチ `tools/fm2k_convert/patches/`）、キャラ選択の幕を手前に
+- [0020-shared-assets.md](0020-shared-assets.md) — キャラ間で同じ png / wav を assets/shared に纏める（share_assets.py、エンジンは .lton の項目から読む）

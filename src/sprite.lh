@@ -43,6 +43,31 @@ public^let^resetBlend = p^{
     love.graphics.setColor(1, 1, 1, 1)
 }
 
+# Where an images.lton / sounds.lton entry's file is: `file` in the folder
+# itself, `shared` in assets/shared (what share_assets.py moved there because
+# two or more characters hold the same bytes; TechnicalDocuments/0020).
+public^let^SHARED_DIR = "assets/shared"
+
+public^let^assetPath = f^dir:string^, e:any^-> string^|nil^{
+    if^e fits^t^{ shared : string^ } { return^$"{SHARED_DIR}/{e.shared}" }
+    if^e fits^t^{ file : string^ } { return^$"{dir}/{e.file}" }
+    return^nil^
+}
+
+# Textures by file: a shared image is loaded once whoever draws it.
+var^textures : t^{[string^]:love.graphics.Texture|nil^} = {}
+
+let^texture = p^path:string^-> love.graphics.Texture|nil^{
+    let^known = textures[path]
+    if^known != nil^ { return^known }
+    let^loaded = love.graphics.newImage(path) catch^nil^
+    if^loaded fits^love.graphics.Texture {
+        loaded.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
+        textures[path] := loaded
+    }
+    return^loaded
+}
+
 # One character's (or stage's) converted images.
 public^let^Sheet = def^{
     self^{
@@ -51,6 +76,8 @@ public^let^Sheet = def^{
         paletteTried = false^,     # stages have no palettes.png
         images : t^{[number^]:love.graphics.Texture|nil^} = {},
         indexed : t^{[number^]:bool^|nil^} = {},    # from images.lton
+        paths : t^{[number^]:string^|nil^} = {},    # from images.lton: each image's file
+        missing : t^{[number^]:bool^|nil^} = {},    # asked for, not there (logged once)
         formatsRead = false^,
         count = 0,                  # image numbers in images.lton
     },
@@ -69,6 +96,8 @@ public^let^Sheet = def^{
                     if^e fits^t^{ format : string^ } {
                         self^.indexed[k] := e.format = "indexed"
                     }
+                    let^p = assetPath(self^.dir, e)
+                    if^p != nil^ { self^.paths[k] := p }
                 }
             }
         }
@@ -79,11 +108,19 @@ public^let^Sheet = def^{
     image = p^self^, i:number^-> love.graphics.Texture|nil^{
         let^cached = self^.images[i]
         if^cached fits^love.graphics.Texture { return^cached }
-        let^path = $"{self^.dir}/images/{i:%04d}.png"
-        let^loaded = love.graphics.newImage(path) catch^nil^
+        if^self^.missing[i] != nil^ { return^nil^ }
+        self^.isIndexed(i)                 # reads images.lton (the paths) once
+        let^listed = self^.paths[i]
+        # No entry: an unused number, or one share_assets.py dropped as another
+        # character's image (TechnicalDocuments/0020). A folder without a
+        # listing keeps the old layout.
+        let^path = listed ?? (if^self^.count = 0: $"{self^.dir}/images/{i:%04d}.png" el^: "";)
+        let^loaded = if^path != "": texture(path) el^: nil^;
         if^loaded fits^love.graphics.Texture {
-            loaded.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
             self^.images[i] := loaded
+        else^:
+            self^.missing[i] := true^
+            if^i >= 0 { print($"画像がない: {self^.dir} #{i}") }
         }
         return^loaded
     },

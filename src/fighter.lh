@@ -772,26 +772,32 @@ public^let^move = p^me:Fighter, vx:number^, ax:number^{
 var^logSounds = false^
 public^let^setSoundLog = p^on:bool^{ logSounds := on }
 
-# Which sounds of a converted folder loop: their sounds.lton "endlessLoop"
-# (FM2K's sound flag 0x10; TechnicalDocuments/0014). Read once per folder.
-var^loopFlags : t^{[string^]:t^{[number^]:bool^|nil^}|nil^} = {}
+# A converted folder's sounds.lton, read once: which sounds loop
+# ("endlessLoop", FM2K's sound flag 0x10; TechnicalDocuments/0014) and where
+# each one's file is (its folder, or assets/shared: TechnicalDocuments/0020).
+let^SoundList = def^{
+    self^{
+        loops : t^{[number^]:bool^|nil^} = {},
+        paths : t^{[number^]:string^|nil^} = {},
+    },
+}
+var^soundLists : t^{[string^]:SoundList|nil^} = {}
 
-let^loops = p^dir:string^, n:number^-> bool^{
-    var^flags = loopFlags[dir]
-    if^flags is^nil^{
-        var^read : t^{[number^]:bool^|nil^} = {}
-        let^list = std.lton.load($"{dir}/sounds.lton") catch^nil^
-        if^list fits^t^{} {
-            for^k from^0 to^list.length^ - 1 {
-                let^e = list[k]
-                if^e fits^t^{ endlessLoop : bool^ } { read[k] := e.endlessLoop }
-            }
+let^soundList = p^dir:string^-> SoundList{
+    let^known = soundLists[dir]
+    if^known != nil^ { return^known }
+    let^sl = SoundList.new()
+    let^list = std.lton.load($"{dir}/sounds.lton") catch^nil^
+    if^list fits^t^{} {
+        for^k from^0 to^list.length^ - 1 {
+            let^e = list[k]
+            if^e fits^t^{ endlessLoop : bool^ } { sl.loops[k] := e.endlessLoop }
+            let^p = vp.sprite.assetPath(dir, e)
+            if^p != nil^ { sl.paths[k] := p }
         }
-        loopFlags[dir] := read
-        flags := read
     }
-    if^flags != nil^ { return^flags[n] ?? false^ }
-    return^false^
+    soundLists[dir] := sl
+    return^sl
 }
 
 # S — a sound by its FM2K number.
@@ -804,9 +810,11 @@ public^let^sound = p^me:Fighter, n:number^{
     if^src is^nil^{
         # A looping sound (the music) is long: streamed, looped over the whole
         # file (the tracks have no loop points and end in a fade).
-        let^loop = loops(me.dir, n)
+        let^sl = soundList(me.dir)
+        let^loop = sl.loops[n] ?? false^
         let^kind = if^loop: love.audio.SourceType.stream el^: love.audio.SourceType.static;
-        let^loaded = love.audio.newSource($"{me.soundDir}/{n:%04d}.wav", kind) catch^nil^
+        let^path = sl.paths[n] ?? $"{me.soundDir}/{n:%04d}.wav"
+        let^loaded = love.audio.newSource(path, kind) catch^nil^
         if^loaded fits^love.audio.Source { loaded.setLooping(loop) }
         me.sounds[n] := loaded
         src := loaded
