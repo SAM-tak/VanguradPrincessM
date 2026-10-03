@@ -220,7 +220,15 @@ let^strike = p^a:Fighter, b:Fighter{
                             let^bl, bt, bw, bh = b.rect(hurt)
                             let^hx = (std.math.max(al, bl) + std.math.min(al + aw, bl + bw)) / 2
                             let^hy = (std.math.max(at, bt) + std.math.min(at + ah, bt + bh)) / 2
+                            # a hit count goes at the hurt box that was hit (its offset, not
+                            # its middle), from where the defender stood (0018)
+                            let^cx = b.x + hurt.x * b.facing
+                            let^cy = b.y + hurt.y
                             let^guarded, spark = vp.fighter.struck(a, atk, b, hurt.rate, endsCrouched(b, b.skillNo))
+                            if^!guarded {
+                                b.combo += 1
+                                if^b.combo >= 2 { vp.round.showCombo(flow, b.combo, cx, cy) }
+                            }
                             # The attacker's spark, run as the attacker's object (0008).
                             if^spark > 0 { vp.fighter.makeObject(a, spark, 0, hx, hy, 127) }
                             let^what = if^guarded: "guard" el^: "hit";
@@ -250,6 +258,7 @@ let^place = p^p:Fighter, x:number^, facing:number^{
     p.hurts := {}
     p.hits := {}
     p.stop := 0
+    p.combo := 0
     # A round starts clean: the character's variables (its objects and its
     # support read them; kept, the support stood frozen in last round's
     # win / loss pose) and whatever it left on the stage.
@@ -400,6 +409,10 @@ let^tick = p^{
     foe.step()
     vp.fighter.stepObjects(me)
     vp.fighter.stepObjects(foe)
+    # a combo is over once its target is free to move again
+    for^p in^{ me, foe } {
+        if^groundIdle(p.skillNo) or^airIdle(p.skillNo) { p.combo := 0 }
+    }
     strike(me, foe)
     strike(foe, me)
     for^o in^me.objects { strike(o, foe) }
@@ -551,7 +564,16 @@ public^let^draw = p^{
     vp.round.byDepth(list)
     vp.fighter.setView(0, 0)
     for^i in^list {
-        if^i.f is^nil^ { vp.hud.draw(hud, me, foe) else^: vp.round.drawItem(i) }
+        if^i.f is^nil^ {
+            vp.hud.draw(hud, me, foe)
+        elseif^i.world:
+            love.graphics.push()
+            love.graphics.translate(-camX, -camY)
+            vp.round.drawItem(i)
+            love.graphics.pop()
+        else^:
+            vp.round.drawItem(i)
+        }
     }
     vp.fighter.setView(camX, camY)
     love.graphics.pop()

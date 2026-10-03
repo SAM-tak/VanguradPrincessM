@@ -31,3 +31,4 @@
 - [0015-vs-mode-loop.md](0015-vs-mode-loop.md) — 対戦モードのループ（キャラ選択画面の仕組み、試合 → 選択へ戻る）
 - [0016-opening-and-title.md](0016-opening-and-title.md) — 起動からキャラ選択まで（デモの割り当て、オープニング、タイトル画面）
 - [0017-distribution-build.md](0017-distribution-build.md) — 配布ビルド（VM のみのエンジン + fused）の手順と、エンジン側の生成物の作り直し
+- [0018-hit-combo-display.md](0018-hit-combo-display.md) — コンボ表示（HIT COMBO）の素材・原作で測った位置と出方・実装

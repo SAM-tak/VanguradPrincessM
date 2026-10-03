@@ -102,6 +102,7 @@ public^let^Fighter = def^{
         special = 0, specialPer = 300, stockMax = 5,
         enemy : Fighter|nil^= nil^, # the opponent (GP adds to its gauges too)
         guarding = false^,          # set by the controller: holding back where a guard is allowed
+        combo = 0,                  # hits taken since it was last free to move
         stop = 0,                   # hitstop frames left: the fighter is frozen
         # Objects (O blocks): effects, voices, sparks, projectiles. They run the
         # owner's skills as fighters of their own.
@@ -202,7 +203,7 @@ public^let^Fighter = def^{
     fire = p^self^, event:string^{
         let^n = self^.onSkill[event]
         let^b = self^.onBlock[event]
-        if^n fits^number^ and^b fits^number^ {
+        if^n? and^b? {
             self^.jumpSkill := n
             self^.jumpBlock := b
             # It cuts the running I block's wait short: FM2K zeroes the timer

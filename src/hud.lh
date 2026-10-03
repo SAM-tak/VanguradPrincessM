@@ -174,8 +174,8 @@ let^drawGauge = p^l:Fighter|nil^, fraction:number^, fromEnd:bool^{
 
 # The fraction of the current stock that is filled.
 let^stockFraction = f^p:Fighter-> number^{
-    if^p.special >= p.specialPer * p.stockMax { return^1 }
-    return^(p.special % p.specialPer) / p.specialPer
+    if^p.special >= p.specialPer * p.stockMax: 1
+    el^:(p.special % p.specialPer) / p.specialPer;
 }
 
 # Draws the HUD in view coordinates (call it with the view's transform).

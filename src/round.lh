@@ -30,6 +30,8 @@ let^WIN_1P = 30
 let^WIN_2P = 31
 let^DRAW = 32
 let^DOUBLE_KO = 33
+let^HIT = 1                    # "HIT COMBO"
+let^HIT_DIGIT = 2              # the hit count's digits 0-9: 2-11
 let^MARK_ON = 55
 let^MARK_OFF = 56
 # "position: victory mark 1P / 2P" (76 / 77): the first mark and the step.
@@ -37,6 +39,10 @@ let^MARK_1P_X = 264
 let^MARK_2P_X = 372
 let^MARK_Y = 62
 let^MARK_STEP = 20
+
+# A hit count's tens digit sits this far left of its ones (a guess: the
+# original was not measured past 3 hits; the digits are 30-35 wide).
+let^DIGIT_STEP = 30
 
 # A character's built-in skills used here.
 let^VICTORY = 22
@@ -55,6 +61,7 @@ public^let^Round = def^{
         perfect = false^,           # the winner took no damage
         layers : t^{Fighter[]} = {},    # the system skills running now
         marks : t^{Fighter[]} = {},
+        combos : t^{Fighter[]} = {},    # hit counts, in world coordinates
     },
 }
 
@@ -111,6 +118,12 @@ public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, ov
     }
     r.layers := running
     for^m in^r.marks { m.step() }
+    var^showing : t^{Fighter[]} = {}
+    for^c in^r.combos {
+        c.step()
+        if^!c.finished() { showing.push^(c) }
+    }
+    r.combos := showing
 
     if^r.phase = "fight" {
         let^down1 = p1.life <= 0
@@ -169,7 +182,29 @@ public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, ov
         r.number += 1
         reset()
         r.layers := {}
+        r.combos := {}
         enter(r, "start", ROUND_START)
+    }
+}
+
+# A combo's count (2 and up): the system's "HIT COMBO" and the count's digits,
+# at (x, y) in the world. Measured in the original (TechnicalDocuments/0018):
+# every hit from the second on spawns a fresh set, and the earlier ones play
+# out their own scripts.
+public^let^showCombo = p^r:Round, count:number^, x:number^, y:number^{
+    let^add = p^n:number^, at:number^{
+        let^c = runAt(r, n, at, y)
+        c.depth := 101
+        r.combos.push^(c)
+    }
+    add(HIT, x)
+    var^rest = count.floor()
+    var^at = x
+    repeat^while^true^ {
+        add(HIT_DIGIT + rest % 10, at)
+        rest := (rest / 10).floor()
+        at -= DIGIT_STEP
+        if^rest = 0 { break^}
     }
 }
 
@@ -180,6 +215,7 @@ public^let^Item = def^{
         depth = 0,
         f : Fighter|nil^= nil^,
         system = false^,            # a system image (top-left), else a character's
+        world = false^,             # at a place in the world (hit counts), not the view
     },
 }
 
@@ -193,6 +229,11 @@ public^let^items = p^r:Round-> t^{Item[]}{
         out.push^(i)
     }
     for^m in^r.marks { add(m, 100) }
+    for^c in^r.combos {
+        add(c, c.depth)
+        let^last = out[out.length^ - 1]
+        if^last != nil^ { last.world := true^ }
+    }
     for^l in^r.layers {
         add(l, l.depth)
         for^o in^l.objects { add(o, o.depth) }
