@@ -19,6 +19,7 @@ import struct
 from pathlib import Path
 
 from gen_skills import DS_EVENTS, flags, steps_of, target
+import patches
 
 CMP = {"itsTheSame": 1, "itsAbove": 2, "itsBelow": 3}
 
@@ -155,6 +156,7 @@ def main():
     args = ap.parse_args()
 
     d = json.loads(args.json.read_text(encoding="utf-8-sig"))
+    patches.apply(args.json, d)     # the port's deliberate changes (patches/)
     skills = d["skills"]
     lines = ["# Converted from %s by tools/fm2k_convert/gen_script.py; run by src/script.lh." % args.json.name,
              "# Position = skill number. Block layouts: TechnicalDocuments/0012.",

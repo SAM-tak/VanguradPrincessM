@@ -31,6 +31,8 @@ from pathlib import Path
 
 from PIL import Image
 
+import patches
+
 KIND_DIRS = {"game": "system", "character": "characters", "stage": "stages", "demo": "demos"}
 PALETTE_BYTES = 0x400
 
@@ -212,6 +214,7 @@ def slim_skill(skill):
 
 def convert(src, out_root, kind, media=True):
     d = json.loads(src.read_text(encoding="utf-8-sig"))
+    patches.apply(src, d)           # the port's deliberate changes (patches/)
     dst = out_root / KIND_DIRS[kind] / src.stem
     (dst / "images").mkdir(parents=True, exist_ok=True)
     header = ["Converted from %s by tools/fm2k_convert/convert.py" % src.name]

@@ -214,6 +214,12 @@ public^let^draw = p^s:Select{
             for^o in^c.objects { add(o, true^) }
         }
     }
+    # Objects the screen's layers spawn (the curtain the converter's patch
+    # moved to depth 127, TechnicalDocuments/0019): after the others, so over
+    # those of the same depth.
+    for^l in^st.layers {
+        for^o in^l.objects { add(o, true^) }
+    }
     vp.round.byDepth(list)
     for^i in^list {
         if^i.depth <= 100 { vp.round.drawItem(i) }

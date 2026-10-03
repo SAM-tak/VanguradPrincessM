@@ -40,6 +40,12 @@ tools/fm2k_convert/.venv/Scripts/python tools/fm2k_convert/convert.py <json dir>
 
 About 4 minutes. `--lton-only` rewrites just the LTON (13 s); `--only <stem>...` limits the files.
 
+## Patches
+
+Deliberate changes to the original data live in `patches/<json stem>.py` (`def patch(d)`, editing
+the parsed JSON). `convert.py` and `gen_script.py` apply them right after loading a JSON, so never
+edit `assets/` by hand: a conversion overwrites it. See `TechnicalDocuments/0019`.
+
 ## Output
 
 ```text

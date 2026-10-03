@@ -49,7 +49,10 @@ public^let^load = p^dir:string^-> Stage{
 }
 
 public^let^step = p^st:Stage{
-    for^l in^st.layers { l.step() }
+    for^l in^st.layers {
+        l.step()
+        vp.fighter.stepObjects(l)   # what a layer spawns (O); none in the original's data
+    }
 }
 
 # Draws one layer, in world coordinates (the caller has moved to the camera).
