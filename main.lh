@@ -606,7 +606,7 @@ public^let^keypressed = p^key:love.keyboard.Key, scancode:love.keyboard.Scancode
         soundLog := !soundLog
         vp.fighter.setSoundLog(soundLog)
     }
-    for^n from^0 to^PALETTE_KEYS.length^ - 1 {
-        if^key = PALETTE_KEYS[n] { me.palette := n }
+    for^v in^PALETTE_KEYS {
+        if^key = v { me.palette := index^ }
     }
 }

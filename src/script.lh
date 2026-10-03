@@ -47,9 +47,8 @@ public^let^Script = def^{
 
 let^parseBlock = p^raw:t^{}-> Block{
     let^b = Block.new()
-    for^k from^0 to^raw.length^ - 1 {
-        let^e = raw[k]
-        if^k = 0 {
+    for^e:any^ in^raw {
+        if^index^ = 0 {
             if^e fits^string^ { b.op := e }
         elseif^e fits^number^:
             b.n.push^(e)
@@ -75,16 +74,14 @@ public^let^load = p^path:string^-> Script|nil^{
     let^sc = Script.new()
     sc.raw := d
     if^d fits^t^{ layers : bool^ } { sc.layers := d.layers }
-    for^k from^0 to^d.length^ - 1 {
-        let^e = d[k]
+    for^e:any^ in^d {
         let^sk = Skill.new()
         if^e fits^t^{ name : string^, level : number^, blocks : t^{} } {
             sk.name := e.name
             sk.level := e.level
             let^bs = e.blocks
-            for^i from^0 to^bs.length^ - 1 {
-                let^raw = bs[i]
-                if^raw fits^t^{} { sk.blocks.push^(parseBlock(raw)) }
+            for^raw:t^{} in^bs {
+                sk.blocks.push^(parseBlock(raw))
             }
         }
         sc.skills.push^(sk)
@@ -248,13 +245,12 @@ public^let^install = p^me:Fighter, sc:Script{
     let^d = sc.raw
     if^d fits^t^{ reactions : t^{} } {
         let^rs = d.reactions
-        for^k from^0 to^rs.length^ - 1 {
-            let^r = rs[k]
-            if^r fits^t^{} {
-                let^i = r[0]
-                let^hit = r[1]
-                let^spark = r[2]
-                if^i fits^number^ and^hit fits^number^ and^spark fits^number^ { fighter.reactsWith(me, i, hit, spark) }
+        for^r:t^{} in^rs {
+            let^i = r[0]
+            let^hit = r[1]
+            let^spark = r[2]
+            if^i fits^number^ and^hit fits^number^ and^spark fits^number^ {
+                fighter.reactsWith(me, i, hit, spark)
             }
         }
     }
@@ -268,23 +264,19 @@ public^let^install = p^me:Fighter, sc:Script{
     }
     if^d fits^t^{ commands : t^{} } {
         let^cs = d.commands
-        for^k from^0 to^cs.length^ - 1 {
-            let^c = cs[k]
-            if^c fits^t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{}, modes : t^{}, amounts : t^{} } {
-                let^dirs = numbers(c.directions)
-                let^buttons = numbers(c.buttons)
-                let^s = numbers(c.skills)
-                fighter.addCommand(me, c.name, c.time, s[0] ?? 0, s[1] ?? 0, s[2] ?? 0, s[3] ?? 0, dirs, buttons, numbers(c.modes), numbers(c.amounts))
-            }
+        for^c:t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{}, modes : t^{}, amounts : t^{} } in^cs {
+            let^dirs = numbers(c.directions)
+            let^buttons = numbers(c.buttons)
+            let^s = numbers(c.skills)
+            fighter.addCommand(me, c.name, c.time, s[0] ?? 0, s[1] ?? 0, s[2] ?? 0, s[3] ?? 0, dirs, buttons, numbers(c.modes), numbers(c.amounts))
         }
     }
 }
 
 let^numbers = p^list:t^{}-> t^{number^[]}{
     var^out : t^{number^[]} = {}
-    for^k from^0 to^list.length^ - 1 {
-        let^e = list[k]
-        if^e fits^number^ { out.push^(e) }
+    for^e:number^ in^list {
+        out.push^(e)
     }
     return^out
 }

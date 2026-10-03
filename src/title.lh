@@ -43,12 +43,9 @@ public^let^loadDemos = p^systemDir:string^-> Demos{
     }
     if^raw fits^t^{ demos : t^{} } {
         let^list = raw.demos
-        for^k from^0 to^list.length^ - 1 {
-            let^e = list[k]
-            if^e fits^t^{ name : string^, skip : bool^, time : number^ } {
-                d.skips[e.name] := e.skip
-                d.times[e.name] := e.time
-            }
+        for^e:t^{ name : string^, skip : bool^, time : number^ } in^list {
+            d.skips[e.name] := e.skip
+            d.times[e.name] := e.time
         }
     }
     return^d

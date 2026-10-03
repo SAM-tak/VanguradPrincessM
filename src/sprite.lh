@@ -54,6 +54,21 @@ public^let^assetPath = f^dir:string^, e:any^-> string^|nil^{
     return^nil^
 }
 
+# A converted folder's listing (images.lton, sounds.lton): one entry per
+# FM2K number, at that position; nil^ for an unused number. Read once per
+# file; nil^ when the folder has none.
+var^listings : t^{[string^]:t^{}|nil^} = {}
+var^listingsTried : t^{[string^]:bool^|nil^} = {}
+
+public^let^listing = p^file:string^-> t^{}|nil^{
+    if^listingsTried[file] is^nil^{
+        listingsTried[file] := true^
+        let^list = std.lton.load(file) catch^nil^
+        if^list fits^t^{} { listings[file] := list }
+    }
+    return^listings[file]
+}
+
 # Textures by file: a shared image is loaded once whoever draws it.
 var^textures : t^{[string^]:love.graphics.Texture|nil^} = {}
 
@@ -75,33 +90,20 @@ public^let^Sheet = def^{
         palette : love.graphics.Texture|nil^= nil^,
         paletteTried = false^,     # stages have no palettes.png
         images : t^{[number^]:love.graphics.Texture|nil^} = {},
-        indexed : t^{[number^]:bool^|nil^} = {},    # from images.lton
-        paths : t^{[number^]:string^|nil^} = {},    # from images.lton: each image's file
         missing : t^{[number^]:bool^|nil^} = {},    # asked for, not there (logged once)
-        formatsRead = false^,
-        count = 0,                  # image numbers in images.lton
     },
     override^new = f^dir:string^{ self^{ dir = dir } },
 
+    listing = p^self^-> t^{}|nil^{
+        return^listing($"{self^.dir}/images.lton")
+    },
+
     # Whether image i is palette-indexed (images.lton says "indexed" or "rgba").
     isIndexed = p^self^, i:number^-> bool^{
-        if^!self^.formatsRead {
-            self^.formatsRead := true^
-            let^list = std.lton.load($"{self^.dir}/images.lton") catch^nil^
-            if^list fits^t^{} {
-                self^.count := list.length^
-                # position = image number; unused numbers are nil^
-                for^k from^0 to^list.length^ - 1 {
-                    let^e = list[k]
-                    if^e fits^t^{ format : string^ } {
-                        self^.indexed[k] := e.format = "indexed"
-                    }
-                    let^p = assetPath(self^.dir, e)
-                    if^p != nil^ { self^.paths[k] := p }
-                }
-            }
-        }
-        return^self^.indexed[i] ?? false^
+        let^l = self^.listing()
+        if^l is^nil^{ return^false^ }
+        let^e : any^= l[i]
+        return^e fits^t^{ format : string^ } and^e.format = "indexed"
     },
 
     # Texture for an FM2K image number, loaded on first use.
@@ -109,18 +111,19 @@ public^let^Sheet = def^{
         let^cached = self^.images[i]
         if^cached fits^love.graphics.Texture { return^cached }
         if^self^.missing[i] != nil^ { return^nil^ }
-        self^.isIndexed(i)                 # reads images.lton (the paths) once
-        let^listed = self^.paths[i]
         # No entry: an unused number, or one share_assets.py dropped as another
         # character's image (TechnicalDocuments/0020). A folder without a
         # listing keeps the old layout.
-        let^path = listed ?? (if^self^.count = 0: $"{self^.dir}/images/{i:%04d}.png" el^: "";)
-        let^loaded = if^path != "": texture(path) el^: nil^;
+        let^l = self^.listing()
+        let^path = if^l is^nil^: $"{self^.dir}/images/{i:%04d}.png" el^: assetPath(self^.dir, l[i]);
+        let^loaded = if^path != nil^: texture(path) el^: nil^;
         if^loaded fits^love.graphics.Texture {
             self^.images[i] := loaded
         else^:
             self^.missing[i] := true^
-            if^i >= 0 { print($"画像がない: {self^.dir} #{i}") }
+            # past the listing's end is no image at all (FM2K's 8191 = 0x1FFF,
+            # an I block that shows nothing): not worth a word
+            if^i >= 0 and^(l is^nil^ or^i < l.length^) { print($"画像がない: {self^.dir} #{i}") }
         }
         return^loaded
     },
@@ -203,8 +206,9 @@ public^let^sheetFor = p^dir:string^-> Sheet{
 # Loads every image of a sheet now (about 2 s for a character). Not used
 # yet: the plan is to load everything at start-up (TechnicalDocuments/0015).
 public^let^preload = p^s:Sheet{
-    s.isIndexed(0)
-    for^i from^0 to^s.count - 1 {
-        if^s.indexed[i] != nil^ { s.image(i) }
+    let^l = s.listing()
+    if^l is^nil^{ return^}
+    for^e:any^ in^l {
+        if^e != nil^ { s.image(index^) }
     }
 }

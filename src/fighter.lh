@@ -24,7 +24,6 @@ import^love.graphics
 import^love.audio
 import^love.math
 import^std.math
-import^std.lton
 
 require^"sprite.lh"
 
@@ -772,32 +771,13 @@ public^let^move = p^me:Fighter, vx:number^, ax:number^{
 var^logSounds = false^
 public^let^setSoundLog = p^on:bool^{ logSounds := on }
 
-# A converted folder's sounds.lton, read once: which sounds loop
+# Sound n's entry in its folder's sounds.lton: whether it loops
 # ("endlessLoop", FM2K's sound flag 0x10; TechnicalDocuments/0014) and where
-# each one's file is (its folder, or assets/shared: TechnicalDocuments/0020).
-let^SoundList = def^{
-    self^{
-        loops : t^{[number^]:bool^|nil^} = {},
-        paths : t^{[number^]:string^|nil^} = {},
-    },
-}
-var^soundLists : t^{[string^]:SoundList|nil^} = {}
-
-let^soundList = p^dir:string^-> SoundList{
-    let^known = soundLists[dir]
-    if^known != nil^ { return^known }
-    let^sl = SoundList.new()
-    let^list = std.lton.load($"{dir}/sounds.lton") catch^nil^
-    if^list fits^t^{} {
-        for^k from^0 to^list.length^ - 1 {
-            let^e = list[k]
-            if^e fits^t^{ endlessLoop : bool^ } { sl.loops[k] := e.endlessLoop }
-            let^p = vp.sprite.assetPath(dir, e)
-            if^p != nil^ { sl.paths[k] := p }
-        }
-    }
-    soundLists[dir] := sl
-    return^sl
+# its file is (its folder, or assets/shared: TechnicalDocuments/0020).
+let^soundEntry = p^dir:string^, n:number^-> any^{
+    let^l = vp.sprite.listing($"{dir}/sounds.lton")
+    if^l is^nil^{ return^nil^ }
+    return^l[n]
 }
 
 # S — a sound by its FM2K number.
@@ -810,10 +790,10 @@ public^let^sound = p^me:Fighter, n:number^{
     if^src is^nil^{
         # A looping sound (the music) is long: streamed, looped over the whole
         # file (the tracks have no loop points and end in a fade).
-        let^sl = soundList(me.dir)
-        let^loop = sl.loops[n] ?? false^
+        let^e = soundEntry(me.dir, n)
+        let^loop = e fits^t^{ endlessLoop : bool^ } and^e.endlessLoop
         let^kind = if^loop: love.audio.SourceType.stream el^: love.audio.SourceType.static;
-        let^path = sl.paths[n] ?? $"{me.soundDir}/{n:%04d}.wav"
+        let^path = vp.sprite.assetPath(me.dir, e) ?? $"{me.soundDir}/{n:%04d}.wav"
         let^loaded = love.audio.newSource(path, kind) catch^nil^
         if^loaded fits^love.audio.Source { loaded.setLooping(loop) }
         me.sounds[n] := loaded
