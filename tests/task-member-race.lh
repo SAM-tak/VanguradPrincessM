@@ -1,0 +1,20 @@
+# Standalone L^ CLI reproduction; no LOVE, assets, channels, or LTON.
+import^std.task
+
+let^read = p^id:number^-> number^{
+    let^own = { tag = id }
+    for^i from^0 to^2000000 {
+        let^actual = own.tag
+        if^actual != id { return^actual }
+    }
+    return^id
+}
+
+try^std.task.start(2)
+let^a = try^std.task.async(p^{ return^read(111) })
+let^b = try^std.task.async(p^{ return^read(222) })
+let^ra = try^std.task.await(a)
+let^rb = try^std.task.await(b)
+std.task.stop()
+print($"worker A: expected=111 actual={ra}; worker B: expected=222 actual={rb}")
+if^ra != 111 or^rb != 222 { panic^"cross-worker member read" }

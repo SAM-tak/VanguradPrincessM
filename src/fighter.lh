@@ -815,13 +815,8 @@ public^let^sound = p^me:Fighter, n:number^{
         # file (the tracks have no loop points and end in a fade).
         let^e = soundEntry(me.dir, n)
         let^loop = e fits^t^{ endlessLoop : bool^ } and^e.endlessLoop
-        let^kind = if^loop: love.audio.SourceType.stream el^: love.audio.SourceType.static;
         let^path = vp.sprite.assetPath(me.dir, e) ?? $"{me.soundDir}/{n:%04d}.wav"
-        let^loaded = love.audio.newSource(path, kind) catch^nil^
-        if^loaded fits^love.audio.Source {
-            loaded.setLooping(loop)
-            vp.arena.keep(loaded)
-        }
+        let^loaded = vp.arena.sound(path, loop)
         holder.sounds[n] := loaded
         src := loaded
     }

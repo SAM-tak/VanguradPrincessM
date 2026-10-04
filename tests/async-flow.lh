@@ -1,0 +1,65 @@
+# Run through tools/test-async.ps1 so assets resolve from the game root.
+module^vp.asyncflowtest
+import^love.keyboard
+import^love.event
+import^love.timer
+require^"../main.lh"
+require^"../src/arena.lh"
+require^"../src/resource.lh"
+var^phase = 0
+var^frames = 0
+var^wait = 0
+var^began = 0
+var^worst = 0
+var^failure : vp.resource.Batch|nil^= nil^
+let^press = p^key:love.keyboard.Key{ vp.main.keypressed(key, love.keyboard.Scancode.unknown, false^) }
+public^let^load = p^{ began := love.timer.getTime() vp.main.load() }
+public^let^update = p^dt:number^{
+    let^start = love.timer.getTime()
+    vp.main.update(0.02) # two simulation ticks per test step, even at high refresh rates
+    let^spent = love.timer.getTime() - start
+    if^spent > worst { worst := spent }
+    frames += 1
+    let^where = vp.arena.names()
+    if^phase = 0 and^where = "system / opening" { print($"boot frames={frames}") press(love.keyboard.Key.z) phase := 1
+    elseif^phase = 1: press(love.keyboard.Key.z) phase := 2
+    elseif^phase = 2 and^where = "system / title": press(love.keyboard.Key.z) phase := 3
+    elseif^phase = 3 and^where = "system / select": print($"select frames={frames}") press(love.keyboard.Key.z) phase := 4
+    elseif^phase = 4: press(love.keyboard.Key.down) phase := 5
+    elseif^phase = 5: press(love.keyboard.Key.z) phase := 6
+    elseif^phase = 6 and^vp.resource.outstanding() > 0:
+        wait += 1
+        if^wait >= 5 { print("cancel in-flight match") press(love.keyboard.Key.escape) phase := 7 }
+    elseif^phase = 7 and^where = "system / title": press(love.keyboard.Key.escape) phase := 8
+    elseif^phase = 8 and^where = "system / opening": press(love.keyboard.Key.z) phase := 9
+    elseif^phase = 9 and^where = "system / title": press(love.keyboard.Key.z) phase := 10
+    elseif^phase = 10 and^where = "system / select": press(love.keyboard.Key.z) phase := 11
+    elseif^phase = 11: press(love.keyboard.Key.down) phase := 12
+    elseif^phase = 12: press(love.keyboard.Key.z) phase := 13
+    elseif^phase = 13 and^where = "system / select / match":
+        print($"match frames={frames} elapsed={love.timer.getTime() - began} worst={worst}")
+        wait := 0
+        phase := 14
+    elseif^phase = 14:
+        wait += 1
+        if^wait > 600 {
+            if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^$"synchronous fallback: lton={vp.resource.fallbackReads()} assets={vp.arena.fallbacks()}" }
+            let^b = vp.resource.Batch.new("missing-file-test")
+            failure := b
+            vp.resource.request(b, "assets/does-not-exist.png", "image", false^)
+            phase := 15
+        }
+    elseif^phase = 15:
+        let^b = failure
+        if^b != nil^ and^b.error != "" {
+            vp.resource.cancel(b)
+            if^vp.resource.outstanding() = 0 {
+                print($"PASS: cancel, retry, two fighters, battle drawing, missing asset; frames={frames}; synchronous fallback reads=0")
+                love.event.quit()
+            }
+        }
+    }
+    if^love.timer.getTime() - began > 120 { panic^$"timeout phase={phase} arena={where}" }
+}
+public^let^draw = p^{ vp.main.draw() }
+public^let^quit = p^-> bool^{ return^vp.main.quit() }

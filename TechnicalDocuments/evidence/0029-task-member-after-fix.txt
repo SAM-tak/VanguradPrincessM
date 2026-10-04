@@ -1,0 +1,35 @@
+Two workers, member access
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 1 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 2 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 3 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 4 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 5 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 6 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 7 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 8 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 9 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 10 exit=0
+One worker, member access
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 1 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 2 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 3 exit=0
+Two workers, index access
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 1 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 2 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 3 exit=0

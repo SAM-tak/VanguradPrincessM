@@ -22,6 +22,7 @@ public^let^Arena = def^{
         name = "",
         textures : t^{[string^]:love.graphics.Texture|nil^} = {},
         sources : t^{love.audio.Source[]} = {},
+        sounds : t^{[string^]:love.audio.Source|nil^} = {},
     },
     override^new = f^name:string^{ self^{ name = name } },
 }
@@ -29,6 +30,8 @@ public^let^Arena = def^{
 let^resident = Arena.new("resident")
 var^stack : t^{Arena[]} = {}
 var^gen = 0
+var^fallbackLoads = 0
+public^let^fallbacks = f^{ fallbackLoads }
 
 # The scene's generation: a cache filled in another one is stale.
 public^let^generation = f^{ gen }
@@ -40,13 +43,23 @@ public^let^push = p^name:string^{
     stack.push^(Arena.new(name))
 }
 
+# A fully prepared scene joins the stack only when it becomes visible.
+public^let^attach = p^a:Arena{ stack.push^(a) }
+
+public^let^release = p^a:Arena{
+    for^path:string^, t:love.graphics.Texture in^a.textures { t.dispose() }
+    for^s in^a.sources { s.dispose() }
+    a.textures := {}
+    a.sources := {}
+    a.sounds := {}
+}
+
 # The top arena goes, and everything it loaded is disposed (the memory goes
 # back at once, VRAM too); the caches start over.
 public^let^pop = p^{
     let^a = stack.pop^()
     if^a is^nil^{ return^}
-    for^path:string^, t:love.graphics.Texture in^a.textures { t.dispose() }
-    for^s in^a.sources { s.dispose() }
+    release(a)
     gen += 1
 }
 
@@ -69,6 +82,7 @@ public^let^texture = p^path:string^-> love.graphics.Texture|nil^{
     if^kept? { return^kept }
     let^loaded = love.graphics.newImage(path) catch^nil^
     if^loaded fits^love.graphics.Texture {
+        fallbackLoads += 1
         loaded.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
         top().textures[path] := loaded
     }
@@ -78,4 +92,20 @@ public^let^texture = p^path:string^-> love.graphics.Texture|nil^{
 # A sound just loaded: it goes with the top arena.
 public^let^keep = p^src:love.audio.Source {
     top().sources.push^(src)
+}
+
+# Prepared sources are templates: each fighter gets independent playback.
+public^let^sound = p^path:string^, loop:bool^-> love.audio.Source|nil^{
+    for^k from^stack.length^ - 1 downto^0 {
+        let^template = stack[k]?.sounds[path]
+        if^template != nil^ {
+            let^src = template.clone()
+            src.setLooping(loop)
+            keep(src)
+            return^src
+        }
+    }
+    let^src = love.audio.newSource(path, if^loop: love.audio.SourceType.stream el^: love.audio.SourceType.static;) catch^nil^
+    if^src != nil^ { fallbackLoads += 1 src.setLooping(loop) keep(src) }
+    return^src
 }

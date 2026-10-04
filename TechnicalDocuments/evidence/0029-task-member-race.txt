@@ -1,0 +1,45 @@
+Two workers, 10 runs
+Run 1 exit=1
+tests/task-member-race.lh: error: line 20: cross-worker member read
+worker A: expected=111 actual=222; worker B: expected=222 actual=222
+Run 2 exit=1
+worker A: expected=111 actual=111; worker B: expected=222 actual=111
+tests/task-member-race.lh: error: line 20: cross-worker member read
+Run 3 exit=1
+tests/task-member-race.lh: error: line 20: cross-worker member read
+worker A: expected=111 actual=222; worker B: expected=222 actual=222
+Run 4 exit=1
+worker A: expected=111 actual=222; worker B: expected=222 actual=222
+tests/task-member-race.lh: error: line 20: cross-worker member read
+Run 5 exit=1
+worker A: expected=111 actual=111; worker B: expected=222 actual=111
+tests/task-member-race.lh: error: line 20: cross-worker member read
+Run 6 exit=1
+worker A: expected=111 actual=111; worker B: expected=222 actual=111
+tests/task-member-race.lh: error: line 20: cross-worker member read
+Run 7 exit=1
+worker A: expected=111 actual=111; worker B: expected=222 actual=111
+tests/task-member-race.lh: error: line 20: cross-worker member read
+Run 8 exit=1
+worker A: expected=111 actual=111; worker B: expected=222 actual=111
+tests/task-member-race.lh: error: line 20: cross-worker member read
+Run 9 exit=1
+worker A: expected=111 actual=111; worker B: expected=222 actual=111
+tests/task-member-race.lh: error: line 20: cross-worker member read
+Run 10 exit=1
+worker A: expected=111 actual=222; worker B: expected=222 actual=222
+tests/task-member-race.lh: error: line 20: cross-worker member read
+One worker, 3 runs
+Run 1 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 2 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 3 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Two workers, index access, 3 runs
+Run 1 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 2 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222
+Run 3 exit=0
+worker A: expected=111 actual=111; worker B: expected=222 actual=222

@@ -1,0 +1,194 @@
+# Bounded background IO. LTON graphs move through task.await; LOVE objects
+# cross a channel by reference. Only the main thread creates GPU textures.
+module^vp.resource
+import^std.task
+import^std.channel
+import^std.lton
+import^love.image
+import^love.graphics
+import^love.audio
+import^love.timer
+require^"arena.lh"
+require^"scriptdata.lh"
+
+public^let^Batch = def^{ self^{
+    abstract^arena : vp.arena.Arena,
+    pending = 0,
+    cancelled = false^,
+    error = "",
+    seen : t^{[string^]:bool^|nil^} = {},
+}, override^new = f^name:string^{ self^{arena = vp.arena.Arena.new(name)} } }
+let^Job = def^{ self^{
+    abstract^batch : Batch, path = "", kind = "", loop = false^,
+    task : std.task.Task|nil^= nil^,
+    channel : std.channel.Channel|nil^= nil^,
+}, override^new = f^batch:Batch{ self^{batch = batch} } }
+var^queue : t^{Job[]} = {}
+var^next = 0
+var^active : t^{Job[]} = {}
+var^started = false^
+var^tables : t^{[string^]:t^{}|nil^} = {}
+var^scripts : t^{[string^]:vp.scriptdata.Data|nil^} = {}
+var^syncReads = 0
+public^let^fallbackReads = f^{ syncReads }
+
+public^let^data = p^path:string^-> t^{}|nil^{
+    let^known = tables[path]
+    if^known != nil^ { return^known }
+    syncReads += 1
+    let^raw = std.lton.load(path) catch^nil^
+    if^raw fits^t^{} { tables[path] := raw return^raw }
+    return^nil^
+}
+public^let^script = p^path:string^-> vp.scriptdata.Data|nil^{
+    let^known = scripts[path]
+    if^known != nil^ { return^known }
+    let^raw = data(path)
+    if^raw is^nil^{ return^nil^ }
+    let^parsed = vp.scriptdata.parse(raw)
+    scripts[path] := parsed
+    return^parsed
+}
+public^let^request = p^b:Batch, path:string^, kind:string^, loop:bool^{
+    let^key = $"{kind}:{path}"
+    if^b.cancelled or^b.seen[key] != nil^ { return^ }
+    b.seen[key] := true^
+    if^kind = "lton" and^tables[path] != nil^ { return^ }
+    if^kind = "script" and^scripts[path] != nil^ { return^ }
+    let^j = Job.new(b)
+    j.path := path
+    j.kind := kind
+    j.loop := loop
+    b.pending += 1
+    queue.push^(j)
+}
+public^let^ready = f^b:Batch-> bool^{ return^b.pending = 0 and^!b.cancelled and^b.error = "" }
+public^let^cancel = p^b:Batch{
+    b.cancelled := true^
+    vp.arena.release(b.arena)
+}
+
+let^launch = p^j:Job{
+    # Capture only immutable job arguments and this job's channel, never
+    # the scene, arena, queues, or main-thread caches.
+    let^path = j.path
+    let^kind = j.kind
+    let^loop = j.loop
+    let^parse = vp.scriptdata.parse
+    let^out = try^std.channel.new()
+    j.channel := out
+    j.task := try^std.task.async(p^-> any^{
+        if^kind = "lton" or^kind = "script" {
+            let^raw = try^std.lton.load(path)
+            if^!(raw fits^t^{}) { return^nil^ }
+            if^kind = "script" { return^parse(raw) }
+            return^raw
+        }
+        if^kind = "image" {
+            let^pixels = try^love.image.newImageData(path)
+            try^out.push(pixels)
+        else^:
+            let^source = try^love.audio.newSource(path, if^loop or^kind = "stream": love.audio.SourceType.stream el^: love.audio.SourceType.static;)
+            source.setLooping(loop)
+            try^out.push(source)
+        }
+        return^true^
+    })
+catch^:
+    j.batch.error := $"{j.path}: {it^.message}"
+    let^ch = j.channel
+    if^ch != nil^ { ch.dispose() j.channel := nil^ }
+}
+
+let^finish = p^j:Job{
+    let^t = j.task
+    if^t is^nil^{ return^ }
+    let^result = try^std.task.await(t)
+    if^!j.batch.cancelled {
+        if^j.kind = "script" {
+            if^result fits^vp.scriptdata.Data {
+                scripts[j.path] := result
+                tables[j.path] := result.raw
+            else^: j.batch.error := $"{j.path}: invalid script result"
+            }
+        elseif^j.kind = "lton":
+            if^result fits^t^{} { tables[j.path] := result
+            else^: j.batch.error := $"{j.path}: invalid LTON result"
+            }
+        }
+    }
+catch^:
+    if^!j.batch.cancelled { j.batch.error := $"{j.path}: {it^.message}" }
+}
+
+# Called once per rendered update. Never await an unfinished task. Bound
+# both in-flight decoded memory and GPU uploads; a single upload can exceed
+# the budget, but file reading and decoding cannot stall this thread.
+public^let^pump = p^seconds:number^{
+    # Requires the core's per-machine member caches (TechnicalDocuments/0029).
+    if^!started { try^std.task.start(2) started := true^ }
+    let^start = love.timer.getTime()
+    var^kept : t^{Job[]} = {}
+    for^j in^active {
+        let^t = j.task
+        if^t != nil^ and^t.done() and^love.timer.getTime() - start < seconds {
+            finish(j)
+            let^ch = j.channel
+            if^ch != nil^ {
+                let^object = ch.pop()
+                if^object fits^love.image.ImageData {
+                    if^!j.batch.cancelled and^j.batch.error = "" {
+                        let^tex = love.graphics.newImage(object)
+                        tex.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
+                        j.batch.arena.textures[j.path] := tex
+                    }
+                    object.dispose()
+                elseif^object fits^love.audio.Source:
+                    if^j.batch.cancelled or^j.batch.error != "" { object.dispose()
+                    else^:
+                        j.batch.arena.sounds[j.path] := object
+                        j.batch.arena.sources.push^(object)
+                    }
+                }
+                ch.dispose()
+            }
+            t.dispose()
+            j.batch.pending -= 1
+        else^: kept.push^(j)
+        }
+    }
+    active := kept
+    repeat^while^active.length^ < 16 and^next < queue.length^ {
+        let^maybe = queue[next]
+        next += 1
+        if^maybe != nil^ {
+            let^j : Job = maybe
+            if^j.batch.cancelled or^j.batch.error != "" { j.batch.pending -= 1
+            else^:
+                launch(j)
+                if^j.task != nil^ { active.push^(j) else^: j.batch.pending -= 1 }
+            }
+        }
+    }
+    if^next >= queue.length^ { queue := {} next := 0 }
+catch^:
+    panic^$"Async loading: {it^.message}"
+}
+public^let^stop = p^{
+    if^started { std.task.stop() started := false^ }
+    for^j in^active {
+        let^ch = j.channel
+        if^ch != nil^ {
+            let^object = ch.pop()
+            if^object fits^love.image.ImageData { object.dispose() }
+            if^object fits^love.audio.Source { object.dispose() }
+            ch.dispose()
+        }
+        let^t = j.task
+        if^t != nil^ { t.dispose() }
+    }
+    active := {}
+    queue := {}
+    next := 0
+}
+public^let^outstanding = f^{ active.length^ + queue.length^ - next }

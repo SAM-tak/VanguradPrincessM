@@ -127,14 +127,6 @@ public^let^load = p^systemDir:string^-> Select{
     # the screen lays itself out for two: 2P's support, no move list).
     showPortrait(s, 0)
     showPortrait(s, 1)
-    # Every character's portrait (what its #25 shows: the big face, the
-    # standing picture, its name, ...) loads now, so moving the cursor does not
-    # stop to read files (TechnicalDocuments/0023).
-    for^name in^CHARACTERS {
-        let^images = vp.script.imagesFrom(portraitOf(name), PORTRAIT)
-        vp.sprite.loadAhead(vp.sprite.sheetFor($"assets/characters/{name}"), images)
-    }
-    vp.sprite.loadAll()
     return^s
 }
 

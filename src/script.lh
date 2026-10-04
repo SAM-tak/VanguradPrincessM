@@ -8,7 +8,6 @@
 # `install`; the table does not care which kind it holds.
 module^vp.script
 
-import^std.lton
 import^std.math
 
 require^"fighter.lh"
@@ -16,25 +15,10 @@ require^"fighter.lh"
 let^Fighter = vp.fighter.Fighter
 let^fighter = vp.fighter
 
-# One block: its type, its numbers in order, and its one string (flags or an
-# event name). A COM block's steps are split into directions and buttons.
-public^let^Block = def^{
-    self^{
-        op = "",
-        n : t^{number^[]} = {},
-        s = "",
-        dirs : t^{number^[]} = {},
-        buttons : t^{number^[]} = {},
-    },
-}
+require^"scriptdata.lh"
+require^"resource.lh"
 
-public^let^Skill = def^{
-    self^{
-        name = "",
-        level = 0,
-        blocks : t^{Block[]} = {},
-    },
-}
+let^Skill = vp.scriptdata.Skill
 
 public^let^Script = def^{
     self^{
@@ -45,47 +29,14 @@ public^let^Script = def^{
     },
 }
 
-let^parseBlock = p^raw:t^{}-> Block{
-    let^b = Block.new()
-    for^e:any^ in^raw {
-        if^index^ = 0 {
-            if^e fits^string^ { b.op := e }
-        elseif^e fits^number^:
-            b.n.push^(e)
-        elseif^e fits^string^:
-            b.s := e
-        }
-    }
-    if^b.op = "COM" {
-        # time, skill, block, count, directions..., buttons...
-        let^count = b.n[3] ?? 0
-        for^k from^0 to^count - 1 {
-            b.dirs.push^(b.n[4 + k] ?? 0)
-            b.buttons.push^(b.n[4 + count + k] ?? 0)
-        }
-    }
-    return^b
-}
-
-# Reads a script.lton (nil when it cannot be read).
+# Prepared and normalized on a worker; only this small runtime wrapper is new.
 public^let^load = p^path:string^-> Script|nil^{
-    let^d = std.lton.load(path) catch^nil^
-    if^!(d fits^t^{}) { return^nil^ }
+    let^d = vp.resource.script(path)
+    if^d is^nil^ { return^nil^ }
     let^sc = Script.new()
-    sc.raw := d
-    if^d fits^t^{ layers : bool^ } { sc.layers := d.layers }
-    for^e:any^ in^d {
-        let^sk = Skill.new()
-        if^e fits^t^{ name : string^, level : number^, blocks : t^{} } {
-            sk.name := e.name
-            sk.level := e.level
-            let^bs = e.blocks
-            for^raw:t^{} in^bs {
-                sk.blocks.push^(parseBlock(raw))
-            }
-        }
-        sc.skills.push^(sk)
-    }
+    sc.raw := d.raw
+    sc.layers := d.layers
+    sc.skills := d.skills
     return^sc
 }
 

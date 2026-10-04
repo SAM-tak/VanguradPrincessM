@@ -10,7 +10,6 @@
 #   cursor's #107 reads its y and shows the item's caption.
 module^vp.title
 
-import^std.lton
 import^love.graphics
 import^love.audio
 
@@ -19,6 +18,7 @@ require^"script.lh"
 require^"stage.lh"
 require^"round.lh"
 require^"arena.lh"
+require^"resource.lh"
 
 let^Fighter = vp.fighter.Fighter
 
@@ -45,7 +45,7 @@ public^let^Demos = def^{
 
 public^let^loadDemos = p^systemDir:string^-> Demos{
     let^d = Demos.new()
-    let^raw = std.lton.load($"{systemDir}/demos.lton") catch^nil^
+    let^raw = vp.resource.data($"{systemDir}/demos.lton")
     if^raw fits^t^{ opening : string^, title : string^, vsSelect : string^ } {
         d.opening := raw.opening
         d.title := raw.title
@@ -93,12 +93,7 @@ public^let^play = p^demos:Demos, name:string^-> Scene{
 }
 
 let^openingSound = p^n:number^-> love.audio.Source|nil^{
-    let^sound = love.audio.newSource($"{OPENING_DIR}/sounds/{n:%04d}.wav", love.audio.SourceType.stream) catch^nil^
-    if^sound != nil^ {
-        sound.setLooping(false^)
-        vp.arena.keep(sound)
-    }
-    return^sound
+    return^vp.arena.sound($"{OPENING_DIR}/sounds/{n:%04d}.wav", false^)
 }
 
 public^let^openingScreen = p^animate:bool^-> Scene{

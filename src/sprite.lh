@@ -3,10 +3,9 @@
 module^vp.sprite
 
 import^love.graphics
-import^love.timer
-import^std.lton
 
 require^"arena.lh"
+require^"resource.lh"
 
 # Indexed images look their colour up in a palette row; images that carried
 # their own palette are already RGBA. Either way FM2K's COLOR tint is added:
@@ -66,7 +65,7 @@ var^listingsTried : t^{[string^]:bool^|nil^} = {}
 public^let^listing = p^file:string^-> t^{}|nil^{
     if^listingsTried[file] is^nil^{
         listingsTried[file] := true^
-        let^list = std.lton.load(file) catch^nil^
+        let^list = vp.resource.data(file)
         if^list fits^t^{} { listings[file] := list }
     }
     return^listings[file]
@@ -198,61 +197,4 @@ public^let^sheetFor = p^dir:string^-> Sheet{
     let^s = Sheet.new(dir)
     sheets[dir] := s
     return^s
-}
-
-# Images to load ahead of use, a little each frame (TechnicalDocuments/0023):
-# a match's two characters load behind the select screen once both are chosen.
-var^aheadSheets : t^{Sheet[]} = {}
-var^aheadImages : t^{number^[]} = {}
-var^aheadNext = 0
-
-# Cancel pending loads before leaving the scene that owns them.
-public^let^cancelAhead = p^{
-    aheadSheets := {}
-    aheadImages := {}
-    aheadNext := 0
-}
-
-# Puts images of a sheet in line to load (all its listed ones when `images`
-# is nil^).
-public^let^loadAhead = p^s:Sheet, images:t^{number^[]}|nil^{
-    if^images != nil^ {
-        for^i in^images {
-            aheadSheets.push^(s)
-            aheadImages.push^(i)
-        }
-        return^
-    }
-    let^l = s.listing()
-    if^l is^nil^{ return^}
-    for^e:any^ in^l {
-        if^e != nil^ {
-            aheadSheets.push^(s)
-            aheadImages.push^(index^)
-        }
-    }
-}
-
-# Loads images in line for up to `seconds`; answers whether none are left.
-public^let^loadSome = p^seconds:number^-> bool^{
-    let^start = love.timer.getTime()
-    repeat^while^aheadNext < aheadImages.length^ {
-        let^s = aheadSheets[aheadNext]
-        let^i = aheadImages[aheadNext] ?? -1
-        aheadNext += 1
-        if^s != nil^ { s.image(i) }
-        if^love.timer.getTime() - start >= seconds { break^}
-    }
-    if^aheadNext >= aheadImages.length^ {
-        aheadSheets := {}
-        aheadImages := {}
-        aheadNext := 0
-        return^true^
-    }
-    return^false^
-}
-
-# Loads everything in line now.
-public^let^loadAll = p^{
-    repeat^while^!loadSome(1) { }
 }

@@ -1,0 +1,10 @@
+boot frames=37
+select frames=144
+cancel in-flight match
+1: #21  x=370 y=920 facing=1
+match frames=658 elapsed=8.82497 worst=0.0814623
+26: #31  x=500 y=920 facing=1
+415: #18  x=500 y=920 facing=1
+664: #8  x=500 y=920 facing=1
+665: #1  x=500 y=920 facing=1
+PASS: cancel, retry, two fighters, battle drawing, missing asset; frames=1261; synchronous fallback reads=0

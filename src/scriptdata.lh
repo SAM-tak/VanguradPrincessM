@@ -1,0 +1,43 @@
+# Worker-safe script decoding. Plain tables can transfer through std.task;
+# definitions and instances cannot. No graphics or game state is touched here.
+module^vp.scriptdata
+
+public^let^Block = t^{ op:string^, n:t^{number^[]}, s:string^, dirs:t^{number^[]}, buttons:t^{number^[]} }
+public^let^Skill = t^{ name:string^, level:number^, blocks:t^{Block[]} }
+public^let^Data = t^{ raw:t^{}, layers:bool^, skills:t^{Skill[]} }
+
+let^parseBlock = p^raw:t^{}-> Block{
+    let^b : Block = { op = "", n = {}, s = "", dirs = {}, buttons = {} }
+    for^e:any^ in^raw {
+        if^index^ = 0 {
+            if^e fits^string^ { b.op := e }
+        elseif^e fits^number^:
+            b.n.push^(e)
+        elseif^e fits^string^:
+            b.s := e
+        }
+    }
+    if^b.op = "COM" {
+        let^count = b.n[3] ?? 0
+        for^k from^0 to^count - 1 {
+            b.dirs.push^(b.n[4 + k] ?? 0)
+            b.buttons.push^(b.n[4 + count + k] ?? 0)
+        }
+    }
+    return^b
+}
+
+public^let^parse = p^raw:t^{}-> Data{
+    let^out : Data = { raw = raw, layers = false^, skills = {} }
+    if^raw fits^t^{layers:bool^} { out.layers := raw.layers }
+    for^e:any^ in^raw {
+        let^sk : Skill = { name = "", level = 0, blocks = {} }
+        if^e fits^t^{name:string^, level:number^, blocks:t^{}} {
+            sk.name := e.name
+            sk.level := e.level
+            for^b:t^{} in^e.blocks { sk.blocks.push^(parseBlock(b)) }
+        }
+        out.skills.push^(sk)
+    }
+    return^out
+}

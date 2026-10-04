@@ -1,0 +1,69 @@
+# Scene preparation has two asynchronous phases: metadata, then the assets
+# it references. The old scene keeps running until this arena is complete.
+module^vp.preload
+require^"resource.lh"
+require^"script.lh"
+require^"sprite.lh"
+
+let^Directory = t^{ path:string^, portrait:bool^}
+public^let^Load = def^{ self^{
+    abstract^batch : vp.resource.Batch,
+    directories : t^{Directory[]} = {},
+    assetsQueued = false^,
+}, override^new = f^name:string^{ self^{batch = vp.resource.Batch.new(name)} } }
+
+public^let^add = p^l:Load, dir:string^, portrait:bool^{
+    l.directories.push^({path = dir, portrait = portrait})
+    let^file = if^portrait: "portrait.lton" el^: "script.lton";
+    vp.resource.request(l.batch, $"{dir}/{file}", "script", false^)
+    vp.resource.request(l.batch, $"{dir}/images.lton", "lton", false^)
+    vp.resource.request(l.batch, $"{dir}/sounds.lton", "lton", false^)
+}
+
+let^assets = p^l:Load, d:Directory {
+    let^dir = d.path
+    let^file = if^d.portrait: "portrait.lton" el^: "script.lton";
+    let^sc = vp.script.load($"{dir}/{file}")
+    let^images = vp.resource.data($"{dir}/images.lton")
+    let^sounds = vp.resource.data($"{dir}/sounds.lton")
+    if^images? {
+        var^wanted : t^{number^[]} = {}
+        if^d.portrait and^sc? { wanted := vp.script.imagesFrom(sc, 25)
+        else^:
+            for^e:any^ in^images { if^e? { wanted.push^(index^) } }
+        }
+        for^n in^wanted {
+            let^e = images[n]
+            if^e fits^t^{format:string^} and^e.format = "indexed" {
+                vp.resource.request(l.batch, $"{dir}/palettes.png", "image", false^)
+            }
+            let^path = vp.sprite.assetPath(dir, images[n])
+            if^path? { vp.resource.request(l.batch, path, "image", false^) }
+        }
+    }
+    var^used : t^{[number^]:bool^|nil^} = {}
+    if^d.portrait and^sc? {
+        for^sk in^sc.skills {
+            for^b in^sk.blocks { if^b.op = "S" { used[b.n[0] ?? 0] := true^ } }
+        }
+    }
+    if^sounds? {
+        for^n:number^, e:any^ in^sounds {
+            if^!d.portrait or^used[n]? {
+                let^path = vp.sprite.assetPath(dir, e)
+                let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
+                if^path? { vp.resource.request(l.batch, path, "sound", loop) }
+            }
+        }
+    }
+}
+
+public^let^ready = p^l:Load -> bool^{
+    if^l.batch.error != "" { panic^$"Asset loading failed: {l.batch.error}" }
+    if^!vp.resource.ready(l.batch) { return^false^ }
+    if^!l.assetsQueued {
+        l.assetsQueued := true^
+        for^d in^l.directories { assets(l, d) }
+    }
+    return^vp.resource.ready(l.batch)
+}
