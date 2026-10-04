@@ -43,3 +43,5 @@
 - [0027-escape-navigation.md](0027-escape-navigation.md) — ESCで前の画面へ戻る。タイトルでは終了、試合中は無処理
 - [0028-async-loading.md](0028-async-loading.md) — 素材とLTONの非同期読み込み、所有権移譲、キャンセルと専用ワーカー1本によるコア競合の回避
 - [0029-core-member-race-repro.md](0029-core-member-race-repro.md) — LÖVE不要の20行で複数ワーカー間の誤読を再現。言語コアへの修正依頼と比較結果
+- [0030-story-flow-survey.md](0030-story-flow-survey.md) — ストーリー用キャラセレ、開始時スクリプトによる難易度・紹介画面、イベント列と未確認点
+- [0031-story-mode.md](0031-story-mode.md) — だみー対戦を使わない難易度・紹介・ロード、原作ルートの抽出、CPU戦と検証範囲

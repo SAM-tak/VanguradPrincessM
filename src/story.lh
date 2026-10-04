@@ -1,0 +1,133 @@
+# Explicit presentation states; FM2K's dummy fight is not run here.
+module^vp.story
+
+import^love.graphics
+import^love.audio
+import^std.math
+require^"arena.lh"
+require^"resource.lh"
+require^"title.lh"
+
+public^let^Event = t^{kind:string^, name:string^, stage:string^, level:number^, rounds:number^, seconds:number^}
+public^let^Data = t^{intro:string^, routes:t^{t^{Event[]}[]}}
+
+public^let^State = def^{
+    self^{
+        name = "", colour = 0, support = 0, difficulty = 1,
+        phase = "difficulty", age = 0, cursorX = 321,
+        intro = "", routes : t^{t^{Event[]}[]} = {}, route : t^{Event[]} = {}, at = 0,
+        demo : vp.title.Scene|nil^= nil^,
+        loadImage = 1,
+        continueChoice = 0,
+        gameOverSound : love.audio.Source|nil^= nil^,
+    },
+    override^new = p^name:string^, colour:number^, support:number^{
+        let^raw = vp.resource.data($"assets/characters/{name}/story.lton")
+        if^!(raw fits^Data) { panic^$"Missing story route: {name}" }
+        self^{name = name, colour = colour, support = support, intro = raw.intro, routes = raw.routes}
+    }
+}
+
+public^let^current = f^s:State-> Event|nil^{ s.route[s.at] }
+
+public^let^enter = p^s:State, phase:string^{ s.phase := phase s.age := 0 }
+
+public^let^advance = p^s:State {
+    s.at += 1
+    enter(s, if^s.at >= s.route.length^: "complete" el^: "queue";)
+}
+
+let^sound = p^n:number^{
+    let^src = vp.arena.sound($"assets/characters/だみー/sounds/{n:%04d}.wav", false^)
+    if^src != nil^ { src.play() }
+}
+
+public^let^step = p^s:State, dt:number^, left:bool^, right:bool^, pressed:number^{
+    s.age += dt
+    if^s.phase = "difficulty" {
+        if^left or^right {
+            s.difficulty := (s.difficulty + (if^right: 1 el^: 2;)) % 3
+            sound(3)
+        }
+        s.cursorX += (116 + 205 * s.difficulty - s.cursorX) * (dt * 18).clamp(0, 1)
+        if^pressed != 0 and^s.age > 0.15 {
+            s.route := s.routes[s.difficulty] ?? {}
+            sound(2)
+            enter(s, "intro")
+        }
+    elseif^s.phase = "intro":
+        if^pressed != 0 and^s.age > 0.15 {
+            enter(s, "queue")
+        }
+    elseif^s.phase = "continue":
+        if^left or^right { s.continueChoice := 1 - s.continueChoice sound(3) }
+        if^pressed != 0 and^s.age > 0.2 {
+            if^s.continueChoice = 0 { enter(s, "queue")
+            else^:
+                enter(s, "gameover")
+                love.audio.stop()
+                let^src = vp.arena.sound("assets/demos/タイトル/sounds/0002.wav", false^)
+                s.gameOverSound := src
+                if^src != nil^ { src.setLooping(false^) src.play() }
+            }
+        }
+    elseif^s.phase = "gameover":
+        # Let the cue finish; use five seconds if audio is unavailable.
+        let^src = s.gameOverSound
+        if^(src != nil^ and^!src.isPlaying()) or^(src is^nil^ and^s.age >= 5) {
+            s.gameOverSound := nil^
+            enter(s, "return-title")
+        }
+    }
+}
+
+let^picture = p^path:string^{
+    let^tex = vp.arena.texture(path)
+    if^tex? { love.graphics.draw(tex, 0, 0) }
+}
+
+public^let^draw = p^s:State {
+    love.graphics.setColor(1, 1, 1, 1)
+    if^s.phase = "difficulty" {
+        picture("assets/characters/だみー/images/0000.png")
+        let^cursor = vp.arena.texture("assets/shared/images/14b0d852366fe1b37f61dce36c1e4f482cb96ea1.png")
+        if^cursor != nil^ {
+            love.graphics.setColor(1, 1, 1, 0.5 + 0.5 * std.math.sin(s.age * 5))
+            love.graphics.draw(cursor, s.cursorX - 89, 138)
+        }
+    elseif^s.phase = "intro":
+        picture(s.intro)
+        # Match the title prompt's position, blink period and subtract blend.
+        if^(s.age / 0.25).floor() % 2 = 0 {
+            let^prompt = vp.arena.texture("assets/demos/タイトル/images/0001.png")
+            if^prompt? {
+                love.graphics.setBlendMode(love.graphics.BlendMode.subtract)
+                love.graphics.draw(prompt, 171, 421)
+                love.graphics.setBlendMode(love.graphics.BlendMode.alpha)
+            }
+        }
+    elseif^s.phase = "continue":
+        picture("assets/demos/コンテニュー/images/0000.png")
+        let^band = vp.arena.texture("assets/system/ヴァンガードプリンセス/images/0236.png")
+        if^band? {
+            # System #81: alpha 0..21/32 in 3-frame steps at 100 fps.
+            # Positions #82/#83 (640,178/300) plus image offset (-639,-34).
+            let^phase = (s.age * 100 / 3).floor() % 14
+            let^alpha = (if^phase <= 7: phase el^: 14 - phase;) * 3 / 32
+            love.graphics.setColor(1, 1, 1, alpha)
+            love.graphics.draw(band, 1, 144 + 122 * s.continueChoice)
+            love.graphics.setColor(1, 1, 1, 1)
+        }
+    elseif^s.phase = "gameover" or^s.phase = "return-title":
+        picture("assets/demos/タイトル/images/0004.png")
+    elseif^s.phase = "complete":
+        picture(s.intro)
+    else^:
+        picture($"assets/characters/だみー/images/{s.loadImage:%04d}.png")
+    }
+    if^s.age < 0.15 {
+        love.graphics.setColor(0, 0, 0, 1 - s.age / 0.15)
+        love.graphics.rectangle(love.graphics.DrawMode.fill, 0, 0, 640, 480)
+    }
+    love.graphics.setColor(1, 1, 1, 1)
+}

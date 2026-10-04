@@ -1,0 +1,51 @@
+module^vp.continuetest
+import^love.keyboard
+import^love.event
+import^love.timer
+require^"../main.lh"
+require^"../src/story.lh"
+require^"../src/arena.lh"
+require^"../src/resource.lh"
+var^phase = 0
+var^began = 0
+var^state : vp.story.State|nil^= nil^
+let^press = p^{ vp.main.keypressed(love.keyboard.Key.z, love.keyboard.Scancode.unknown, false^) }
+public^let^load = p^{ began := love.timer.getTime() vp.main.load() }
+public^let^update = p^dt:number^{
+    vp.main.update(0.02)
+    let^where = vp.arena.names()
+    if^phase = 0 and^where = "system / opening" { press() phase := 1
+    elseif^phase = 1: press() phase := 2
+    elseif^phase = 2 and^where = "system / title": press() phase := 3
+    elseif^phase = 3 and^vp.main.status().phase = "select":
+        let^s = vp.story.State.new("ゆい", 0, 1)
+        vp.story.enter(s, "continue")
+        vp.story.step(s, 0.3, false^, false^, 1)
+        if^s.phase != "queue" { panic^"YES must retry" }
+        vp.story.enter(s, "continue")
+        vp.story.step(s, 0.3, false^, true^, 0)
+        vp.story.step(s, 0.02, false^, false^, 1)
+        if^s.phase != "gameover" { panic^"NO must show game over" }
+        state := s
+        phase := 4
+    elseif^phase = 4:
+        let^s = state
+        if^s != nil^ {
+            let^cue = s.gameOverSound
+            let^playing = cue != nil^ and^cue.isPlaying()
+            vp.story.step(s, 0.02, false^, false^, 1)
+            if^s.phase = "return-title" {
+                if^playing and^cue != nil^ and^cue.isPlaying() { panic^"title requested before audio finished" }
+                if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^"synchronous fallback" }
+                print("PASS: YES retry, NO game over, title return after audio, image and sound preloaded")
+                love.event.quit()
+            }
+        }
+    }
+    if^love.timer.getTime() - began > 60 { panic^"continue test timeout" }
+}
+public^let^draw = p^{
+    let^s = state
+    if^s != nil^ { vp.story.draw(s) else^: vp.main.draw() }
+}
+public^let^quit = p^-> bool^{ return^vp.main.quit() }

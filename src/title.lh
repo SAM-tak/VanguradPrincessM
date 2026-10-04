@@ -205,7 +205,7 @@ let^systemRun = p^systemDir:string^, sc:vp.script.Script, n:number^, x:number^, 
 }
 
 # The title screen: the menu demo and the cursor, on story mode as in the
-# original (either choice leads to VS mode's select screen for now).
+# original. The caller uses item to choose story or VS mode.
 public^let^titleScreen = p^demos:Demos, systemDir:string^, system:vp.script.Script-> Scene{
     let^s = play(demos, demos.title)
     s.item := 0

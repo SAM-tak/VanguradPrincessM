@@ -1,0 +1,77 @@
+# Weighted original command patterns with an explicit L^ decision scheduler.
+module^vp.cpu
+
+import^love.math
+require^"fighter.lh"
+require^"resource.lh"
+
+let^Step = t^{skills:t^{number^[]}, amount:number^, direction:number^, repeatInput:bool^}
+let^Pattern = t^{weight:number^, near:number^, far:number^, air:bool^, enemyAir:bool^, steps:t^{Step[]}}
+
+public^let^Input = t^{dir:number^, skill:number^, guard:bool^}
+
+public^let^Brain = def^{
+    self^{
+        patterns : t^{Pattern[]} = {},
+        steps : t^{Step[]} = {},
+        at = 0, remaining = 0, cooldown = 0, level = 20, actions = 0,
+    },
+    override^new = p^name:string^, level:number^{
+        let^raw = vp.resource.data($"assets/characters/{name}/cpu.lton")
+        if^!(raw fits^t^{patterns:t^{Pattern[]}}) { panic^$"Missing CPU patterns: {name}" }
+        self^{patterns = raw.patterns, level = level}
+    }
+}
+
+public^let^reset = p^b:Brain{ b.steps := {} b.at := 0 b.remaining := 0 b.cooldown := 20 }
+
+public^let^step = p^b:Brain, me:vp.fighter.Fighter, enemy:vp.fighter.Fighter-> Input {
+    let^distance = (me.x - enemy.x).abs()
+    var^out : Input = {dir = 5, skill = 0, guard = false^}
+    if^me.stop > 0 { return^out }
+    if^b.remaining <= 0 {
+        if^b.at < b.steps.length^ { b.at += 1 }
+        if^b.at >= b.steps.length^ {
+            b.steps := {}
+            b.at := 0
+            b.cooldown -= 1
+            if^b.cooldown <= 0 {
+                var^eligible : t^{Pattern[]} = {}
+                var^weight = 0
+                for^p in^b.patterns {
+                    if^p.weight > 0 and^distance >= p.near and^distance <= p.far and^p.air = me.airborne() and^p.enemyAir = enemy.airborne() {
+                        eligible.push^(p)
+                        weight += p.weight
+                    }
+                }
+                if^weight > 0 {
+                    var^roll = love.math.random(1, weight)
+                    for^p in^eligible {
+                        roll -= p.weight
+                        if^roll <= 0 { b.steps := p.steps break^ }
+                    }
+                }
+                b.cooldown := (35 - b.level * 0.25).clamp(4, 35)
+            }
+        }
+        let^next = b.steps[b.at]
+        if^next != nil^ { b.remaining := next.amount.clamp(1, 180) }
+    }
+    let^s = b.steps[b.at]
+    if^s != nil^ {
+        out.dir := if^s.direction >= 1 and^s.direction <= 9: s.direction el^: 5;
+        if^s.repeatInput or^b.remaining = s.amount.clamp(1, 180) {
+            let^variant = if^me.airborne(): 0 el^out.dir <= 3: 3 el^distance > 160 and^(s.skills[2] ?? 0) > 0: 2 el^: 1;
+            out.skill := s.skills[variant] ?? 0
+        }
+        b.remaining -= 1
+    else^:
+        out.dir := if^distance > 100: 6 el^: 5;
+        if^distance < 220 and^enemy.hits.length^ > 0 and^love.math.random(0, 100) < b.level {
+            out.dir := 4
+            out.guard := true^
+        }
+    }
+    if^out.dir % 3 = 1 { out.guard := true^ }
+    return^out
+}

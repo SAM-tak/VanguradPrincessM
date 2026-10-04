@@ -1,0 +1,86 @@
+# The runner mounts this entry at the game root.
+module^vp.storytest
+
+import^love.keyboard
+import^love.event
+import^love.timer
+import^love.graphics
+require^"../main.lh"
+require^"../src/arena.lh"
+require^"../src/resource.lh"
+
+var^phase = 0
+var^frames = 0
+var^wait = 0
+var^began = 0
+var^actions = 0
+
+let^press = p^key:love.keyboard.Key{ vp.main.keypressed(key, love.keyboard.Scancode.unknown, false^) }
+
+public^let^load = p^{
+    began := love.timer.getTime()
+    vp.main.load()
+}
+
+public^let^update = p^dt:number^{
+    vp.main.update(0.02)
+    frames += 1
+    let^where = vp.arena.names()
+    let^s = vp.main.status()
+    if^phase = 0 and^where = "system / opening" { press(love.keyboard.Key.z) phase := 1
+    elseif^phase = 1: press(love.keyboard.Key.z) phase := 2
+    elseif^phase = 2 and^where = "system / title": press(love.keyboard.Key.z) phase := 3
+    elseif^phase = 3 and^s.phase = "select": press(love.keyboard.Key.z) phase := 4
+    elseif^phase = 4 and^s.phase = "difficulty":
+        print("one player selection -> difficulty")
+        press(love.keyboard.Key.left)
+        phase := 5
+        wait := 0
+    elseif^phase = 5:
+        wait += 1
+        if^s.difficulty != 0 { panic^"difficulty left did not select EASY" }
+        if^wait > 20 { press(love.keyboard.Key.z) phase := 6 }
+    elseif^phase = 6 and^s.phase = "intro": wait := 0 phase := 7
+    elseif^phase = 7:
+        wait += 1
+        if^s.phase != "intro" { panic^"intro must wait for a button" }
+        if^wait > 30 { press(love.keyboard.Key.escape) phase := 8 }
+    elseif^phase = 8 and^s.phase = "difficulty":
+        wait += 1
+        if^wait > 50 { press(love.keyboard.Key.z) phase := 9 wait := 0 }
+    elseif^phase = 9 and^s.phase = "intro":
+        wait += 1
+        if^wait > 20 { press(love.keyboard.Key.z) phase := 10 }
+    elseif^phase = 10 and^s.phase = "loading":
+        print("intro -> loading") phase := 11
+    elseif^phase = 11 and^s.phase = "battle":
+        print("loading -> CPU battle") phase := 12 wait := 0
+    elseif^phase = 12:
+        wait += 1
+        if^s.cpuActions > actions { actions := s.cpuActions }
+        # Existing development key: make the CPU vulnerable to one hit.
+        press(love.keyboard.Key.k)
+        if^wait % 5 = 0 { press(love.keyboard.Key.z) }
+        if^s.phase = "event" {
+            print($"victory -> story event; CPU actions={actions}")
+            if^actions = 0 { panic^"CPU never executed an action" }
+            phase := 13 wait := 0
+        }
+    elseif^phase = 13:
+        wait += 1
+        if^s.phase = "battle" { phase := 14
+        elseif^s.phase = "event" and^wait > 20: press(love.keyboard.Key.z) phase := 14 }
+    elseif^phase = 14 and^s.phase = "battle":
+        if^s.event <= 0 { panic^"story route did not advance" }
+        if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 {
+            panic^$"sync fallback lton={vp.resource.fallbackReads()} assets={vp.arena.fallbacks()}"
+        }
+        print($"PASS: story select, difficulty, intro/back, loading, CPU, victory, next fight; frames={frames}")
+        love.event.quit()
+    }
+    if^love.timer.getTime() - began > 120 { panic^$"timeout test={phase} scene={s.phase} actions={actions}" }
+}
+
+public^let^draw = p^{ vp.main.draw() }
+
+public^let^quit = p^-> bool^{ return^vp.main.quit() }

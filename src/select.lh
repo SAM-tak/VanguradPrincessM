@@ -4,8 +4,8 @@
 # as its portrait object (the character's #25, which also picks the support
 # with left / right) and confirms on a button, whose number is the colour.
 #
-# One keyboard: both sides are up at once (VS mode); 1P picks, then the same
-# keys pick 2P's character.
+# Story shows only 1P. VS keeps the development flow: 1P picks, then the same
+# keyboard picks 2P, with both cursors visible from the start.
 module^vp.select
 
 import^love.graphics
@@ -57,6 +57,7 @@ public^let^Select = def^{
         picking = 0,                # the side choosing now (0 = 1P, 1 = 2P)
         wait = 0,                   # frames since both confirmed
         done = false^,
+        story = false^,
     },
 }
 
@@ -115,9 +116,10 @@ let^showPortrait = p^s:Select, k:number^{
     side.cursor := systemRun(s, if^k = 0: CURSOR_1P el^: CURSOR_2P;, GRID_X, slotY(side.row))
 }
 
-public^let^load = p^systemDir:string^-> Select{
+public^let^load = p^systemDir:string^, story:bool^-> Select{
     let^s = Select.new()
     s.systemDir := systemDir
+    s.story := story
     s.system := vp.script.load($"{systemDir}/script.lton")
     s.demo := vp.stage.load("assets/demos/キャラセレ")
     s.sides := { Side.new(), Side.new() }
@@ -126,13 +128,13 @@ public^let^load = p^systemDir:string^-> Select{
     # system variable 139 off 500, the select screen's "1P only" mark, and
     # the screen lays itself out for two: 2P's support, no move list).
     showPortrait(s, 0)
-    showPortrait(s, 1)
+    if^!story { showPortrait(s, 1) }
     return^s
 }
 
-# Both sides have chosen (the screen stays up a while: the match loads behind it).
+# All human choices are confirmed (one in story, two in VS).
 public^let^bothChosen = f^s:Select-> bool^{
-    let^last = s.sides[1]
+    let^last = s.sides[if^s.story: 0 el^: 1;]
     return^last != nil^ and^last.confirmed
 }
 
@@ -189,7 +191,7 @@ public^let^step = p^s:Select, up:bool^, down:bool^, dir:number^, pressed:number^
 
     let^cur = s.sides[s.picking]
     if^cur != nil^ and^cur.confirmed {
-        if^s.picking = 0 {
+        if^s.picking = 0 and^!s.story {
             s.picking := 1
         else^:
             s.wait += 1

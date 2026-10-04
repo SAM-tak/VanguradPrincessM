@@ -120,6 +120,21 @@ demo's "skip with input" and time (the .demo's last bytes), into
 python tools/fm2k_convert/read_demos.py vanpri108/ヴァンガードプリンセス assets
 ```
 
+## Story routes and CPU patterns
+
+`python tools/fm2k_convert/story.py` exports `story.lton` for each selectable
+character and `cpu.lton` for all fighters including Hilda. Run after conversion
+and shared-asset extraction. It recovers opponents discarded by fm2ndparser
+directly from the original `.player` files, validates the dummy preparation
+event and 7/7/11-fight routes, and exports explicit fight/demo sequences.
+Difficulty and introduction are implemented in `src/story.lh`, without running
+the dummy fight or interpreting story jump instructions at runtime.
+These files are runtime assets and are included by `tools/dist.ps1`.
+
+CPU command references use the original command table, which includes empty
+entries. The export resolves them into skill numbers before runtime; indices
+from the filtered player-input command table must not be used here.
+
 ## Checking the LTON
 
 Check the LTON with lhat:
