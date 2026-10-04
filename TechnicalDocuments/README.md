@@ -36,3 +36,4 @@
 - [0020-shared-assets.md](0020-shared-assets.md) — キャラ間で同じ png / wav を assets/shared に纏める（share_assets.py、エンジンは .lton の項目から読む）
 - [0021-indexed-images-as-dds.md](0021-indexed-images-as-dds.md) — パレット画像を非圧縮 R8 の DDS で持つ（r8 テクスチャ、VRAM 1/4）。共有の判定は画素の鍵で
 - [0022-character-names.md](0022-character-names.md) — キャラの内部名 → 正式名（えり・サキ・はるか・あやね）、未使用キャラ new1 / 新2 を変換しない
+- [0023-resource-arena.md](0023-resource-arena.md) — 場面ごとのアリーナのスタックでテクスチャ・音をまとめて dispose。キャラ選択の顔グラ先読み（portrait.lton）と試合前の 2 キャラ先読み

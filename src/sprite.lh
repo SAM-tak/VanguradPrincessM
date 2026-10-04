@@ -3,7 +3,10 @@
 module^vp.sprite
 
 import^love.graphics
+import^love.timer
 import^std.lton
+
+require^"arena.lh"
 
 # Indexed images look their colour up in a palette row; images that carried
 # their own palette are already RGBA. Either way FM2K's COLOR tint is added:
@@ -69,20 +72,6 @@ public^let^listing = p^file:string^-> t^{}|nil^{
     return^listings[file]
 }
 
-# Textures by file: a shared image is loaded once whoever draws it.
-var^textures : t^{[string^]:love.graphics.Texture|nil^} = {}
-
-let^texture = p^path:string^-> love.graphics.Texture|nil^{
-    let^known = textures[path]
-    if^known != nil^ { return^known }
-    let^loaded = love.graphics.newImage(path) catch^nil^
-    if^loaded fits^love.graphics.Texture {
-        loaded.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
-        textures[path] := loaded
-    }
-    return^loaded
-}
-
 # One character's (or stage's) converted images.
 public^let^Sheet = def^{
     self^{
@@ -91,11 +80,21 @@ public^let^Sheet = def^{
         paletteTried = false^,     # stages have no palettes.png
         images : t^{[number^]:love.graphics.Texture|nil^} = {},
         missing : t^{[number^]:bool^|nil^} = {},    # asked for, not there (logged once)
+        gen = -1,                   # the scene (vp.arena) its images were loaded in
     },
     override^new = f^dir:string^{ self^{ dir = dir } },
 
     listing = p^self^-> t^{}|nil^{
         return^listing($"{self^.dir}/images.lton")
+    },
+
+    # A new scene (vp.arena) disposed the last one's textures: start over.
+    fresh = p^self^{
+        if^self^.gen = vp.arena.generation() { return^}
+        self^.gen := vp.arena.generation()
+        self^.images := {}
+        self^.palette := nil^
+        self^.paletteTried := false^
     },
 
     # Whether image i is palette-indexed (images.lton says "indexed" or "rgba").
@@ -108,6 +107,7 @@ public^let^Sheet = def^{
 
     # Texture for an FM2K image number, loaded on first use.
     image = p^self^, i:number^-> love.graphics.Texture|nil^{
+        self^.fresh()
         let^cached = self^.images[i]
         if^cached fits^love.graphics.Texture { return^cached }
         if^self^.missing[i] != nil^ { return^nil^ }
@@ -116,7 +116,7 @@ public^let^Sheet = def^{
         # listing keeps the old layout.
         let^l = self^.listing()
         let^path = if^l is^nil^: $"{self^.dir}/images/{i:%04d}.png" el^: assetPath(self^.dir, l[i]);
-        let^loaded = if^path != nil^: texture(path) el^: nil^;
+        let^loaded = if^path != nil^: vp.arena.texture(path) el^: nil^;
         if^loaded fits^love.graphics.Texture {
             self^.images[i] := loaded
         else^:
@@ -141,13 +141,10 @@ public^let^Sheet = def^{
         if^shader is^nil^{
             shader := love.graphics.newShader(spriteCode) catch^nil^
         }
+        self^.fresh()
         if^!self^.paletteTried {
             self^.paletteTried := true^
-            let^p = love.graphics.newImage($"{self^.dir}/palettes.png") catch^nil^
-            if^p fits^love.graphics.Texture {
-                p.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
-                self^.palette := p
-            }
+            self^.palette := vp.arena.texture($"{self^.dir}/palettes.png")
         }
         let^s = shader
         let^pal = self^.palette
@@ -203,12 +200,52 @@ public^let^sheetFor = p^dir:string^-> Sheet{
     return^s
 }
 
-# Loads every image of a sheet now (about 2 s for a character). Not used
-# yet: the plan is to load everything at start-up (TechnicalDocuments/0015).
-public^let^preload = p^s:Sheet{
+# Images to load ahead of use, a little each frame (TechnicalDocuments/0023):
+# a match's two characters load behind the select screen once both are chosen.
+var^aheadSheets : t^{Sheet[]} = {}
+var^aheadImages : t^{number^[]} = {}
+var^aheadNext = 0
+
+# Puts images of a sheet in line to load (all its listed ones when `images`
+# is nil^).
+public^let^loadAhead = p^s:Sheet, images:t^{number^[]}|nil^{
+    if^images != nil^ {
+        for^i in^images {
+            aheadSheets.push^(s)
+            aheadImages.push^(i)
+        }
+        return^
+    }
     let^l = s.listing()
     if^l is^nil^{ return^}
     for^e:any^ in^l {
-        if^e != nil^ { s.image(index^) }
+        if^e != nil^ {
+            aheadSheets.push^(s)
+            aheadImages.push^(index^)
+        }
     }
+}
+
+# Loads images in line for up to `seconds`; answers whether none are left.
+public^let^loadSome = p^seconds:number^-> bool^{
+    let^start = love.timer.getTime()
+    repeat^while^aheadNext < aheadImages.length^ {
+        let^s = aheadSheets[aheadNext]
+        let^i = aheadImages[aheadNext] ?? -1
+        aheadNext += 1
+        if^s != nil^ { s.image(i) }
+        if^love.timer.getTime() - start >= seconds { break^}
+    }
+    if^aheadNext >= aheadImages.length^ {
+        aheadSheets := {}
+        aheadImages := {}
+        aheadNext := 0
+        return^true^
+    }
+    return^false^
+}
+
+# Loads everything in line now.
+public^let^loadAll = p^{
+    repeat^while^!loadSome(1) { }
 }

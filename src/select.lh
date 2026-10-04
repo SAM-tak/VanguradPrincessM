@@ -11,6 +11,7 @@ module^vp.select
 import^love.graphics
 
 require^"fighter.lh"
+require^"sprite.lh"
 require^"script.lh"
 require^"stage.lh"
 require^"hud.lh"
@@ -59,15 +60,27 @@ public^let^Select = def^{
     },
 }
 
-# Scripts of the characters, loaded once.
+# Scripts of the characters, loaded once: the whole one (script.lton, for a
+# match) and the portrait's (portrait.lton: only what the select screen's #25
+# runs, so the screen opens without reading every whole script;
+# TechnicalDocuments/0023).
 var^scripts : t^{[string^]:vp.script.Script|nil^} = {}
 
-public^let^scriptOf = p^name:string^-> vp.script.Script{
-    let^known = scripts[name]
+let^loadScript = p^name:string^, file:string^-> vp.script.Script{
+    let^key = $"{name}/{file}"
+    let^known = scripts[key]
     if^known != nil^ { return^known }
-    let^sc = vp.script.load($"assets/characters/{name}/script.lton") ?? vp.script.Script.new()
-    scripts[name] := sc
+    let^sc = vp.script.load($"assets/characters/{name}/{file}") ?? vp.script.Script.new()
+    scripts[key] := sc
     return^sc
+}
+
+public^let^scriptOf = p^name:string^-> vp.script.Script{
+    return^loadScript(name, "script.lton")
+}
+
+let^portraitOf = p^name:string^-> vp.script.Script{
+    return^loadScript(name, "portrait.lton")
 }
 
 let^systemRun = p^s:Select, n:number^, x:number^, y:number^-> Fighter{
@@ -92,7 +105,7 @@ let^showPortrait = p^s:Select, k:number^{
     let^side : Side = maybe
     let^name = CHARACTERS[side.row] ?? "ゆい"
     let^p = Fighter.new($"assets/characters/{name}", if^k = 0: PORTRAIT_1P_X el^: PORTRAIT_2P_X;, PORTRAIT_Y)
-    vp.script.install(p, scriptOf(name))
+    vp.script.install(p, portraitOf(name))
     p.ground := 1000000
     p.onScreen := true^
     p.facing := if^k = 0: 1 el^: -1;
@@ -114,7 +127,21 @@ public^let^load = p^systemDir:string^-> Select{
     # the screen lays itself out for two: 2P's support, no move list).
     showPortrait(s, 0)
     showPortrait(s, 1)
+    # Every character's portrait (what its #25 shows: the big face, the
+    # standing picture, its name, ...) loads now, so moving the cursor does not
+    # stop to read files (TechnicalDocuments/0023).
+    for^name in^CHARACTERS {
+        let^images = vp.script.imagesFrom(portraitOf(name), PORTRAIT)
+        vp.sprite.loadAhead(vp.sprite.sheetFor($"assets/characters/{name}"), images)
+    }
+    vp.sprite.loadAll()
     return^s
+}
+
+# Both sides have chosen (the screen stays up a while: the match loads behind it).
+public^let^bothChosen = f^s:Select-> bool^{
+    let^last = s.sides[1]
+    return^last != nil^ and^last.confirmed
 }
 
 # The first button of a pressed set (A = 0 ... F = 5): the colour.

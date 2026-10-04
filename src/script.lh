@@ -309,3 +309,52 @@ public^let^playersLayer = p^sc:Script-> number^{
     }
     return^-1
 }
+
+# Where a block can send control or start a skill: (skill, block) at these
+# positions of its numbers (SG jumps, a V / Rnd / COM / GL / GS / DS branch,
+# SC / SF calls, an O's object).
+let^TARGETS : t^{[string^]:t^{number^[]}|nil^} = {
+    SG = { 0, 1 }, V = { 6, 7 }, Rnd = { 2, 3 }, COM = { 1, 2 }, GL = { 2, 3 },
+    GS = { 3, 4 }, DS = { 0, 1 }, SC = { 0, 1 }, SF = { 0, 1 }, O = { 0, 1 },
+}
+
+# The images skill n can show (its I blocks), following every jump, branch,
+# call and spawned object from it: what to load before it runs (the select
+# screen's portraits, TechnicalDocuments/0023).
+public^let^imagesFrom = p^sc:Script, n:number^-> t^{number^[]}{
+    var^images : t^{number^[]} = {}
+    var^seenImage : t^{[number^]:bool^|nil^} = {}
+    var^seen : t^{[string^]:bool^|nil^} = {}
+    var^todo : t^{number^[]} = { n, 0 }
+    repeat^while^todo.length^ > 0 {
+        let^b = todo.pop^() ?? 0
+        let^s = todo.pop^() ?? 0
+        var^at = b
+        repeat^while^true^ {
+            let^sk = sc.skills[s]
+            if^sk is^nil^{ break^}
+            let^blk = sk.blocks[at]
+            if^blk is^nil^ or^seen[$"{s}:{at}"] != nil^ { break^}
+            seen[$"{s}:{at}"] := true^
+            if^blk.op = "I" {
+                let^i = blk.n[0] ?? -1
+                if^i >= 0 and^seenImage[i] is^nil^ {
+                    seenImage[i] := true^
+                    images.push^(i)
+                }
+            }
+            let^t = TARGETS[blk.op]
+            if^t != nil^ {
+                let^ts = blk.n[t[0] ?? 0] ?? 0
+                let^tb = blk.n[t[1] ?? 0] ?? 0
+                if^ts > 0 {
+                    todo.push^(ts)
+                    todo.push^(tb)
+                }
+            }
+            if^blk.op = "E" or^blk.op = "SG" { break^}
+            at += 1
+        }
+    }
+    return^images
+}

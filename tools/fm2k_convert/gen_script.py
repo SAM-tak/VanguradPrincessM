@@ -18,7 +18,7 @@ import json
 import struct
 from pathlib import Path
 
-from gen_skills import DS_EVENTS, flags, steps_of, target
+from gen_skills import DS_EVENTS, flags, jump_refs, steps_of, target
 import patches
 
 CMP = {"itsTheSame": 1, "itsAbove": 2, "itsBelow": 3}
@@ -196,16 +196,52 @@ def main():
         lines += commands
         lines.append("},")
 
-    for n, sk in enumerate(skills):
-        bs = sk["blocks"]
-        lv = bs[0].get("level", 0) if bs and bs[0]["type"] == "Settings" else 0
-        lines.append("{ name = %s, level = %d, blocks = {" % (lton_str(sk["name"]), lv))
-        lines += ["    %s," % lton_list(block(b)) for b in bs]
-        lines.append("} },")
+    head = lines[:3]
+    lines += skill_lines(skills)
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "script.lton").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print("%d skills -> %s" % (len(skills), args.out / "script.lton"))
+
+    # A character's select-screen portrait: only what its built-in #25 runs, so
+    # the select screen need not read the whole script (TechnicalDocuments/0023).
+    if "settings" in d:
+        keep = reachable(skills, PORTRAIT)
+        portrait = head + skill_lines(skills, keep)
+        (args.out / "portrait.lton").write_text("\n".join(portrait) + "\n", encoding="utf-8", newline="\n")
+        print("%d skills -> %s" % (len(keep), args.out / "portrait.lton"))
+
+
+PORTRAIT = 25      # a character's built-in "select screen face"
+
+
+def reachable(skills, start):
+    """The skills `start` can reach: its jumps, branches, calls and objects, on and on."""
+    seen, todo = set(), [start]
+    while todo:
+        n = todo.pop()
+        if n in seen or not 0 <= n < len(skills):
+            continue
+        seen.add(n)
+        for b in skills[n]["blocks"]:
+            todo += [s for s, _ in jump_refs(b)]
+    return seen
+
+
+def skill_lines(skills, keep=None):
+    """The skills as LTON, one per position; those not in `keep` (when given)
+    as empty skills, so the others keep their numbers."""
+    out = []
+    for n, sk in enumerate(skills):
+        if keep is not None and n not in keep:
+            out.append('{ name = "", level = 0, blocks = {} },')
+            continue
+        bs = sk["blocks"]
+        lv = bs[0].get("level", 0) if bs and bs[0]["type"] == "Settings" else 0
+        out.append("{ name = %s, level = %d, blocks = {" % (lton_str(sk["name"]), lv))
+        out += ["    %s," % lton_list(block(b)) for b in bs]
+        out.append("} },")
+    return out
 
 
 if __name__ == "__main__":

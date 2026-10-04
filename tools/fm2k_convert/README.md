@@ -91,8 +91,10 @@ tools/fm2k_convert/.venv/Scripts/python tools/fm2k_convert/preview_gif.py assets
 `gen_script.py` writes the skills of a character, a stage or the system file as
 `script.lton` in the converted folder, which `src/script.lh` runs
 (`TechnicalDocuments/0012`). A character's command table, hit reactions and gauge
-settings go in the same file. `dump_skill.py` prints skills one block per line, for
-reading them.
+settings go in the same file. For a character it also writes `portrait.lton`: only the
+skills its select-screen face (#25) reaches, the others empty, so the select screen need
+not read every whole script (`TechnicalDocuments/0023`). `dump_skill.py` prints skills one
+block per line, for reading them.
 
 ```sh
 python tools/fm2k_convert/gen_script.py <json dir>/ゆい.json assets/characters/ゆい

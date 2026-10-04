@@ -1,0 +1,85 @@
+# Where loaded textures and sounds belong, so they can be freed together
+# (TechnicalDocuments/0023). LOVE keeps no such list itself; a texture lives
+# until it is disposed or collected.
+#
+# Arenas form a stack, one per scene that is still on screen or about to be:
+# the title's, the select screen's, and a match's on top of the select
+# screen's (its screen stays up while the match's assets load, and the match
+# goes back to it). What is loaded goes into the top arena; what is looked up
+# is found in any. pop() disposes the top arena's all at once. Loaded while no
+# arena is pushed, a thing is resident: kept until the program ends.
+#
+# Every cache that holds them (a Sheet's images, a fighter's sounds) notes the
+# generation it filled itself in, and starts over in a new one, so nothing
+# uses a disposed object.
+module^vp.arena
+
+import^love.graphics
+import^love.audio
+
+public^let^Arena = def^{
+    self^{
+        name = "",
+        textures : t^{[string^]:love.graphics.Texture|nil^} = {},
+        sources : t^{love.audio.Source[]} = {},
+    },
+    override^new = f^name:string^{ self^{ name = name } },
+}
+
+let^resident = Arena.new("resident")
+var^stack : t^{Arena[]} = {}
+var^gen = 0
+
+# The scene's generation: a cache filled in another one is stale.
+public^let^generation = f^-> number^{
+    return^gen
+}
+
+let^top = p^-> Arena{
+    return^stack[stack.length^ - 1] ?? resident
+}
+
+# A new arena on top: what is loaded from now on goes there.
+public^let^push = p^name:string^{
+    stack.push^(Arena.new(name))
+}
+
+# The top arena goes, and everything it loaded is disposed (the memory goes
+# back at once, VRAM too); the caches start over.
+public^let^pop = p^{
+    let^a = stack.pop^()
+    if^a is^nil^{ return^}
+    for^path:string^, t:love.graphics.Texture in^a.textures { t.dispose() }
+    for^s in^a.sources { s.dispose() }
+    gen += 1
+}
+
+# The names of the arenas, bottom to top (for logging).
+public^let^names = p^-> string^{
+    var^out = ""
+    for^a in^stack { out := if^out = "": a.name el^: $"{out} / {a.name}"; }
+    return^out
+}
+
+# The texture of an image file: the one an arena already holds, or loaded
+# into the top one (a shared image whoever draws it). nil^ when it cannot be
+# loaded.
+public^let^texture = p^path:string^-> love.graphics.Texture|nil^{
+    for^k from^stack.length^ - 1 downto^0 {
+        let^known = stack[k]?.textures[path]
+        if^known? { return^known }
+    }
+    let^kept = resident.textures[path]
+    if^kept? { return^kept }
+    let^loaded = love.graphics.newImage(path) catch^nil^
+    if^loaded fits^love.graphics.Texture {
+        loaded.setFilter(love.graphics.FilterMode.nearest, love.graphics.FilterMode.nearest)
+        top().textures[path] := loaded
+    }
+    return^loaded
+}
+
+# A sound just loaded: it goes with the top arena.
+public^let^keep = p^src:love.audio.Source {
+    top().sources.push^(src)
+}

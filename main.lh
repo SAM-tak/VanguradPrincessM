@@ -22,6 +22,7 @@ import^love.math
 import^love.audio
 import^std.math
 
+require^"src/arena.lh"
 require^"src/fighter.lh"
 require^"src/sprite.lh"
 require^"src/script.lh"
@@ -94,6 +95,8 @@ var^aimY = camY
 # the start: the system's layout 5 checks for it to show "60", else "∞").
 var^roundFrames = ROUND_SECONDS * 100
 var^frame = 0
+var^matchLoading = false^    # the chosen two are loading behind the select screen
+let^LOAD_SLICE = 0.006        # seconds of loading ahead per frame
 var^wasTiming = false^
 var^lastSkill = ""            # skill changes are printed to the console, for debugging
 var^showBoxes = false^
@@ -289,9 +292,25 @@ let^startRound = p^{
     aimY := camY
 }
 
+# Back to the select screen after a match: the match's arena goes (what it
+# loaded), the select screen's is still there (TechnicalDocuments/0023).
 let^toSelect = p^{
     love.audio.stop()              # the match's music and sounds end with it
+    vp.arena.pop()
+    matchLoading := false^
     selecting := vp.select.load(SYSTEM)
+}
+
+# Both have chosen: the match's arena goes on top of the select screen's, and
+# the two characters load behind the select screen a little each frame.
+let^loadMatch = p^s:vp.select.Select{
+    vp.arena.push("match")
+    matchLoading := true^
+    for^k from^0 to^1 {
+        let^name, colour = vp.select.chosen(s, k)
+        vp.select.scriptOf(name)       # the whole script: read now, used by the match
+        vp.sprite.loadAhead(vp.sprite.sheetFor($"assets/characters/{name}"), nil^)
+    }
 }
 
 # The chosen characters, their colours and a stage at random; the supports
@@ -299,6 +318,7 @@ let^toSelect = p^{
 let^startBattle = p^s:vp.select.Select{
     let^name1, colour1 = vp.select.chosen(s, 0)
     let^name2, colour2 = vp.select.chosen(s, 1)
+    love.audio.stop()              # the select screen's music
     me := Fighter.new($"assets/characters/{name1}", WORLD_W / 2 - START_X, GROUND)
     foe := Fighter.new($"assets/characters/{name2}", WORLD_W / 2 + START_X, GROUND)
     vp.script.install(me, vp.select.scriptOf(name1))
@@ -307,7 +327,6 @@ let^startBattle = p^s:vp.select.Select{
     foe.palette := if^name1 = name2 and^colour1 = colour2: (colour2 + 1) % 8 el^: colour2;
     me.enemy := foe
     foe.enemy := me
-    love.audio.stop()              # the select screen's music
     let^pick = if^stageChoice > 0: stageChoice - 1 el^: love.math.random(0, STAGES.length^ - 1);
     stage := vp.stage.load($"assets/stages/{STAGES[pick] ?? "スクール"}")
     flow := vp.round.load(SYSTEM)
@@ -316,6 +335,7 @@ let^startBattle = p^s:vp.select.Select{
 }
 
 public^let^load = p^{
+    vp.arena.push("opening")
     scene := vp.title.play(demos, demos.opening)
 }
 
@@ -323,14 +343,17 @@ public^let^load = p^{
 # screen ends (a button): VS mode's select screen (story mode is not made yet).
 let^sceneDone = p^{
     love.audio.stop()
+    vp.arena.pop()                 # the opening's or the title's (TechnicalDocuments/0023)
     if^opening {
         opening := false^
+        vp.arena.push("title")
         let^system = vp.script.load($"{SYSTEM}/script.lton") ?? vp.script.Script.new()
         scene := vp.title.titleScreen(demos, SYSTEM, system)
         return^
     }
     scene := nil^
-    toSelect()
+    vp.arena.push("select")        # kept under every match, until the title
+    selecting := vp.select.load(SYSTEM)
 }
 
 # The camera (the view's top-left) moves half the way to its target each
@@ -367,7 +390,10 @@ let^tick = p^{
         upPressed := false^
         downPressed := false^
         pressed := 0
-        if^s.done { startBattle(s) }
+        if^vp.select.bothChosen(s) and^!matchLoading { loadMatch(s) }
+        # the match starts when the screen's wait is over and its two have loaded
+        let^loaded = !matchLoading or^vp.sprite.loadSome(LOAD_SLICE)
+        if^s.done and^loaded { startBattle(s) }
         return^
     }
     let^right = love.keyboard.isDown(Key.right)

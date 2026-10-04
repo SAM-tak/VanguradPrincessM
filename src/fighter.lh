@@ -25,6 +25,7 @@ import^love.audio
 import^love.math
 import^std.math
 
+require^"arena.lh"
 require^"sprite.lh"
 
 public^let^Box = def^{
@@ -73,6 +74,7 @@ public^let^Fighter = def^{
         hurts : t^{[number^]:Box|nil^} = {},
         hits : t^{[number^]:Box|nil^} = {},
         sounds : t^{[number^]:love.audio.Source|nil^} = {},
+        soundsGen = -1,             # the scene (vp.arena) its sounds were loaded in
         vars : t^{[number^]:number^|nil^} = {},
         onSkill : t^{[string^]:number^|nil^} = {},
         onBlock : t^{[string^]:number^|nil^} = {},
@@ -125,12 +127,17 @@ public^let^Fighter = def^{
     },
     # A procedure: the images come from the folder's shared Sheet.
     override^new = p^dir:string^, x:number^, y:number^{
-        self^{ sheet = vp.sprite.sheetFor(dir), dir = dir, soundDir = $"{dir}/sounds", x = x, y = y, ground = y }
+        self^{
+            sheet = vp.sprite.sheetFor(dir),
+            dir = dir,
+            soundDir = $"{dir}/sounds",
+            x = x,
+            y = y,
+            ground = y
+        }
     },
 
-    airborne = f^self^-> bool^{
-        return^self^.y < self^.ground
-    },
+    airborne = f^self^{ self^.y < self^.ground },
 
     # Replaces the running skill, as the engine does when it picks one: attack
     # boxes, event handlers and task variables go, and on the ground so does motion.
@@ -281,7 +288,12 @@ public^let^Fighter = def^{
         let^ox = if^self^.onScreen: viewX el^: 0;
         let^oy = if^self^.onScreen: viewY el^: 0;
         vp.sprite.setBlend(self^.blend, self^.alpha)
-        self^.sheet.draw(self^.image, ox + self^.x + self^.ix * self^.facing, oy + self^.y + self^.iy, self^.palette, sx, sy, self^.tintR, self^.tintG, self^.tintB)
+        self^.sheet.draw(self^.image,
+            ox + self^.x + self^.ix * self^.facing,
+            oy + self^.y + self^.iy, self^.palette,
+            sx, sy,
+            self^.tintR, self^.tintG, self^.tintB
+        )
         vp.sprite.resetBlend()
     },
 
@@ -293,7 +305,11 @@ public^let^Fighter = def^{
     drawBoxes = p^self^{
         for^slot, b in^self^.hurts {
             if^b fits^Box {
-                if^b.body { love.graphics.setColor(1, 1, 0, 0.9) else^: love.graphics.setColor(0.2, 0.5, 1, 0.9) }
+                if^b.body {
+                    love.graphics.setColor(1, 1, 0, 0.9)
+                else^:
+                    love.graphics.setColor(0.2, 0.5, 1, 0.9)
+                }
                 let^l, t, w, h = self^.rect(b)
                 love.graphics.rectangle(love.graphics.DrawMode.line, l, t, w, h)
             }
@@ -533,7 +549,7 @@ public^let^posture = p^me:Fighter, crouched:bool^-> number^{
 # R's guard slot is what a guarding defender gets. Where it is the same as the
 # hit slot, the attack cannot be guarded in that posture: a low kick has the
 # hit reaction in its standing-guard slot, an air attack in its crouching one.
-public^let^struck = p^atk:Fighter, box:Box, def:Fighter, rate:number^, crouched:bool^-> (bool^, number^){
+public^let^struck = p^atk:Fighter, box:Box, def:Fighter, rate:number^, crouched:bool^-> bool^, number^{
     let^pose = posture(def, crouched)
     let^onHit = atk.onHit[pose] ?? 0
     let^onGuard = atk.onGuard[pose] ?? 0
@@ -576,7 +592,7 @@ public^let^clearSystemVars = p^{
     systemVars := {}
 }
 
-let^home = p^me:Fighter, n:number^-> t^{[number^]:number^|nil^}{
+let^home = f^me:Fighter, n:number^-> t^{[number^]:number^|nil^}{
     if^n <= 16 { return^me.vars }
     if^n >= 128 and^n < 192 { return^systemVars }
     return^(me.owner ?? me).vars
@@ -594,16 +610,18 @@ public^let^setRound = p^frames:number^, number:number^{
 # Data variables (read only): 192 / 193 own x / y, 194 / 195 the map (camera)
 # position, 196 / 197 the parent's (spawner's) x / y, 198 the round time in
 # seconds, 199 the round number.
-public^let^v = p^me:Fighter, n:number^-> number^{
-    if^n = 192 { return^me.x }
-    if^n = 193 { return^me.y }
-    if^n = 194 { return^viewX }
-    if^n = 195 { return^viewY }
-    if^n = 196 { return^(me.parent ?? me).x }
-    if^n = 197 { return^(me.parent ?? me).y }
-    if^n = 198 { return^(std.math.max(roundFrames - 1, 0) / 100).floor() }   # a frame behind the display
-    if^n = 199 { return^roundNumber }
-    return^home(me, n)[n] ?? 0
+public^let^v = f^me:Fighter, n:number^-> number^{
+    for^n:
+    when^192: me.x
+    when^193: me.y
+    when^194: viewX
+    when^195: viewY
+    when^196: (me.parent ?? me).x
+    when^197: (me.parent ?? me).y
+    when^198: (std.math.max(roundFrames - 1, 0) / 100).floor() # a frame behind the display
+    when^199: roundNumber
+    other^:home(me, n)[n] ?? 0
+    ;
 }
 
 public^let^setv = p^me:Fighter, n:number^, value:number^{
@@ -622,9 +640,7 @@ public^let^chance = p^me:Fighter, total:number^, above:number^-> bool^{
 }
 
 # The character a skill belongs to (an object's gauges are its owner's).
-let^charOf = p^me:Fighter-> Fighter{
-    return^me.owner ?? me
-}
+let^charOf = f^me:Fighter-> Fighter { me.owner ?? me }
 
 # GL / GS are forks: when the condition holds the skill goes on, otherwise it
 # goes to the block's skill ("if it failed"). The generated code jumps when
@@ -632,7 +648,7 @@ let^charOf = p^me:Fighter-> Fighter{
 #
 # GL: life above `amount` (isMore), or below it. (The compendium's wording is
 # ambiguous; this reading makes "GL more 0" the usual "still alive" check.)
-public^let^lifeGauge = p^me:Fighter, isMore:bool^, amount:number^-> bool^{
+public^let^lifeGauge = f^me:Fighter, isMore:bool^, amount:number^-> bool^{
     let^life = charOf(me).life
     let^met = if^isMore: life > amount el^: life < amount;
     return^!met
@@ -786,7 +802,14 @@ public^let^sound = p^me:Fighter, n:number^{
         let^who = if^me.owner?: "object" el^: "fighter";
         print($"sound {n} by {who} {me.skillName}")
     }
-    var^src = me.sounds[n]
+    # A character and its objects share its sounds; a new scene (vp.arena)
+    # disposed the last one's.
+    let^holder = me.owner ?? me
+    if^holder.soundsGen != vp.arena.generation() {
+        holder.sounds := {}
+        holder.soundsGen := vp.arena.generation()
+    }
+    var^src = holder.sounds[n]
     if^src is^nil^{
         # A looping sound (the music) is long: streamed, looped over the whole
         # file (the tracks have no loop points and end in a fade).
@@ -795,8 +818,11 @@ public^let^sound = p^me:Fighter, n:number^{
         let^kind = if^loop: love.audio.SourceType.stream el^: love.audio.SourceType.static;
         let^path = vp.sprite.assetPath(me.dir, e) ?? $"{me.soundDir}/{n:%04d}.wav"
         let^loaded = love.audio.newSource(path, kind) catch^nil^
-        if^loaded fits^love.audio.Source { loaded.setLooping(loop) }
-        me.sounds[n] := loaded
+        if^loaded fits^love.audio.Source {
+            loaded.setLooping(loop)
+            vp.arena.keep(loaded)
+        }
+        holder.sounds[n] := loaded
         src := loaded
     }
     if^src fits^love.audio.Source {
