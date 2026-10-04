@@ -25,6 +25,7 @@ let^Fighter = vp.fighter.Fighter
 let^CURSOR = 78
 let^ITEM_X = 291              # "position: title cursor" story (#79) / VS single (#80)
 let^ITEM_Y : t^{number^[]} = { 70, 92 }
+let^MODE_CURTAIN = 7         # mode demo's スクリプト4: image 11 fading to transparent
 let^OPENING_DIR = "assets/demos/タイトル"
 let^SCROLL_SECONDS = 35
 let^FLASH_SECONDS = 0.35
@@ -66,6 +67,7 @@ public^let^Scene = def^{
         name = "",
         layers : vp.stage.Stage|nil^= nil^,
         extras : t^{Fighter[]} = {},
+        curtainLayer = -1,          # mode menu fade drawn after cursor and caption
         frames = 0,
         time = 0,                   # frames it lasts, 0: no limit
         skip = false^,              # a button ends it
@@ -213,6 +215,12 @@ public^let^titleScreen = p^demos:Demos, systemDir:string^, system:vp.script.Scri
     let^s = play(demos, demos.title)
     s.item := 0
     s.extras := { systemRun(systemDir, system, CURSOR, ITEM_X, ITEM_Y[0] ?? 70) }
+    let^st = s.layers
+    if^st != nil^ {
+        for^k, l in^st.layers {
+            if^l.skillNo = MODE_CURTAIN { s.curtainLayer := k }
+        }
+    }
     return^s
 }
 
@@ -264,8 +272,17 @@ public^let^draw = p^s:Scene{
     for^i in^list {
         if^i.depth <= 100 { vp.round.drawItem(i) }
     }
-    vp.stage.draw(st, 0, 0, st.players, st.layers.length^)
+    for^k, l in^st.layers {
+        if^k >= st.players and^k != s.curtainLayer {
+            vp.stage.draw(st, 0, 0, k, k + 1)
+        }
+    }
     for^i in^list {
         if^i.depth > 100 { vp.round.drawItem(i) }
+    }
+    # Deliberate presentation change: the original fade layer (depth 100)
+    # covers the cursor (101) and its caption (127), keeping its own timing.
+    if^s.curtainLayer >= 0 {
+        vp.stage.draw(st, 0, 0, s.curtainLayer, s.curtainLayer + 1)
     }
 }
