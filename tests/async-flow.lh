@@ -11,6 +11,10 @@ var^frames = 0
 var^wait = 0
 var^began = 0
 var^worst = 0
+var^attacked = false^
+var^pauseTime = 0
+var^pauseX = 0
+var^pauseLife = 0
 var^failure : vp.resource.Batch|nil^= nil^
 
 let^press = p^key:love.keyboard.Key {
@@ -33,8 +37,8 @@ public^let^update = p^dt:number^{
     elseif^phase = 1: press(love.keyboard.Key.z) phase := 2
     elseif^phase = 2 and^where = "system / title": press(love.keyboard.Key.down) press(love.keyboard.Key.z) phase := 3
     elseif^phase = 3 and^where = "system / select": print($"select frames={frames}") press(love.keyboard.Key.z) phase := 4
-    elseif^phase = 4: press(love.keyboard.Key.down) phase := 5
-    elseif^phase = 5: press(love.keyboard.Key.z) phase := 6
+    elseif^phase = 4: press(love.keyboard.Key.j) phase := 5
+    elseif^phase = 5: press(love.keyboard.Key.l) phase := 6
     elseif^phase = 6 and^vp.resource.outstanding() > 0:
         wait += 1
         if^wait >= 5 { print("cancel in-flight match") press(love.keyboard.Key.escape) phase := 7 }
@@ -42,15 +46,39 @@ public^let^update = p^dt:number^{
     elseif^phase = 8 and^where = "system / opening": press(love.keyboard.Key.z) phase := 9
     elseif^phase = 9 and^where = "system / title": press(love.keyboard.Key.down) press(love.keyboard.Key.z) phase := 10
     elseif^phase = 10 and^where = "system / select": press(love.keyboard.Key.z) phase := 11
-    elseif^phase = 11: press(love.keyboard.Key.down) phase := 12
-    elseif^phase = 12: press(love.keyboard.Key.z) phase := 13
+    elseif^phase = 11: press(love.keyboard.Key.j) phase := 12
+    elseif^phase = 12: press(love.keyboard.Key.l) phase := 13
     elseif^phase = 13 and^where = "system / select / match":
         print($"match frames={frames} elapsed={love.timer.getTime() - began} worst={worst}")
         wait := 0
         phase := 14
     elseif^phase = 14:
         wait += 1
+        if^wait = 450 {
+            press(love.keyboard.Key.escape)
+            let^s = vp.main.status()
+            if^!s.paused { panic^"ESC did not pause battle" }
+            pauseTime := s.roundFrames
+            pauseX := s.enemyX
+            pauseLife := s.enemyLife
+        }
+        if^wait > 450 and^wait <= 470 {
+            let^s = vp.main.status()
+            if^!s.paused or^s.roundFrames != pauseTime or^s.enemyX != pauseX or^s.enemyLife != pauseLife { panic^"battle advanced during pause" }
+            press(love.keyboard.Key.f2)
+            press(love.keyboard.Key.z)
+        }
+        if^wait = 470 {
+            press(love.keyboard.Key.return)
+            if^vp.main.status().paused { panic^"Start/Return did not resume battle" }
+        }
+        if^wait = 480 and^vp.main.status().roundFrames >= pauseTime { panic^"battle did not resume" }
+        if^wait > 200 and^wait % 30 = 0 { press(love.keyboard.Key.l) }
+        if^wait > 200 and^vp.main.status().enemySkill >= 200 { attacked := true^ }
+        if^wait = 300 { press(love.keyboard.Key.k) }
+        if^wait = 301 and^vp.main.status().enemyLife <= 1 { panic^"2P right key still changes life" }
         if^wait > 600 {
+            if^!attacked { panic^"2P attack input was not executed" }
             if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^$"synchronous fallback: lton={vp.resource.fallbackReads()} assets={vp.arena.fallbacks()}" }
             let^b = vp.resource.Batch.new("missing-file-test")
             failure := b
@@ -62,7 +90,7 @@ public^let^update = p^dt:number^{
         if^b != nil^ and^b.error != "" {
             vp.resource.cancel(b)
             if^vp.resource.outstanding() = 0 {
-                print($"PASS: cancel, retry, two fighters, battle drawing, missing asset; frames={frames}; synchronous fallback reads=0")
+                print($"PASS: cancel, retry, two fighters, pause/freeze/resume, battle drawing, missing asset; frames={frames}; synchronous fallback reads=0")
                 love.event.quit()
             }
         }

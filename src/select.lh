@@ -4,8 +4,7 @@
 # as its portrait object (the character's #25, which also picks the support
 # with left / right) and confirms on a button, whose number is the colour.
 #
-# Story shows only 1P. VS keeps the development flow: 1P picks, then the same
-# keyboard picks 2P, with both cursors visible from the start.
+# Story shows only 1P. In VS each player controls their own selection.
 module^vp.select
 
 import^love.graphics
@@ -54,7 +53,6 @@ public^let^Select = def^{
         systemDir = "",
         demo : vp.stage.Stage|nil^= nil^,
         sides : t^{Side[]} = {},
-        picking = 0,                # the side choosing now (0 = 1P, 1 = 2P)
         wait = 0,                   # frames since both confirmed
         done = false^,
         story = false^,
@@ -134,8 +132,9 @@ public^let^load = p^systemDir:string^, story:bool^-> Select{
 
 # All human choices are confirmed (one in story, two in VS).
 public^let^bothChosen = f^s:Select-> bool^{
+    let^first = s.sides[0]
     let^last = s.sides[if^s.story: 0 el^: 1;]
-    return^last != nil^ and^last.confirmed
+    return^first != nil^ and^first.confirmed and^last != nil^ and^last.confirmed
 }
 
 # The first button of a pressed set (A = 0 ... F = 5): the colour.
@@ -156,21 +155,25 @@ let^confirmFlag = p^side:Side, me:Fighter{
 
 # One frame. dir: FM2K's direction code (5 = none, 8 up, 2 down, 4 / 6 left
 # / right), pressed: the buttons pressed this frame (A = 1 ... F = 32).
-public^let^step = p^s:Select, up:bool^, down:bool^, dir:number^, pressed:number^{
+public^let^step = p^s:Select, up:bool^, down:bool^, dir:number^, pressed:number^, up2:bool^, down2:bool^, dir2:number^, pressed2:number^{
     let^st = s.demo
     if^st != nil^ { vp.stage.step(st) }
 
-    let^k = s.picking
-    let^maybe = s.sides[k]
-    if^maybe != nil^ and^!maybe.confirmed {
-        let^side : Side = maybe
-        if^up or^down {
-            side.row := (side.row + (if^down: 1 el^: -1;) + ROWS) % ROWS
-            showPortrait(s, k)
-        elseif^pressed != 0:
-            side.confirmed := true^
-            side.colour := firstButton(pressed)
-            side.cursor := systemRun(s, if^k = 0: CONFIRMED_1P el^: CONFIRMED_2P;, GRID_X, slotY(side.row))
+    for^k from^0 to^(if^s.story: 0 el^: 1;) {
+        let^u = if^k = 0: up el^: up2;
+        let^d = if^k = 0: down el^: down2;
+        let^b = if^k = 0: pressed el^: pressed2;
+        let^maybe = s.sides[k]
+        if^maybe != nil^ and^!maybe.confirmed {
+            let^side : Side = maybe
+            if^u or^d {
+                side.row := (side.row + (if^d: 1 el^: -1;) + ROWS) % ROWS
+                showPortrait(s, k)
+            elseif^b != 0:
+                side.confirmed := true^
+                side.colour := firstButton(b)
+                side.cursor := systemRun(s, if^k = 0: CONFIRMED_1P el^: CONFIRMED_2P;, GRID_X, slotY(side.row))
+            }
         }
     }
 
@@ -178,7 +181,7 @@ public^let^step = p^s:Select, up:bool^, down:bool^, dir:number^, pressed:number^
         let^p = sd.portrait
         if^p != nil^ {
             confirmFlag(sd, p)
-            vp.fighter.record(p, if^i = s.picking and^!sd.confirmed: dir el^: 5;, 0)
+            vp.fighter.record(p, if^sd.confirmed: 5 el^i = 0: dir el^: dir2;, 0)
             p.step()
             vp.fighter.stepObjects(p)
         }
@@ -189,14 +192,9 @@ public^let^step = p^s:Select, up:bool^, down:bool^, dir:number^, pressed:number^
         }
     }
 
-    let^cur = s.sides[s.picking]
-    if^cur != nil^ and^cur.confirmed {
-        if^s.picking = 0 and^!s.story {
-            s.picking := 1
-        else^:
-            s.wait += 1
-            if^s.wait > AFTER_BOTH { s.done := true^ }
-        }
+    if^bothChosen(s) {
+        s.wait += 1
+        if^s.wait > AFTER_BOTH { s.done := true^ }
     }
 }
 

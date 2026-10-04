@@ -1,0 +1,64 @@
+# Gamepads feed the same logical keys as the two keyboard layouts.
+module^vp.input
+
+import^love.keyboard
+import^love.joystick
+
+let^Key = love.keyboard.Key
+let^Button = love.joystick.Button
+let^Slot = def^{ self^{pad:love.joystick.Joystick|nil^= nil^, held:t^{bool^[]} = {}} }
+let^slots = {Slot.new(), Slot.new()}
+let^keys : t^{t^{love.keyboard.Key[]}[]} = {
+    {Key.up, Key.left, Key.down, Key.right, Key.z, Key.x, Key.c, Key.a, Key.s, Key.d, Key.escape, Key.return},
+    {Key.u, Key.h, Key.j, Key.k, Key.l, Key.semicolon, Key.quote, Key.o, Key.p, Key.leftbracket, Key.escape, Key.return},
+}
+let^buttons = {Button.a, Button.b, Button.x, Button.y, Button.leftshoulder, Button.rightshoulder, Button.back, Button.start}
+
+# Keep occupied slots stable when another controller disconnects.
+public^let^poll = p^-> t^{love.keyboard.Key[]}{
+    var^events : t^{love.keyboard.Key[]} = {}
+    for^s in^slots {
+        let^pad = s.pad
+        if^pad != nil^ and^!pad.isConnected() { s.pad := nil^ s.held := {} }
+    }
+    for^pad in^love.joystick.getJoysticks() {
+        if^pad.isGamepad() {
+            var^assigned = false^
+            for^s in^slots { let^other = s.pad if^other != nil^ and^other.getID() = pad.getID() { assigned := true^ } }
+            if^!assigned {
+                for^s in^slots { if^s.pad is^nil^ { s.pad := pad s.held := {} break^ } }
+            }
+        }
+    }
+    for^i, s in^slots {
+        let^pad = s.pad
+        let^layout = keys[i]
+        if^pad != nil^ and^layout != nil^ {
+            let^x = pad.getGamepadAxis(love.joystick.Axis.leftx)
+            let^y = pad.getGamepadAxis(love.joystick.Axis.lefty)
+            var^now = {
+                pad.isGamepadDown(Button.dpup) or^y < -0.35,
+                pad.isGamepadDown(Button.dpleft) or^x < -0.35,
+                pad.isGamepadDown(Button.dpdown) or^y > 0.35,
+                pad.isGamepadDown(Button.dpright) or^x > 0.35,
+            }
+            for^b in^buttons { now.push^(pad.isGamepadDown(b)) }
+            for^k, down in^now {
+                let^key = layout[k]
+                if^down and^!(s.held[k] ?? false^) and^key != nil^ { events.push^(key) }
+            }
+            s.held := now
+        }
+    }
+    return^events
+}
+public^let^isDown = p^key:love.keyboard.Key-> bool^{
+    if^love.keyboard.isDown(key) { return^true^ }
+    for^i, s in^slots {
+        let^layout = keys[i]
+        if^layout != nil^ {
+            for^k, value in^layout { if^value = key and^(s.held[k] ?? false^) { return^true^ } }
+        }
+    }
+    return^false^
+}

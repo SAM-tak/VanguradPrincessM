@@ -45,3 +45,7 @@
 - [0029-core-member-race-repro.md](0029-core-member-race-repro.md) — LÖVE不要の20行で複数ワーカー間の誤読を再現。言語コアへの修正依頼と比較結果
 - [0030-story-flow-survey.md](0030-story-flow-survey.md) — ストーリー用キャラセレ、開始時スクリプトによる難易度・紹介画面、イベント列と未確認点
 - [0031-story-mode.md](0031-story-mode.md) — だみー対戦を使わない難易度・紹介・ロード、原作ルートの抽出、CPU戦と検証範囲
+- [0032-gamepad-and-two-player-input.md](0032-gamepad-and-two-player-input.md) — パッド接続と操作割り当て、独立した2P選択・対戦入力、デバッグキーの移動
+- [0033-battle-pause.md](0033-battle-pause.md) — ESC／Startでの停止・再開と原作の全画面操作説明画像
+- [0034-shared-image-ownership.md](0034-shared-image-ownership.md) — ゆい専用15枚の共有解除、共有済み素材への所有者訂正の適用
+- [0035-cooldown-icon-sharing.md](0035-cooldown-icon-sharing.md) — サポート禁止アイコン11点を指定の共有画像へ統一、パレット番号差と明示的置換

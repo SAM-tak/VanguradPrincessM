@@ -12,6 +12,8 @@ after convert.py; it can run again (a character converted anew joins the pool).
 
 Images listed in share_owners.txt are one character's own, held by others by
 mistake: they stay in the owner's folder, and the others' entries become nil^.
+share_aliases.txt explicitly substitutes approved pixel variants with a
+canonical shared image; unlike deduplication, this can change rendered colors.
 
     share_assets.py <assets dir> --preview <dir>
 
@@ -110,6 +112,7 @@ def preview(found, out):
 
 
 OWNERS = Path(__file__).with_name("share_owners.txt")
+ALIASES = Path(__file__).with_name("share_aliases.txt")
 
 
 def owners():
@@ -146,7 +149,94 @@ def rewrite_listing(listing, kind, shared, dropped):
     listing.write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
 
 
+def restore_owned_images(assets):
+    """Apply new ownership corrections to manifests already pointing at the pool.
+
+    Copy back before changing references, preserve original slot numbers, and
+    remove pool files only after checking every manifest for remaining users.
+    """
+    table = owners()
+    pool = (assets / "shared/images").resolve()
+    candidates = set()
+    restored = dropped = 0
+    for listing in sorted((assets / "characters").glob("*/images.lton")):
+        lines = listing.read_text(encoding="utf-8").splitlines()
+        changed = False
+        number = -1
+        for i, line in enumerate(lines):
+            if not line.lstrip().startswith(("{", "nil^")):
+                continue
+            number += 1
+            match = re.search(r'shared = "images/([0-9a-f]+\.(?:dds|png))"', line)
+            if not match:
+                continue
+            name = match[1]
+            owner = owner_of(Path(name).stem, table)
+            if owner is None:
+                continue
+            source = pool / name
+            if listing.parent.name == owner:
+                target = listing.parent / "images" / ("%04d%s" % (number, source.suffix))
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.exists() and content_key(target) != Path(name).stem:
+                    raise ValueError("Refusing to overwrite different image: %s" % target)
+                shutil.copyfile(source, target)
+                lines[i] = line[:match.start()] + 'file = "images/%s"' % target.name + line[match.end():]
+                restored += 1
+            else:
+                lines[i] = "nil^,"
+                dropped += 1
+            candidates.add(source)
+            changed = True
+        if changed:
+            listing.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    references = set()
+    for listing in assets.rglob("images.lton"):
+        references.update(re.findall(r'shared = "images/([^"/]+)"', listing.read_text(encoding="utf-8")))
+    for source in candidates:
+        if source.name not in references and source.exists():
+            assert source.resolve().parent == pool
+            source.unlink()
+    print("ownership: %d images restored, %d foreign entries dropped" % (restored, dropped))
+
+
+def apply_image_aliases(assets, found):
+    """Replace only explicitly approved variants, not merely similar images."""
+    aliases = {}
+    for line in ALIASES.read_text(encoding="utf-8").splitlines():
+        fields = line.split("#", 1)[0].split()
+        if fields:
+            source, target = fields
+            aliases[source] = target
+    count = 0
+    for source, target in aliases.items():
+        variants = found["images"].get(source, [])
+        if not variants:
+            continue
+        pool = assets / "shared/images"
+        canonical = next((pool / (target + ext) for ext in (".dds", ".png")
+                          if (pool / (target + ext)).exists()), None)
+        if canonical is None:
+            originals = found["images"].get(target, [])
+            if not originals:
+                raise ValueError("Missing canonical image for alias: " + target)
+            original = originals[0][2]
+            canonical = pool / (target + original.suffix)
+            pool.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(original, canonical)
+        if content_key(canonical) != target:
+            raise ValueError("Canonical image content mismatch: " + str(canonical))
+        for character, number, path in variants:
+            listing = assets / "characters" / character / "images.lton"
+            rewrite_listing(listing, "images", {number: canonical.name}, set())
+            path.unlink()
+            count += 1
+        del found["images"][source]
+    print("image aliases: %d approved variants replaced" % count)
+
+
 def apply(assets, found):
+    apply_image_aliases(assets, found)
     pool = assets / "shared"
     table = owners()
     lines = []
@@ -188,6 +278,8 @@ def main():
     mode.add_argument("--apply", action="store_true", help="move the shared files and rewrite the listings")
     mode.add_argument("--preview", type=Path, help="write the split here instead, for looking at")
     args = ap.parse_args()
+    if args.apply:
+        restore_owned_images(args.assets)
     found = scan(args.assets)
     if args.preview:
         preview(found, args.preview)

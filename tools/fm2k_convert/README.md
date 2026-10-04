@@ -51,6 +51,16 @@ tools/fm2k_convert/.venv/Scripts/python tools/fm2k_convert/share_assets.py asset
 The listings' entries become `shared = "images/<sha1>.png"`; the skills keep their numbers.
 `--preview <dir>` writes the split for looking at instead. See `TechnicalDocuments/0020`.
 
+Ownership corrections in `share_owners.txt` also apply to images already moved
+to the shared pool: `--apply` restores the owner's numbered file, clears the
+foreign slots, and deletes the pooled copy only when no manifest references it.
+See `TechnicalDocuments/0034` for the additional Yui-only corrections.
+
+`share_aliases.txt` records explicit, user-approved substitutions of different
+image content with a canonical shared image (0035). `--apply` handles these
+both on a fresh conversion and with an existing shared pool. This is a visual
+change, not an automatic similarity-based deduplication rule.
+
 ## Names
 
 Characters get their official names (`names.py`: ついん → えり, みさき → サキ, ゆかり → はるか,

@@ -59,7 +59,7 @@ public^let^update = p^dt:number^{
         wait += 1
         if^s.cpuActions > actions { actions := s.cpuActions }
         # Existing development key: make the CPU vulnerable to one hit.
-        press(love.keyboard.Key.k)
+        press(love.keyboard.Key.f2)
         if^wait % 5 = 0 { press(love.keyboard.Key.z) }
         if^s.phase = "event" {
             print($"victory -> story event; CPU actions={actions}")

@@ -1,16 +1,19 @@
 # The opening, mode menu, then story or VS. Story uses one player selection,
 # difficulty, introduction, loading, CPU fights and the original story demos.
-# VS retains the development dummy. The skills run from the converted FM2K
+# VS supports two human players. The skills run from the converted FM2K
 # data (assets/…/script.lton through src/script.lh, TechnicalDocuments/0012).
 #
 #   select         up / down a character, left / right its support, a button
-#                  confirms (its colour); 1P picks, then the same keys pick 2P
+#                  confirms (its colour); each player chooses independently
 #   arrows         move / jump / crouch (and command motions)
 #   z x c a s d    buttons A B C D E F
-#   h              show boxes      1-8         palette
-#   k              the dummy at 1 life (the next hit KOs)
+#   u h j k        2P up / left / down / right
+#   l ; ' o p [    2P buttons A B C D E F
+#   F1             show boxes      1-8         palette
+#   F2             opponent at 1 life (the next hit KOs); F3 sound log
 #   t              (select screen) the stage: random, or one of them in turn
-#   escape         back (quit on title; ignored during battle)
+#   escape         back (quit on title); pause/resume during battle
+#   return         confirm menus; pause/resume during battle (gamepad Start)
 #
 # What a button or motion does comes from the character's command table.
 module^vp.main
@@ -36,6 +39,7 @@ require^"src/preload.lh"
 require^"src/resource.lh"
 require^"src/story.lh"
 require^"src/cpu.lh"
+require^"src/input.lh"
 
 let^Fighter = vp.fighter.Fighter
 let^Key = love.keyboard.Key
@@ -74,10 +78,32 @@ var^upPressed = false^
 var^downPressed = false^
 var^leftPressed = false^
 var^rightPressed = false^
+var^pressed2 = 0
+var^upPressed2 = false^
+var^downPressed2 = false^
+let^clear2 = p^{ pressed2 := 0 upPressed2 := false^ downPressed2 := false^ }
 var^storyMode = true^
 var^campaign : vp.story.State|nil^= nil^
 var^brain : vp.cpu.Brain|nil^= nil^
 var^matchSeconds = 60
+var^paused = false^
+
+let^inBattle = f^-> bool^{
+    let^st = campaign
+    return^initialized and^scene is^nil^ and^selecting is^nil^ and^pending is^nil^ and^(st is^nil^ or^st.phase = "battle")
+}
+let^togglePause = p^{
+    paused := !paused
+    let^sound = vp.arena.sound($"{SYSTEM}/sounds/0002.wav", false^)
+    if^sound != nil^ { sound.setLooping(false^) sound.play() }
+    clock := 0
+    pressed := 0
+    upPressed := false^
+    downPressed := false^
+    leftPressed := false^
+    rightPressed := false^
+    clear2()
+}
 
 # FM2K skill numbers: the character's built-in skills (its .player settings)
 # and what its commands map A / B / C to.
@@ -468,6 +494,7 @@ let^completeLoad = p^{
     if^kind = "briefing" and^(s is^nil^ or^!s.done) { return^ }
     if^(kind = "story-match" or^kind = "story-demo") and^st != nil^ and^st.age < 0.3 { return^ }
     pending := nil^
+    clear2()
     upPressed := false^
     downPressed := false^
     leftPressed := false^
@@ -520,6 +547,7 @@ let^completeLoad = p^{
 }
 
 let^goBack = p^{
+    clear2()
     if^!initialized { love.event.quit() return^ }
     let^sc = scene
     if^sc != nil^ and^sc.customOpening { love.event.quit() return^ }
@@ -578,7 +606,8 @@ public^let^status = f^{
     let^cpu = brain
     return^{ phase = if^selecting != nil^: "select" el^st != nil^: st.phase el^scene != nil^: "title" el^: "battle";,
         story = storyMode, cpuActions = if^cpu != nil^: cpu.actions el^: 0;,
-        enemyX = foe.x, enemyLife = foe.life, playerLife = me.life,
+        enemyX = foe.x, enemyLife = foe.life, playerLife = me.life, enemySkill = foe.skillNo,
+        paused = paused, roundFrames = roundFrames,
         wins = flow.wins1, losses = flow.wins2,
         difficulty = if^st != nil^: st.difficulty el^: -1;,
         event = if^st != nil^: st.at el^: -1; }
@@ -612,9 +641,12 @@ let^tick = p^{
     }
     let^s = selecting
     if^s != nil^ {
-        let^dx = if^love.keyboard.isDown(Key.right): 1 el^love.keyboard.isDown(Key.left): -1 el^: 0;
-        let^dy = if^love.keyboard.isDown(Key.up): 1 el^love.keyboard.isDown(Key.down): -1 el^: 0;
-        vp.select.step(s, upPressed, downPressed, 5 + dx + 3 * dy, pressed)
+        let^dx = if^vp.input.isDown(Key.right): 1 el^vp.input.isDown(Key.left): -1 el^: 0;
+        let^dy = if^vp.input.isDown(Key.up): 1 el^vp.input.isDown(Key.down): -1 el^: 0;
+        let^dx2 = if^vp.input.isDown(Key.k): 1 el^vp.input.isDown(Key.h): -1 el^: 0;
+        let^dy2 = if^vp.input.isDown(Key.u): 1 el^vp.input.isDown(Key.j): -1 el^: 0;
+        vp.select.step(s, upPressed, downPressed, 5 + dx + 3 * dy, pressed, upPressed2, downPressed2, 5 + dx2 + 3 * dy2, pressed2)
+        clear2()
         upPressed := false^
         downPressed := false^
         pressed := 0
@@ -622,13 +654,13 @@ let^tick = p^{
         # completeLoad starts the match once both the wait and loading finish.
         return^
     }
-    let^right = love.keyboard.isDown(Key.right)
-    let^left = love.keyboard.isDown(Key.left)
+    let^right = vp.input.isDown(Key.right)
+    let^left = vp.input.isDown(Key.left)
     let^forward = if^me.facing > 0: right el^: left;
     let^back = if^me.facing > 0: left el^: right;
     # Only while they fight does input count.
     let^live = vp.round.fighting(flow)
-    control(me, live and^love.keyboard.isDown(Key.up), live and^love.keyboard.isDown(Key.down), live and^forward, live and^back, if^live: pressed el^: 0;)
+    control(me, live and^vp.input.isDown(Key.up), live and^vp.input.isDown(Key.down), live and^forward, live and^back, if^live: pressed el^: 0;)
     # Discard menu direction presses during battle so they cannot reach select.
     upPressed := false^
     downPressed := false^
@@ -637,6 +669,8 @@ let^tick = p^{
     pressed := 0
     let^cpu = brain
     var^cpuInput : vp.cpu.Input = {dir = 5, skill = 0, guard = false^}
+    let^forward2 = if^foe.facing > 0: vp.input.isDown(Key.k) el^: vp.input.isDown(Key.h);
+    let^back2 = if^foe.facing > 0: vp.input.isDown(Key.h) el^: vp.input.isDown(Key.k);
     if^cpu != nil^ and^live { cpuInput := vp.cpu.step(cpu, foe, me) }
     if^cpu != nil^ {
         let^d = cpuInput.dir
@@ -645,14 +679,16 @@ let^tick = p^{
             foe.begin(cpuInput.skill)
             cpu.actions += 1
         }
-    else^: control(foe, false^, live and^dummyGuard = 2, false^, false^, 0)
+    else^:
+        control(foe, live and^vp.input.isDown(Key.u), live and^(vp.input.isDown(Key.j) or^dummyGuard = 2), live and^forward2, live and^back2, if^live: pressed2 el^: 0;)
     }
+    clear2()
 
     # Guarding: holding back while free to move (on the ground or in the air).
     # The dummy guards while `dummyGuard` is on (G), crouching for 2.
     let^free = f^p:Fighter-> bool^{ return^groundIdle(p.skillNo) or^airIdle(p.skillNo) }
     me.guarding := live and^back and^free(me)
-    foe.guarding := live and^(if^cpu != nil^: cpuInput.guard el^: dummyGuard > 0;) and^free(foe)
+    foe.guarding := live and^(if^cpu != nil^: cpuInput.guard el^: back2 or^dummyGuard > 0;) and^free(foe)
 
     # The clock runs while they fight and the timer shows (system variable
     # 128, which FIGHT clears a couple of frames after its show time).
@@ -702,8 +738,11 @@ let^tick = p^{
 }
 
 public^let^update = p^dt:number^{
+    for^key in^vp.input.poll() { keypressed(key, love.keyboard.Scancode.unknown, false^) }
+    if^paused { return^ }
     vp.resource.pump(LOAD_SLICE)
     completeLoad()
+    if^pending != nil^ or^scene != nil^ or^(campaign != nil^ and^selecting is^nil^) { clear2() }
     if^!initialized { return^ }
     let^st = campaign
     if^st != nil^ and^selecting is^nil^ and^st.phase != "battle" {
@@ -726,14 +765,7 @@ public^let^update = p^dt:number^{
             }
         }
         if^running.phase = "queue" and^pending is^nil^ { queueStory(running) }
-        if^running.phase = "complete" {
-            vp.arena.pop()
-            campaign := nil^
-            brain := nil^
-            matchLoading := false^
-            selecting := vp.select.load(SYSTEM, true^)
-        }
-        if^running.phase = "return-title" {
+        if^running.phase = "complete" or^running.phase = "return-title" {
             love.audio.stop()
             vp.arena.pop()          # story introduction
             vp.arena.pop()          # character select
@@ -820,6 +852,15 @@ let^debugText = p^text:string^, x:number^, y:number^{
 }
 
 public^let^draw = p^{
+    if^paused {
+        let^tex = vp.arena.texture($"{SYSTEM}/images/0165.png")
+        if^tex != nil^ {
+            let^w, h = love.graphics.getDimensions()
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.draw(tex, 0, 0, 0, w / 640, h / 480)
+        }
+        return^
+    }
     if^!initialized {
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.print("Loading...", 24, 24)
@@ -928,7 +969,7 @@ public^let^draw = p^{
     vp.fighter.setView(camX, camY)
     love.graphics.pop()
     debugText($"{me.skillName}  image {me.image}  palette {me.palette + 1}  fps {love.timer.getFPS()}", 16, 16)
-    debugText($"arrows move  z x c a s d = A-F  h boxes  1-8 palette  k dummy at 1  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
+    debugText($"arrows move  z x c a s d = A-F  F1 boxes  1-8 palette  F2 opponent at 1  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
 }
 
 # The palette keys 1-8.
@@ -936,7 +977,18 @@ let^PALETTE_KEYS : t^{love.keyboard.Key[]} = {
     Key.digit1, Key.digit2, Key.digit3, Key.digit4, Key.digit5, Key.digit6, Key.digit7, Key.digit8,
 }
 
+# A keyboard and pad pressing the same button must not become another bit.
+let^addButton = f^mask:number^, bit:number^-> number^{
+    return^if^(mask / bit).floor() % 2 = 0: mask + bit el^: mask;
+}
+
 public^let^keypressed = p^key:love.keyboard.Key, scancode:love.keyboard.Scancode, isrepeat:bool^{
+    # Gamepad Start is mapped to Return by vp.input.
+    if^(key = Key.escape or^key = Key.return) and^inBattle() {
+        if^!isrepeat { togglePause() }
+        return^
+    }
+    if^paused { return^ }
     if^key = Key.escape {
         if^!isrepeat { goBack() }
         return^
@@ -946,18 +998,27 @@ public^let^keypressed = p^key:love.keyboard.Key, scancode:love.keyboard.Scancode
     if^!isrepeat and^key = Key.left { leftPressed := true^ }
     if^!isrepeat and^key = Key.right { rightPressed := true^ }
     if^!isrepeat {
-        if^key = Key.z { pressed += 1 }
-        if^key = Key.x { pressed += 2 }
-        if^key = Key.c { pressed += 4 }
-        if^key = Key.a { pressed += 8 }
-        if^key = Key.s { pressed += 16 }
-        if^key = Key.d { pressed += 32 }
+        if^key = Key.z { pressed := addButton(pressed, 1) }
+        if^key = Key.x { pressed := addButton(pressed, 2) }
+        if^key = Key.c { pressed := addButton(pressed, 4) }
+        if^key = Key.a { pressed := addButton(pressed, 8) }
+        if^key = Key.s { pressed := addButton(pressed, 16) }
+        if^key = Key.d { pressed := addButton(pressed, 32) }
+        if^key = Key.u { upPressed2 := true^ }
+        if^key = Key.j { downPressed2 := true^ }
+        if^key = Key.l { pressed2 := addButton(pressed2, 1) }
+        if^key = Key.semicolon { pressed2 := addButton(pressed2, 2) }
+        if^key = Key.quote { pressed2 := addButton(pressed2, 4) }
+        if^key = Key.o { pressed2 := addButton(pressed2, 8) }
+        if^key = Key.p { pressed2 := addButton(pressed2, 16) }
+        if^key = Key.leftbracket { pressed2 := addButton(pressed2, 32) }
+        if^key = Key.return and^(scene != nil^ or^selecting != nil^ or^(campaign != nil^ and^!vp.round.fighting(flow))) { pressed := addButton(pressed, 1) }
     }
-    if^key = Key.h { showBoxes := !showBoxes }
+    if^key = Key.f1 { showBoxes := !showBoxes }
     if^key = Key.g { dummyGuard := (dummyGuard + 1) % 3 }
-    if^key = Key.k { foe.life := 1 }
+    if^key = Key.f2 { foe.life := 1 }
     if^key = Key.t and^selecting != nil^ { stageChoice := (stageChoice + 1) % (STAGES.length^ + 1) }        # the next hit is a KO (for trying the round flow)
-    if^key = Key.l {
+    if^key = Key.f3 {
         soundLog := !soundLog
         vp.fighter.setSoundLog(soundLog)
     }
