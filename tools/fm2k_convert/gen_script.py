@@ -202,6 +202,9 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "script.lton").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print("%d skills -> %s" % (len(skills), args.out / "script.lton"))
+    if args.out.name == "ゆい勝ち":
+        from victory_media import generate
+        print(generate(args.out))
 
     # A character's select-screen portrait: only what its built-in #25 runs, so
     # the select screen need not read the whole script (TechnicalDocuments/0023).

@@ -1,0 +1,75 @@
+# Render all winners against all opponent codes using winner-only media lists.
+module^vp.victorypreloadtest
+import^love.event
+import^love.timer
+import^love.graphics
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/arena.lh"
+require^"../src/stage.lh"
+require^"../src/fighter.lh"
+
+let^DIR = "assets/demos/ゆい勝ち"
+let^me = vp.fighter.Fighter.new(DIR, 0, 0)
+var^pending : vp.preload.Load|nil^= nil^
+var^scene : vp.stage.Stage|nil^= nil^
+var^winner = 100
+var^opponent = 100
+var^frame = 0
+var^began = 0
+
+let^queue = p^{
+    let^l = vp.preload.Load.new("victory-test")
+    vp.preload.victory(l, DIR, winner)
+    pending := l
+}
+let^play = p^{
+    vp.fighter.setv(me, 129, winner)
+    vp.fighter.setv(me, 130, opponent)
+    scene := vp.stage.load(DIR)
+    frame := 0
+}
+public^let^load = p^{ began := love.timer.getTime() queue() }
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    let^l = pending
+    if^l != nil^ and^vp.preload.ready(l) {
+        var^count = 0
+        for^path:string^, texture:love.graphics.Texture in^l.batch.arena.textures { count += 1 }
+        if^count >= 149 { panic^"Victory images were not filtered" }
+        print($"winner={winner}: images={count}")
+        vp.arena.attach(l.batch.arena)
+        pending := nil^
+        play()
+    }
+    if^love.timer.getTime() - began > 120 { panic^"Victory test timeout" }
+}
+public^let^draw = p^{
+    for^i from^0 to^19 {
+        let^s = scene
+        if^s is^nil^ { return^ }
+        vp.stage.step(s)
+        vp.stage.draw(s, 0, 0, 0, 999)
+        if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 {
+            panic^$"Victory preload miss: winner={winner}, opponent={opponent}, frame={frame}"
+        }
+        frame += 1
+        if^frame >= 600 {
+            opponent += 100
+            if^opponent <= 1000 { play()
+            else^:
+                scene := nil^
+                vp.arena.pop()
+                opponent := 100
+                winner += 100
+                if^winner <= 1000 { queue()
+                else^:
+                    print("PASS: 10 winner lists, 100 opponent combinations, 600 frames each; no synchronous metadata or media reads")
+                    love.event.quit()
+                }
+                return^
+            }
+        }
+    }
+}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

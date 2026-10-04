@@ -183,6 +183,22 @@ CPU command references use the original command table, which includes empty
 entries. The export resolves them into skill numbers before runtime; indices
 from the filtered player-input command table must not be used here.
 
+## Victory demo preload lists
+
+`gen_script.py` also generates `preload.lton` when its output directory is
+`ゆい勝ち`. To regenerate just the media lists from the converted script:
+
+```sh
+python tools/fm2k_convert/victory_media.py assets/demos/ゆい勝ち
+```
+
+The ten lists specialize only winner variable 129. Opponent-dependent dialogue
+and random branches retain all candidates. Runtime requests the selected list's
+images and sounds through the asynchronous loader; the original demo script is
+unchanged. The analyzer follows block-level control flow from every active layer,
+including loops and cross-skill jumps. Unsupported instructions or writes to the
+winner variable fail generation instead of silently producing incomplete lists.
+
 ## Checking the LTON
 
 Check the LTON with lhat:

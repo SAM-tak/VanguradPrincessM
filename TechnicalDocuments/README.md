@@ -53,3 +53,4 @@
 - [0037-shared-support-definitions.md](0037-shared-support-definitions.md) — ゆい基準のサポート定義・素材の独立化、くるみの追加口、D入力と非同期読み込み
 - [0038-support-media-folders.md](0038-support-media-folders.md) — サポート専用画像572点・音声14点の各サポート配下への移動、全素材一覧の参照更新
 - [0039-selected-support-preload.md](0039-selected-support-preload.md) — 選択サポートの画像・音声だけを先読み、CPUサポートの事前確定、勝利デモの一括読み込み調査
+- [0040-victory-demo-preload.md](0040-victory-demo-preload.md) — 勝者別に事前生成した素材一覧で勝利デモを先読み、相手別台詞と乱数候補は保持

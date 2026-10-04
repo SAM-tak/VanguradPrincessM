@@ -414,7 +414,11 @@ let^queueStory = p^st:vp.story.State{
         vp.preload.add(l, $"assets/stages/{e.stage}", false^)
         pendingKind := "story-match"
     else^:
-        vp.preload.add(l, $"assets/demos/{e.name}", false^)
+        if^e.name = "ゆい勝ち" {
+            vp.preload.victory(l, $"assets/demos/{e.name}", vp.fighter.v(me, 129))
+        else^:
+            vp.preload.add(l, $"assets/demos/{e.name}", false^)
+        }
         pendingKind := "story-demo"
     }
     pending := l

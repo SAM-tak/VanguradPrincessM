@@ -5,7 +5,7 @@ require^"resource.lh"
 require^"script.lh"
 require^"sprite.lh"
 
-let^Directory = t^{ path:string^, portrait:bool^, support:number^}
+let^Directory = t^{ path:string^, portrait:bool^, support:number^, winner:number^}
 let^SUPPORTS = {"えこ", "シエラ", "ジュリエット", "かなえ", "ヒルダ"}
 public^let^Load = def^{ self^{
     abstract^batch : vp.resource.Batch,
@@ -15,7 +15,7 @@ public^let^Load = def^{ self^{
 }, override^new = f^name:string^{ self^{batch = vp.resource.Batch.new(name)} } }
 
 public^let^add = p^l:Load, dir:string^, portrait:bool^{
-    l.directories.push^({path = dir, portrait = portrait, support = -1})
+    l.directories.push^({path = dir, portrait = portrait, support = -1, winner = -1})
     let^file = if^portrait: "portrait.lton" el^: "script.lton";
     vp.resource.request(l.batch, $"{dir}/{file}", "script", false^)
     vp.resource.request(l.batch, $"{dir}/images.lton", "lton", false^)
@@ -27,6 +27,13 @@ public^let^character = p^l:Load, dir:string^, support:number^{
     add(l, dir, false^)
     let^d = l.directories[l.directories.length^ - 1]
     if^d? { d.support := support }
+}
+
+public^let^victory = p^l:Load, dir:string^, winner:number^{
+    add(l, dir, false^)
+    let^d = l.directories[l.directories.length^ - 1]
+    if^d? { d.winner := winner }
+    vp.resource.request(l.batch, $"{dir}/preload.lton", "lton", false^)
 }
 
 let^media = p^l:Load, dir:string^, op:string^, n:number^{
@@ -51,6 +58,19 @@ let^assets = p^l:Load, d:Directory {
     let^dir = d.path
     let^file = if^d.portrait: "portrait.lton" el^: "script.lton";
     let^sc = vp.script.load($"{dir}/{file}")
+    if^d.winner >= 0 {
+        let^lists = vp.resource.data($"{dir}/preload.lton")
+        if^lists? {
+            for^row:any^ in^lists {
+                if^row fits^t^{winner:number^, images:t^{number^[]}, sounds:t^{number^[]}} and^row.winner = d.winner {
+                    for^n in^row.images { media(l, dir, "I", n) }
+                    for^n in^row.sounds { media(l, dir, "S", n) }
+                    return^
+                }
+            }
+        }
+        # Unknown winner codes retain the conservative full-list behavior.
+    }
     # Keep all owner skills (including Kurumi's collaboration attacks), but
     # only the selected support's bodies and the common helper definitions.
     # Membership comes from raw bindings, which survive the linked-script cache.
