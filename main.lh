@@ -371,7 +371,7 @@ let^loadMatch = p^s:vp.select.Select{
     let^l = vp.preload.Load.new("match")
     for^k from^0 to^1 {
         let^name, colour = vp.select.chosen(s, k)
-        vp.preload.add(l, $"assets/characters/{name}", false^)
+        vp.preload.character(l, $"assets/characters/{name}", vp.fighter.v(me, 142 + k))
     }
     vp.preload.add(l, $"assets/stages/{STAGES[matchStage] ?? "スクール"}", false^)
     pending := l
@@ -407,8 +407,9 @@ let^queueStory = p^st:vp.story.State{
     st.loadImage := if^love.math.random(1, 10) = 1: 2 el^: 1;
     let^l = vp.preload.Load.new(if^e.kind = "fight": "match" el^: "story-event";)
     if^e.kind = "fight" {
-        vp.preload.add(l, $"assets/characters/{st.name}", false^)
-        vp.preload.add(l, $"assets/characters/{e.name}", false^)
+        st.enemySupport := love.math.random(101, 104)
+        vp.preload.character(l, $"assets/characters/{st.name}", st.support)
+        vp.preload.character(l, $"assets/characters/{e.name}", st.enemySupport)
         vp.resource.request(l.batch, $"assets/characters/{e.name}/cpu.lton", "lton", false^)
         vp.preload.add(l, $"assets/stages/{e.stage}", false^)
         pendingKind := "story-match"
@@ -426,7 +427,7 @@ let^startStoryBattle = p^st:vp.story.State, e:vp.story.Event{
     vp.fighter.setv(me, 134, 0)
     vp.fighter.setv(me, 141, 0)
     vp.fighter.setv(me, 142, st.support)
-    vp.fighter.setv(me, 143, love.math.random(1, 4))
+    vp.fighter.setv(me, 143, st.enemySupport)
     me := Fighter.new($"assets/characters/{st.name}", WORLD_W / 2 - START_X, GROUND)
     foe := Fighter.new($"assets/characters/{e.name}", WORLD_W / 2 + START_X, GROUND)
     vp.script.install(me, vp.select.scriptOf(st.name))
@@ -604,10 +605,12 @@ public^let^quit = p^-> bool^{
 public^let^status = f^{
     let^st = campaign
     let^cpu = brain
+    let^support = me.slots[5]
     return^{ phase = if^selecting != nil^: "select" el^st != nil^: st.phase el^scene != nil^: "title" el^: "battle";,
         story = storyMode, cpuActions = if^cpu != nil^: cpu.actions el^: 0;,
         enemyX = foe.x, enemyLife = foe.life, playerLife = me.life, enemySkill = foe.skillNo,
         paused = paused, roundFrames = roundFrames,
+        supportSkill = if^support != nil^: support.skillNo el^: -1;,
         wins = flow.wins1, losses = flow.wins2,
         difficulty = if^st != nil^: st.difficulty el^: -1;,
         event = if^st != nil^: st.at el^: -1; }

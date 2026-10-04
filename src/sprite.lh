@@ -51,6 +51,7 @@ public^let^resetBlend = p^{
 public^let^SHARED_DIR = "assets/shared"
 
 public^let^assetPath = f^dir:string^, e:any^-> string^|nil^{
+    if^e fits^t^{ asset : string^ } { return^e.asset }
     if^e fits^t^{ shared : string^ } { return^$"{SHARED_DIR}/{e.shared}" }
     if^e fits^t^{ file : string^ } { return^$"{dir}/{e.file}" }
     return^nil^

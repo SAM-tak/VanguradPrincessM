@@ -12,6 +12,7 @@ var^wait = 0
 var^began = 0
 var^worst = 0
 var^attacked = false^
+var^supportAttacked = false^
 var^pauseTime = 0
 var^pauseX = 0
 var^pauseLife = 0
@@ -54,6 +55,9 @@ public^let^update = p^dt:number^{
         phase := 14
     elseif^phase = 14:
         wait += 1
+        if^wait > 200 and^wait < 400 and^wait % 17 = 0 { press(love.keyboard.Key.a) }
+        let^support = vp.main.status().supportSkill
+        if^support >= 476 and^support <= 506 { supportAttacked := true^ }
         if^wait = 450 {
             press(love.keyboard.Key.escape)
             let^s = vp.main.status()
@@ -79,6 +83,7 @@ public^let^update = p^dt:number^{
         if^wait = 301 and^vp.main.status().enemyLife <= 1 { panic^"2P right key still changes life" }
         if^wait > 600 {
             if^!attacked { panic^"2P attack input was not executed" }
+            if^!supportAttacked { panic^"D did not start a support attack during live battle" }
             if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^$"synchronous fallback: lton={vp.resource.fallbackReads()} assets={vp.arena.fallbacks()}" }
             let^b = vp.resource.Batch.new("missing-file-test")
             failure := b
@@ -90,7 +95,7 @@ public^let^update = p^dt:number^{
         if^b != nil^ and^b.error != "" {
             vp.resource.cancel(b)
             if^vp.resource.outstanding() = 0 {
-                print($"PASS: cancel, retry, two fighters, pause/freeze/resume, battle drawing, missing asset; frames={frames}; synchronous fallback reads=0")
+                print($"PASS: cancel, retry, two fighters, D support attack, pause/freeze/resume, battle drawing, missing asset; frames={frames}; synchronous fallback reads=0")
                 love.event.quit()
             }
         }

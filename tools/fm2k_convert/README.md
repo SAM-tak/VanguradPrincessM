@@ -61,6 +61,44 @@ image content with a canonical shared image (0035). `--apply` handles these
 both on a fresh conversion and with an existing shared pool. This is a visual
 change, not an automatic similarity-based deduplication rule.
 
+## Support action audit
+
+`supports.py` resolves the five supports' five regular actions from their HUD
+input checks and variable-76 dispatchers. It writes a read-only report with
+per-character skill numbers, input aliases/differences and Kurumi's separate
+request-93 hook. It does not rewrite or unify skill bodies (TechnicalDocuments/0036).
+
+```sh
+python tools/fm2k_convert/supports.py assets --out build/support-actions.json
+```
+
+After generating the character scripts and sharing media, normalize and extract
+the support definitions with Yui as the canonical source:
+
+```sh
+python tools/fm2k_convert/share_supports.py assets --apply
+```
+
+This writes five support libraries and common helpers/media under `assets/supports/`.
+Character scripts retain library bindings and owner-specific references, with
+Kurumi's four collaboration hooks/HUD adapters preserved. Ordinary skill bodies,
+including the boss Hilda's inputs, use Yui's definitions. Re-run after regenerating
+any character script. Without `--apply`, only the proposed storage report is printed.
+See [0037](../../TechnicalDocuments/0037-shared-support-definitions.md) for linking,
+shared palettes/sounds, and validation coverage.
+
+Finally, move media used exclusively by one support into that support's folder:
+
+```sh
+python tools/fm2k_convert/organize_support_media.py assets --apply
+```
+
+This moves files to `assets/supports/<name>/images|sounds/NNNN.*`, updates every
+manifest referencing them, and removes the unreferenced pool copies. Assets used
+by multiple supports or by non-bound character/stage/demo skills stay shared.
+Run after the two sharing steps above; omit `--apply` to inspect counts first.
+See [0038](../../TechnicalDocuments/0038-support-media-folders.md).
+
 ## Names
 
 Characters get their official names (`names.py`: ついん → えり, みさき → サキ, ゆかり → はるか,

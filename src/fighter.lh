@@ -88,6 +88,7 @@ public^let^Fighter = def^{
         inDirs : t^{[number^]:number^|nil^} = {},    # numpad directions, forward = 6
         inPress : t^{[number^]:number^|nil^} = {},   # buttons pressed that frame
         inputFrame = 0,
+        commandFrame = 0,           # last button frame consumed by an object's COM
         cancelWhen = "", cancelFrom = 0, cancelTo = 0, cancelSkill = -1,
         hitConfirmed = false^,
         cancelByHit = false^,       # an FA with the "cancel" flag connected
@@ -478,7 +479,26 @@ var^turnRounds = 0
 
 # COM inside a skill.
 public^let^command = p^me:Fighter, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}-> bool^{
-    return^entered(me, time, dirs, buttons, {}, {})
+    # Support HUD objects evaluate the owning player's command history.
+    let^owner = me.owner
+    let^button = buttons[0] ?? 0
+    if^owner != nil^ and^dirs.length^ = 1 and^buttons.length^ = 1 and^button > 0 {
+        # HUD animation waits between polls. Retain the newest matching press
+        # within COM's window, then consume it once (never repeat a held press).
+        var^frame = owner.inputFrame
+        let^oldest = std.math.max(me.commandFrame + 1, owner.inputFrame - std.math.min(std.math.max(time, 1), HISTORY) + 1)
+        repeat^while^frame >= oldest and^frame >= 1 {
+            let^slot = frame % HISTORY
+            if^hasButtons(owner.inPress[slot] ?? 0, button) {
+                if^!dirFits(dirs[0] ?? 0, owner.inDirs[slot] ?? 5) { return^false^ }
+                me.commandFrame := frame
+                return^true^
+            }
+            frame -= 1
+        }
+        return^false^
+    }
+    return^entered(owner ?? me, time, dirs, buttons, {}, {})
 }
 
 # The skill the command table gives for this frame's input, or 0.
@@ -827,7 +847,16 @@ public^let^sound = p^me:Fighter, n:number^{
 }
 
 # ---------------------------------------------------------------------------
-# Not implemented yet: accepted so generated skills compile and run.
+# Shared definitions have their own sound numbering. The arena caches by path,
+# so these sources never collide with the owner's numeric sound cache.
+public^let^soundFrom = p^me:Fighter, dir:string^, n:number^{
+    let^e = soundEntry(dir, n)
+    let^path = vp.sprite.assetPath(dir, e)
+    if^path is^nil^ { return^ }
+    let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
+    let^src = vp.arena.sound(path, loop)
+    if^src fits^love.audio.Source { src.stop() src.play() }
+}
 
 # ---------------------------------------------------------------------------
 # Objects (O)
@@ -847,6 +876,7 @@ public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^
     let^root = me.owner ?? me
     let^o = Fighter.new(root.dir, x, y)
     o.owner := root
+    o.commandFrame := std.math.max(0, root.inputFrame - 1)
     o.parent := me
     o.sheet := root.sheet
     o.sounds := root.sounds

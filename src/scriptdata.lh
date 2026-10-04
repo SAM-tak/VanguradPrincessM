@@ -3,7 +3,8 @@
 module^vp.scriptdata
 
 public^let^Block = t^{ op:string^, n:t^{number^[]}, s:string^, dirs:t^{number^[]}, buttons:t^{number^[]} }
-public^let^Skill = t^{ name:string^, level:number^, blocks:t^{Block[]} }
+public^let^Binding = t^{ support:string^, base:number^, recipe:t^{number^[]}, changes:t^{Block[]} }
+public^let^Skill = t^{ name:string^, level:number^, blocks:t^{Block[]}, binding:Binding|nil^, media:string^ }
 public^let^Data = t^{ raw:t^{}, layers:bool^, skills:t^{Skill[]} }
 
 let^parseBlock = p^raw:t^{}-> Block{
@@ -30,14 +31,56 @@ let^parseBlock = p^raw:t^{}-> Block{
 public^let^parse = p^raw:t^{}-> Data{
     let^out : Data = { raw = raw, layers = false^, skills = {} }
     if^raw fits^t^{layers:bool^} { out.layers := raw.layers }
+    var^media = ""
+    if^raw fits^t^{supportMedia:string^} { media := raw.supportMedia }
     for^e:any^ in^raw {
-        let^sk : Skill = { name = "", level = 0, blocks = {} }
+        let^sk : Skill = { name = "", level = 0, blocks = {}, binding = nil^, media = media }
         if^e fits^t^{name:string^, level:number^, blocks:t^{}} {
             sk.name := e.name
             sk.level := e.level
             for^b:t^{} in^e.blocks { sk.blocks.push^(parseBlock(b)) }
         }
+        if^e fits^t^{support:string^, base:number^, recipe:t^{}, changes:t^{}} {
+            let^ref : Binding = {support = e.support, base = e.base, recipe = {}, changes = {}}
+            for^n:number^ in^e.recipe { ref.recipe.push^(n) }
+            for^b:t^{} in^e.changes { ref.changes.push^(parseBlock(b)) }
+            sk.binding := ref
+        }
         out.skills.push^(sk)
     }
+    return^out
+}
+
+# Shared blocks are immutable. Bindings only allocate an array of references;
+# unchanged block tables, including their operands, stay shared across owners.
+public^let^link = p^sk:Skill, base:Skill-> Skill{
+    let^ref = sk.binding
+    if^ref is^nil^ { return^sk }
+    if^base.binding != nil^ { panic^"Nested support binding" }
+    let^recipe = ref.recipe
+    if^recipe.length^ % 2 != 0 { panic^"Invalid support recipe" }
+    if^recipe.length^ = 2 and^recipe[0] = 0 and^recipe[1] = base.blocks.length^ and^ref.changes.length^ = 0 {
+        if^sk.name = base.name and^sk.level = base.level { return^base }
+        return^{name = sk.name, level = sk.level, blocks = base.blocks, binding = nil^, media = base.media}
+    }
+    let^out : Skill = {name = sk.name, level = sk.level, blocks = {}, binding = nil^, media = base.media}
+    var^used = 0
+    var^i = 0
+    repeat^while^i < recipe.length^ {
+        let^start = recipe[i] ?? -2
+        let^count = recipe[i + 1] ?? 0
+        if^start < -1 or^count <= 0 { panic^"Invalid support range" }
+        let^source = if^start = -1: ref.changes el^: base.blocks;
+        let^offset = if^start = -1: used el^: start;
+        if^offset + count > source.length^ { panic^"Support range out of bounds" }
+        for^j from^offset to^offset + count - 1 {
+            let^b = source[j]
+            if^b is^nil^ { panic^"Missing support block" }
+            out.blocks.push^(b)
+        }
+        if^start = -1 { used += count }
+        i += 2
+    }
+    if^used != ref.changes.length^ { panic^"Unused support changes" }
     return^out
 }

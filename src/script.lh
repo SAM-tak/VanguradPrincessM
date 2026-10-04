@@ -11,6 +11,7 @@ module^vp.script
 import^std.math
 
 require^"fighter.lh"
+require^"sprite.lh"
 
 let^Fighter = vp.fighter.Fighter
 let^fighter = vp.fighter
@@ -33,6 +34,18 @@ public^let^Script = def^{
 public^let^load = p^path:string^-> Script|nil^{
     let^d = vp.resource.script(path)
     if^d is^nil^ { return^nil^ }
+    # The preloader prepares libraries first. Cache bound arrays in this
+    # character's data; repeated players/scenes reuse them without copying.
+    for^n, sk in^d.skills {
+        let^ref = sk.binding
+        if^ref != nil^ {
+            let^library = vp.resource.script($"assets/supports/{ref.support}/script.lton")
+            if^library is^nil^ { panic^$"Missing support library: {ref.support}" }
+            let^base = library.skills[ref.base]
+            if^base is^nil^ { panic^$"Missing support skill: {ref.support}/{ref.base}" }
+            d.skills[n] := vp.scriptdata.link(sk, base)
+        }
+    }
     let^sc = Script.new()
     sc.raw := d.raw
     sc.layers := d.layers
@@ -94,6 +107,7 @@ public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
         let^a7 = a[7] ?? 0
         if^op = "I" {
             shown := true^
+            me.sheet := vp.sprite.sheetFor(if^sk.media = "": me.dir el^: sk.media;)
             if^b.s = "" { await^fighter.show(me, a0, a1, a2, a3) else^: await^fighter.showEx(me, a0, a1, a2, a3, b.s) }
         elseif^op = "FD":
             # number, x, y, w, h, rate
@@ -118,7 +132,7 @@ public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
         elseif^op = "M":
             fighter.motion(me, a0, a1, a2, a3, b.s)
         elseif^op = "S":
-            fighter.sound(me, a0)
+            if^sk.media = "" { fighter.sound(me, a0) else^: fighter.soundFrom(me, sk.media, a0) }
         elseif^op = "V":
             # var, mode (1 set, 2 add), operand is a variable, operand, compare (1 =, 2 >, 3 <), value, skill, block
             let^operand = if^a2 = 1: fighter.v(me, a3) el^: a3;

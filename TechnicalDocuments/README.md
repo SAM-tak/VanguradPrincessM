@@ -49,3 +49,7 @@
 - [0033-battle-pause.md](0033-battle-pause.md) — ESC／Startでの停止・再開と原作の全画面操作説明画像
 - [0034-shared-image-ownership.md](0034-shared-image-ownership.md) — ゆい専用15枚の共有解除、共有済み素材への所有者訂正の適用
 - [0035-cooldown-icon-sharing.md](0035-cooldown-icon-sharing.md) — サポート禁止アイコン11点を指定の共有画像へ統一、パレット番号差と明示的置換
+- [0036-support-identification.md](0036-support-identification.md) — 5種類のサポートと通常25アクションの抽出、くるみ専用の要求93、ルナ・ヒルダの入力差分
+- [0037-shared-support-definitions.md](0037-shared-support-definitions.md) — ゆい基準のサポート定義・素材の独立化、くるみの追加口、D入力と非同期読み込み
+- [0038-support-media-folders.md](0038-support-media-folders.md) — サポート専用画像572点・音声14点の各サポート配下への移動、全素材一覧の参照更新
+- [0039-selected-support-preload.md](0039-selected-support-preload.md) — 選択サポートの画像・音声だけを先読み、CPUサポートの事前確定、勝利デモの一括読み込み調査

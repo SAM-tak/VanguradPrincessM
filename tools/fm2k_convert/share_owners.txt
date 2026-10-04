@@ -7,6 +7,8 @@
 # <first hex digits of the image's content key (share_assets.content_key:
 #  SHA-1 of its size, mode and pixels)> <owner>
 # Additional Yui-only images identified by the user, 2026-10-05.
+2d9a0ad0d40ab6f265aac9745845529686675293 ゆい
+7906647ae1d9b2f91d36ecc242401078e25e4116 ゆい
 5755af3d92edb711c00da8674333ba2837dfc996 ゆい
 a31883b0fb76f499d4153b70b4c9e98e52f5409f ゆい
 bb71c64d9f2a7a440c04037a9fec40e46d6bd757 ゆい

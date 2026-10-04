@@ -14,6 +14,7 @@ public^let^Data = t^{intro:string^, routes:t^{t^{Event[]}[]}}
 public^let^State = def^{
     self^{
         name = "", colour = 0, support = 0, difficulty = 1,
+        enemySupport = 101,
         phase = "difficulty", age = 0, cursorX = 321,
         intro = "", routes : t^{t^{Event[]}[]} = {}, route : t^{Event[]} = {}, at = 0,
         demo : vp.title.Scene|nil^= nil^,

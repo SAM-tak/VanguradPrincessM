@@ -1,0 +1,84 @@
+# Verify actual arena contents, including after linked script caches are warm.
+module^vp.selectivepreloadtest
+import^love.event
+import^love.timer
+import^love.graphics
+import^love.audio
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/sprite.lh"
+
+let^SUPPORTS = {"えこ", "シエラ", "ジュリエット", "かなえ", "ヒルダ"}
+var^pending : vp.preload.Load|nil^= nil^
+var^caseNo = 0
+var^began = 0
+
+let^queue = p^{
+    let^l = vp.preload.Load.new("selective-test")
+    let^name = if^caseNo < 5: "ゆい" el^: "くるみ";
+    vp.preload.character(l, $"assets/characters/{name}", if^caseNo < 10: 101 + caseNo % 5 el^: 100;)
+    if^caseNo = 11 {
+        vp.preload.character(l, "assets/characters/くるみ", 101)
+        vp.preload.character(l, "assets/characters/くるみ", 105)
+    }
+    pending := l
+}
+
+public^let^load = p^{ began := love.timer.getTime() queue() }
+
+let^checkPath = p^path:string^{
+    for^i, name in^SUPPORTS {
+        let^selected = (caseNo < 10 and^i = caseNo % 5) or^(caseNo = 11 and^(i = 0 or^i = 4))
+        if^!selected and^path.find($"assets/supports/{name}/") != nil^ {
+            panic^$"Unselected media loaded in case {caseNo}: {path}"
+        }
+    }
+}
+
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    let^l = pending
+    if^l != nil^ and^vp.preload.ready(l) {
+        var^images = 0
+        var^sounds = 0
+        for^path:string^, tex:love.graphics.Texture in^l.batch.arena.textures { checkPath(path) images += 1 }
+        for^path:string^, source:love.audio.Source in^l.batch.arena.sounds { checkPath(path) sounds += 1 }
+        # Independently inspect each selected library, including all attack frames
+        # and sounds, rather than just checking a representative sprite.
+        for^i, name in^SUPPORTS {
+            let^selected = (caseNo < 10 and^i = caseNo % 5) or^(caseNo = 11 and^(i = 0 or^i = 4))
+            if^selected {
+                let^sc = vp.resource.script($"assets/supports/{name}/script.lton")
+                if^sc is^nil^ { panic^"Missing library" }
+                for^sk in^sc.skills {
+                    for^b in^sk.blocks {
+                        if^b.op = "I" or^b.op = "S" {
+                            let^file = if^b.op = "I": "images" el^: "sounds";
+                            let^list = vp.resource.data($"assets/supports/common/{file}.lton")
+                            if^list? {
+                                let^path = vp.sprite.assetPath("assets/supports/common", list[b.n[0] ?? 0])
+                                if^path? {
+                                    if^b.op = "I" and^l.batch.arena.textures[path] is^nil^ { panic^$"Missing image: {path}" }
+                                    if^b.op = "S" and^l.batch.arena.sounds[path] is^nil^ { panic^$"Missing sound: {path}" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        print($"PASS: selection case {caseNo}: images={images}, sounds={sounds}")
+        vp.resource.cancel(l.batch)
+        caseNo += 1
+        if^caseNo < 12 { queue()
+        else^:
+            if^vp.resource.fallbackReads() != 0 { panic^"Synchronous metadata read" }
+            print("PASS: all five supports, Kurumi, no support, same-owner mixed supports, warm caches; unselected media absent")
+            pending := nil^
+            love.event.quit()
+        }
+    }
+    if^love.timer.getTime() - began > 180 { panic^"Selective preload timeout" }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

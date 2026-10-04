@@ -1,0 +1,108 @@
+# Shared support loading and real HUD COM execution for every owner and input.
+module^vp.supportflowtest
+import^love.event
+import^love.timer
+require^"../src/preload.lh"
+require^"../src/script.lh"
+require^"../src/fighter.lh"
+require^"../src/resource.lh"
+
+let^NAMES = {"ゆい", "はるか", "リリス", "ルナ", "くるみ", "サキ", "かえで", "カテジナ", "えり", "あやね", "ヒルダ"}
+let^HUDS = {"さぽーとふぇいす2ｐ", "しえらコマンド", "ぱーとなーふぇいす", "ヨメふぇいす", "おまけふぇいす"}
+let^DISPATCHERS = {"攻撃分岐", "攻撃ヴんき", "パートナー分岐", "ヨメ攻撃分岐", "オマケ分岐"}
+let^ENTRIES = {
+    "オプ飛び道具", "昇竜本体", "急降下", "キック本体", "オプガード",
+    "サポート弱攻撃", "爆撃", "リフレクター本体", "待機", "サポガード",
+    "弱攻撃本体", "グラビディ", "グルグル", "ぱーとなー強攻撃", "パートナーガード",
+    "ヨメ弱攻撃", "犬発射", "落とし穴", "幽霊発動", "ヨメガード",
+    "蝶発射", "オマケレーザー", "命令2", "オマケ命令", "オマケガード",
+}
+let^DIRS = {5, 2, 3, 6, 4}
+let^REQUESTS = {101, 150, 130, 110, 102}
+let^loadout = vp.preload.Load.new("support-test")
+var^began = 0
+var^owner = 0
+
+public^let^load = p^{
+    began := love.timer.getTime()
+    vp.preload.add(loadout, "assets/characters/ゆい", false^)
+    vp.preload.add(loadout, "assets/characters/くるみ", false^)
+    for^name in^NAMES {
+        vp.resource.request(loadout.batch, $"assets/characters/{name}/script.lton", "script", false^)
+    }
+}
+
+let^check = p^name:string^{
+    let^dir = $"assets/characters/{name}"
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^$"Missing character {name}" }
+    for^hi, hud in^HUDS {
+        var^skill = -1
+        var^first = -1
+        var^dispatch = -1
+        for^n, sk in^sc.skills {
+            if^sk.name = DISPATCHERS[hi] { dispatch := n }
+            if^sk.name = hud {
+                skill := n
+                if^sk.media != "assets/supports/common" { panic^"Support media still belongs to owner" }
+                for^i, b in^sk.blocks {
+                    if^b.op = "COM" and^first < 0 { first := i }
+                }
+            }
+        }
+        if^skill < 0 or^first < 0 or^dispatch < 0 { panic^$"Missing HUD {name}/{hud}" }
+        for^i, direction in^DIRS {
+            let^p = vp.fighter.Fighter.new(dir, 100, 0)
+            let^other = vp.fighter.Fighter.new(dir, 400, 0)
+            vp.script.install(p, sc)
+            p.vars[71] := 100
+            p.vars[76] := 0
+            vp.fighter.record(p, direction, 8)
+            # Opposite-side input must not feed this object's command checks.
+            vp.fighter.record(other, 5, 1)
+            let^object = vp.fighter.makeObject(p, skill, first, 0, 0, 100)
+            if^i % 2 = 1 { vp.fighter.record(p, direction, 0) }
+            object.step()
+            let^actual = vp.fighter.v(p, 76)
+            if^actual != REQUESTS[i] { panic^$"{name}/{hud}/{direction}D: request={actual}" }
+            let^actor = vp.fighter.makeObject(p, dispatch, 0, 0, 0, 80)
+            actor.advance()
+            let^target = sc.skills[actor.jumpSkill]
+            if^target is^nil^ or^target.name != ENTRIES[hi * 5 + i] { panic^$"Wrong attack entry: {name}/{hud}/{direction}D" }
+            vp.fighter.record(p, direction, 0)
+            if^vp.fighter.command(object, 20, {0}, {8}) { panic^"Stale D press was reused" }
+            if^name = "くるみ" and^i = 0 {
+                p.vars[76] := 93
+                let^extra = vp.fighter.makeObject(p, dispatch, 0, 0, 0, 80)
+                extra.advance()
+                if^hi < 4 {
+                    let^target = sc.skills[extra.jumpSkill]
+                    let^expected = if^hi = 3: "ソレトナクディフェンス立ち飛び" el^: "kyougiriえこ用";
+                    if^target is^nil^ or^target.name != expected { panic^"Kurumi collaboration hook lost" }
+                elseif^extra.jumpSkill >= 0:
+                    panic^"Hilda gained an unexpected collaboration hook"
+                }
+            }
+        }
+    }
+    print($"PASS: {name}: 25 support inputs and attack dispatches")
+}
+
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^vp.preload.ready(loadout) {
+        let^name = NAMES[owner]
+        if^name != nil^ {
+            check(name)
+            owner += 1
+        else^:
+            if^vp.resource.fallbackReads() != 0 { panic^"Synchronous script fallback" }
+            print("PASS: 275 support inputs; shared media and async dependencies; no synchronous metadata reads")
+            love.event.quit()
+        }
+    }
+    if^love.timer.getTime() - began > 120 { panic^"Support test timeout" }
+}
+
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }
