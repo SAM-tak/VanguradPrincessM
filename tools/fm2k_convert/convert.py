@@ -7,9 +7,12 @@ Output: one directory per source file under OUT/<kind>/<name>/:
     images.lton     image list; position = original FM2K image number, nil^ = unused slot
     sounds.lton     sound list; position = original FM2K sound number, nil^ = unused slot
     skills/NNNN.lton  SKILLS_PER_FILE skills per file; `first` + position = skill number
-    images/NNNN.png sprites. Indexed sprites are 8-bit grayscale (value = palette
-                    index) and are drawn through palettes.png by a shader; sprites
-                    with their own palette are written as RGBA.
+    images/NNNN.dds indexed sprites: one 8-bit channel (value = palette index),
+                    uncompressed DDS (8-bit luminance, L8), which LOVE loads as
+                    an r8 texture (a PNG would decode to RGBA, four
+                    times the memory; TechnicalDocuments/0021). Drawn through
+                    palettes.png by a shader.
+    images/NNNN.png sprites with their own palette, as RGBA.
     palettes.png    256 x 8 RGBA, one row per global palette (colour variant).
     sounds/NNNN.wav embedded sounds, byte-for-byte.
 
@@ -25,6 +28,7 @@ import argparse
 import base64
 import json
 import math
+import struct
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -32,6 +36,7 @@ from pathlib import Path
 from PIL import Image
 
 import patches
+from names import UNUSED, official
 
 KIND_DIRS = {"game": "system", "character": "characters", "stage": "stages", "demo": "demos"}
 PALETTE_BYTES = 0x400
@@ -173,6 +178,25 @@ def write_palettes(path, global_palettes):
     img.save(path, optimize=True)
 
 
+def image_name(i, fmt):
+    return "images/%04d.%s" % (i, "dds" if fmt == "indexed" else "png")
+
+
+def dds_l8_header(w, h):
+    """An uncompressed 8-bit luminance DDS header (the classic L8 layout, which
+    image viewers read; LOVE takes it as R8_UNORM). The DX10 header with DXGI
+    R8_UNORM loads the same in LOVE, but viewers and Pillow refuse it."""
+    flags = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000           # caps, height, width, pitch, pixel format
+    pixel_format = struct.pack("<II4sIIIII", 32, 0x20000, bytes(4), 8, 0xFF, 0, 0, 0)  # luminance, 8 bits, R mask
+    return (b"DDS " + struct.pack("<IIIIIII", 124, flags, h, w, w, 0, 1) + bytes(44) + pixel_format
+            + struct.pack("<IIIII", 0x1000, 0, 0, 0, 0))   # caps: texture
+
+
+def write_dds_r8(path, w, h, pixels):
+    """An uncompressed single-channel DDS (L8; loaded as an r8 texture)."""
+    path.write_bytes(dds_l8_header(w, h) + bytes(pixels))
+
+
 def write_image(path, im):
     w, h = im["width"], im["height"]
     raw = base64.b64decode(im["data"])
@@ -181,7 +205,7 @@ def write_image(path, im):
         img.putpalette([c for rgba in palette_rgba(raw[:PALETTE_BYTES]) for c in rgba], rawmode="RGBA")
         img.convert("RGBA").save(path, optimize=True)
         return "rgba"
-    Image.frombytes("L", (w, h), raw[:w * h]).save(path, optimize=True)
+    write_dds_r8(path, w, h, raw[:w * h])
     return "indexed"
 
 
@@ -215,7 +239,9 @@ def slim_skill(skill):
 def convert(src, out_root, kind, media=True):
     d = json.loads(src.read_text(encoding="utf-8-sig"))
     patches.apply(src, d)           # the port's deliberate changes (patches/)
-    dst = out_root / KIND_DIRS[kind] / src.stem
+    if kind == "game":              # the character list under the port's names (names.py)
+        d["characters"] = [official(n) for n in d["characters"]]
+    dst = out_root / KIND_DIRS[kind] / official(src.stem)
     (dst / "images").mkdir(parents=True, exist_ok=True)
     header = ["Converted from %s by tools/fm2k_convert/convert.py" % src.name]
 
@@ -223,11 +249,10 @@ def convert(src, out_root, kind, media=True):
     for i, im in enumerate(d.pop("images")):
         if not im["width"] or not im["height"] or not im.get("data"):
             continue
-        name = "images/%04d.png" % i
+        fmt = "rgba" if im["paletteType"] == 1 else "indexed"
+        name = image_name(i, fmt)
         if media:
-            fmt = write_image(dst / name, im)
-        else:
-            fmt = "rgba" if im["paletteType"] == 1 else "indexed"
+            write_image(dst / name, im)
         images.append((i, {"file": name, "width": im["width"], "height": im["height"], "format": fmt}))
 
     sounds = []
@@ -288,7 +313,10 @@ def main():
     skipped = [f.name for f in files if f.stem not in kinds]
     if skipped:
         print("not referenced by the .kgt, skipped:", ", ".join(skipped))
-    files = [f for f in files if f.stem in kinds]
+    unused = [f.name for f in files if f.stem in UNUSED]
+    if unused:
+        print("unused characters, skipped:", ", ".join(unused))
+    files = [f for f in files if f.stem in kinds and f.stem not in UNUSED]
     if args.only:
         files = [f for f in files if f.stem in args.only]
     if not files:

@@ -9,6 +9,8 @@ usage: preview_gif.py <asset dir> <skill number>... [--palette N] [--out DIR]
 
 import argparse
 import json
+import re
+import struct
 from pathlib import Path
 
 from PIL import Image
@@ -30,8 +32,25 @@ def frames_of(skill):
     return out
 
 
+def image_path(asset_dir, i):
+    """Image i's file, from images.lton (its folder, or assets/shared)."""
+    entries = [ln for ln in (asset_dir / "images.lton").read_text(encoding="utf-8").splitlines()
+               if ln.startswith("{") or ln.startswith("nil^")]
+    m = re.search(r'(file|shared) = "([^"]+)"', entries[i])
+    return asset_dir / m.group(2) if m.group(1) == "file" else asset_dir.parent.parent / "shared" / m.group(2)
+
+
+def open_image(path):
+    """A PNG, or convert.py's single-channel DDS (as an 8-bit grayscale image)."""
+    if path.suffix == ".dds":
+        from share_assets import dds_pixels
+        w, h, pixels = dds_pixels(path.read_bytes())
+        return Image.frombytes("L", (w, h), pixels)
+    return Image.open(path)
+
+
 def shade(path, palette, row):
-    img = Image.open(path)
+    img = open_image(path)
     if img.mode == "L":
         p = Image.frombytes("P", img.size, img.tobytes())
         p.putpalette([c for i in range(256) for c in palette.getpixel((i, row))], rawmode="RGBA")
@@ -45,7 +64,7 @@ def render(asset_dir, d, number, row, out_dir):
     if not frames:
         return None
     palette = Image.open(asset_dir / "palettes.png").convert("RGBA")
-    sprites = [(f, shade(asset_dir / ("images/%04d.png" % f["i"]), palette, row)) for f in frames]
+    sprites = [(f, shade(image_path(asset_dir, f["i"]), palette, row)) for f in frames]
     # An I block's (x, y) is where the image's bottom-centre goes, relative to the
     # character origin (checked against the feet staying put in standing/walking).
     placed = [(f, s, f["x"] - s.width // 2, f["y"] - s.height) for f, s in sprites]

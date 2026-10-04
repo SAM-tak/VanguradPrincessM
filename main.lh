@@ -265,7 +265,7 @@ let^place = p^p:Fighter, x:number^, facing:number^{
     p.vars := {}
     p.onSkill := {}
     p.onBlock := {}
-    # and its look: ゆかり's victory (#22) fades her out (COLOR alpha 32) and
+    # and its look: はるか's victory (#22) fades her out (COLOR alpha 32) and
     # nothing in the next round's start sets COLOR again.
     p.blend := 0
     p.alpha := 1

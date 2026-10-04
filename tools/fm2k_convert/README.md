@@ -51,6 +51,12 @@ tools/fm2k_convert/.venv/Scripts/python tools/fm2k_convert/share_assets.py asset
 The listings' entries become `shared = "images/<sha1>.png"`; the skills keep their numbers.
 `--preview <dir>` writes the split for looking at instead. See `TechnicalDocuments/0020`.
 
+## Names
+
+Characters get their official names (`names.py`: ついん → えり, みさき → サキ, ゆかり → はるか,
+みこ → あやね); new1 and 新2, unused, are not converted. When running `gen_script.py` by hand,
+write to the official name's folder. See `TechnicalDocuments/0022`.
+
 ## Patches
 
 Deliberate changes to the original data live in `patches/<json stem>.py` (`def patch(d)`, editing
@@ -65,8 +71,8 @@ assets/<system|characters|stages|demos>/<name>/
   images.lton         position = FM2K image number, nil^ = unused slot
   sounds.lton         position = FM2K sound number, nil^ = unused slot
   skills/NNNN.lton    100 skills per file; skill number = first + position
-  images/NNNN.png     indexed: 8-bit grayscale, value = palette index
-                      rgba:    sprites that carried their own palette
+  images/NNNN.dds     indexed: uncompressed single-channel DDS (R8), value = palette index
+  images/NNNN.png     rgba:    sprites that carried their own palette
   palettes.png        256 x 8, one row per colour variant (index 0 transparent)
   sounds/NNNN.wav     original bytes
 ```

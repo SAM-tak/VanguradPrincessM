@@ -34,3 +34,5 @@
 - [0018-hit-combo-display.md](0018-hit-combo-display.md) — コンボ表示（HIT COMBO）の素材・原作で測った位置と出方・実装
 - [0019-data-patches.md](0019-data-patches.md) — 原作データの差し替え（変換時のパッチ `tools/fm2k_convert/patches/`）、キャラ選択の幕を手前に
 - [0020-shared-assets.md](0020-shared-assets.md) — キャラ間で同じ png / wav を assets/shared に纏める（share_assets.py、エンジンは .lton の項目から読む）
+- [0021-indexed-images-as-dds.md](0021-indexed-images-as-dds.md) — パレット画像を非圧縮 R8 の DDS で持つ（r8 テクスチャ、VRAM 1/4）。共有の判定は画素の鍵で
+- [0022-character-names.md](0022-character-names.md) — キャラの内部名 → 正式名（えり・サキ・はるか・あやね）、未使用キャラ new1 / 新2 を変換しない

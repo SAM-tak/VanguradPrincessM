@@ -20,7 +20,7 @@
 ## 仕組み
 
 - `tools/fm2k_convert/share_assets.py <assets> --apply`（convert.py の後に実行）:
-  2 キャラ以上が持つ中身（または既にプールにある中身）を `assets/shared/images|sounds/<sha1>.png|wav` に 1 つ置き、
+  2 キャラ以上が持つ中身（または既にプールにある中身）を `assets/shared/images|sounds/<鍵>.dds|png|wav` に 1 つ置き（鍵は 0021 の `content_key`）、
   キャラ側のコピーを消し、その項目を `file = "images/NNNN.png"` から `shared = "images/<sha1>.png"` に書き換える。
   技はキャラごとの番号のまま引く（番号のずれは各キャラの表が吸収する）
   - `--preview <dir>` は書き換えずに分けた結果だけを書く（確認用）
@@ -35,7 +35,7 @@
 
 - 2 キャラだけが持つ画像の中に、本来 1 キャラ専用の絵がある（ユーザーが目視で判定）。
   既存キャラをテンプレにしてコピーし、専用素材を消し忘れたとみられる: ゆい 12（ついん側に残る）、みさき 71（くるみ側 70・ルナ側 1）、はるか（ゆかり）11（ヒルダ側）
-- `tools/fm2k_convert/share_owners.txt`（SHA-1 先頭 8 桁 + 持ち主）に書く。`share_assets.py --apply` は、それらを共有せず持ち主のフォルダに残し、
+- `tools/fm2k_convert/share_owners.txt`（中身の鍵の先頭 12 桁 + 持ち主。0021 で PNG の SHA-1 から付け替え）に書く。`share_assets.py --apply` は、それらを共有せず持ち主のフォルダに残し、
   他のキャラの項目を `nil^`（未使用の番号と同じ）にする
 - エンジンは、項目の無い画像（または読めない画像）を求められたら「画像がない: <フォルダ> #<番号>」と一度ログに出す（`vp.sprite.Sheet.image`）
 

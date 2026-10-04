@@ -4,9 +4,9 @@ two or more characters' folders: the supports, common effects, ...).
     share_assets.py <assets dir> --apply
 
 moves every content held by two or more characters (or already in the pool)
-to assets/shared/images|sounds/<sha1>.png|wav, deletes the characters' copies
+to assets/shared/images|sounds/<key>.dds|png|wav (key: content_key), deletes the characters' copies
 and points their images.lton / sounds.lton entries at it: `file =
-"images/NNNN.png"` becomes `shared = "images/<sha1>.png"` (src/sprite.lh's
+"images/NNNN.dds"` becomes `shared = "images/<key>.dds"` (src/sprite.lh's
 assetPath; TechnicalDocuments/0020). The skills keep their own numbers. Run it
 after convert.py; it can run again (a character converted anew joins the pool).
 
@@ -30,21 +30,46 @@ import collections
 import hashlib
 import re
 import shutil
+import struct
 from pathlib import Path
 
-KINDS = (("images", "png"), ("sounds", "wav"))
+KINDS = (("images", ("dds", "png")), ("sounds", ("wav",)))
+
+
+def dds_pixels(b):
+    """A single-channel DDS's (width, height, pixels): convert.py's L8, or the
+    DX10 header form it wrote before."""
+    h, w = struct.unpack("<II", b[12:20])
+    start = 4 + 124 + (20 if b[84:88] == b"DX10" else 0)
+    return w, h, b[start:start + w * h]
+
+
+def content_key(f):
+    """What two files must share to be the same asset. A sound: its bytes. An
+    image: its size, mode and pixels, so the same picture matches whether it
+    is a PNG or a DDS (share_owners.txt is keyed by this)."""
+    if f.suffix == ".wav":
+        return hashlib.sha1(f.read_bytes()).hexdigest()
+    if f.suffix == ".dds":
+        w, h, pixels = dds_pixels(f.read_bytes())
+        head = ("%dx%d:L:" % (w, h)).encode()
+    else:
+        from PIL import Image
+        im = Image.open(f)
+        head, pixels = ("%dx%d:%s:" % (im.width, im.height, im.mode)).encode(), im.tobytes()
+    return hashlib.sha1(head + pixels).hexdigest()
 
 
 def scan(assets):
-    """{kind: {hash: [(character, number, path)]}} over every character's folder."""
+    """{kind: {key: [(character, number, path)]}} over every character's folder."""
     found = {kind: collections.defaultdict(list) for kind, _ in KINDS}
     for char_dir in sorted((assets / "characters").iterdir()):
         if not char_dir.is_dir():
             continue
-        for kind, ext in KINDS:
-            for f in sorted((char_dir / kind).glob("*." + ext)):
-                h = hashlib.sha1(f.read_bytes()).hexdigest()
-                found[kind][h].append((char_dir.name, int(f.stem), f))
+        for kind, exts in KINDS:
+            for ext in exts:
+                for f in sorted((char_dir / kind).glob("*." + ext)):
+                    found[kind][content_key(f)].append((char_dir.name, int(f.stem), f))
     return found
 
 
@@ -52,7 +77,7 @@ def preview(found, out):
     if out.exists():
         shutil.rmtree(out)
     lines = []
-    for kind, ext in KINDS:
+    for kind, _ in KINDS:
         by_hash = found[kind]
         shared = {h: v for h, v in by_hash.items() if len({c for c, _, _ in v}) > 1}
         own = {h: v for h, v in by_hash.items() if h not in shared}
@@ -71,12 +96,12 @@ def preview(found, out):
         for h, v in shared.items():
             k = len({c for c, _, _ in v})
             where = "+".join("%s-%04d" % (c, n) for c, n, _ in v)
-            dst = out / "shared" / kind / ("k%02d" % k) / ("%s__%s.%s" % (h[:8], where[:120], ext))
+            dst = out / "shared" / kind / ("k%02d" % k) / ("%s__%s%s" % (h[:8], where[:120], v[0][2].suffix))
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(v[0][2], dst)
         for v in own.values():
             for c, n, f in v:
-                dst = out / "own" / c / kind / ("%04d.%s" % (n, ext))
+                dst = out / "own" / c / kind / f.name
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(f, dst)
     out.mkdir(parents=True, exist_ok=True)
@@ -104,10 +129,10 @@ def owner_of(h, table):
     return None
 
 
-def rewrite_listing(listing, kind, ext, shared, dropped):
-    """Points the listing's entries at the pool (shared: {number: hash}) and
-    empties the dropped numbers' entries (nil^, as an unused number)."""
-    entry = re.compile(r'file = "%s/(\d+)\.%s"' % (kind, ext))
+def rewrite_listing(listing, kind, shared, dropped):
+    """Points the listing's entries at the pool (shared: {number: pool file})
+    and empties the dropped numbers' entries (nil^, as an unused number)."""
+    entry = re.compile(r'file = "%s/(\d+)\.\w+"' % kind)
     out = []
     for line in listing.read_text(encoding="utf-8").splitlines():
         m = entry.search(line)
@@ -116,7 +141,7 @@ def rewrite_listing(listing, kind, ext, shared, dropped):
             if n in dropped:
                 line = "nil^,"
             elif n in shared:
-                line = line[:m.start()] + 'shared = "%s/%s.%s"' % (kind, shared[n], ext) + line[m.end():]
+                line = line[:m.start()] + 'shared = "%s/%s"' % (kind, shared[n]) + line[m.end():]
         out.append(line)
     listing.write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
 
@@ -125,8 +150,8 @@ def apply(assets, found):
     pool = assets / "shared"
     table = owners()
     lines = []
-    for kind, ext in KINDS:
-        have = {f.stem for f in (pool / kind).glob("*." + ext)} if (pool / kind).exists() else set()
+    for kind, _ in KINDS:
+        have = {f.stem for f in (pool / kind).glob("*")} if (pool / kind).exists() else set()
         shared = collections.defaultdict(dict)       # character -> {number: hash}
         dropped = collections.defaultdict(set)       # character -> numbers: another's image
         contents = 0
@@ -139,17 +164,18 @@ def apply(assets, found):
                     if c != owner:
                         dropped[c].add(n)
                 continue
-            dst = pool / kind / ("%s.%s" % (h, ext))
+            dst = pool / kind / (h + v[0][2].suffix)
             if not dst.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(v[0][2], dst)
             contents += 1
             for c, n, _ in v:
-                shared[c][n] = h
+                shared[c][n] = dst.name
+        files = {(c, n): f for v in found[kind].values() for c, n, f in v}
         for c in set(shared) | set(dropped):
-            rewrite_listing(assets / "characters" / c / ("%s.lton" % kind), kind, ext, shared[c], dropped[c])
+            rewrite_listing(assets / "characters" / c / ("%s.lton" % kind), kind, shared[c], dropped[c])
             for n in set(shared[c]) | dropped[c]:
-                (assets / "characters" / c / kind / ("%04d.%s" % (n, ext))).unlink()
+                files[(c, n)].unlink()
         lines.append("%s: %d contents in assets/shared, %d characters' copies removed, %d entries of another's image dropped"
                      % (kind, contents, sum(len(ns) for ns in shared.values()), sum(len(ns) for ns in dropped.values())))
     print("\n".join(lines))
