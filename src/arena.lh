@@ -31,13 +31,9 @@ var^stack : t^{Arena[]} = {}
 var^gen = 0
 
 # The scene's generation: a cache filled in another one is stale.
-public^let^generation = f^-> number^{
-    return^gen
-}
+public^let^generation = f^{ gen }
 
-let^top = p^-> Arena{
-    return^stack[stack.length^ - 1] ?? resident
-}
+let^top = f^-> Arena{ stack[stack.length^ - 1] ?? resident }
 
 # A new arena on top: what is loaded from now on goes there.
 public^let^push = p^name:string^{
@@ -55,7 +51,7 @@ public^let^pop = p^{
 }
 
 # The names of the arenas, bottom to top (for logging).
-public^let^names = p^-> string^{
+public^let^names = f^-> string^{
     var^out = ""
     for^a in^stack { out := if^out = "": a.name el^: $"{out} / {a.name}"; }
     return^out

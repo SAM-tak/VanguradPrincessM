@@ -9,7 +9,7 @@
 #   h              show boxes      1-8         palette
 #   k              the dummy at 1 life (the next hit KOs)
 #   t              (select screen) the stage: random, or one of them in turn
-#   escape         quit
+#   escape         back (quit on title; ignored during battle)
 #
 # What a button or motion does comes from the character's command table.
 module^vp.main
@@ -97,6 +97,10 @@ var^roundFrames = ROUND_SECONDS * 100
 var^frame = 0
 var^matchLoading = false^    # the chosen two are loading behind the select screen
 let^LOAD_SLICE = 0.006        # seconds of loading ahead per frame
+# Frames from the second choice to the match's loading: reading the whole
+# scripts stops the screen for a while, and the choice's flash and sound
+# should come first.
+let^LOAD_DELAY = 50
 var^wasTiming = false^
 var^lastSkill = ""            # skill changes are printed to the console, for debugging
 var^showBoxes = false^
@@ -336,11 +340,11 @@ let^startBattle = p^s:vp.select.Select{
 
 public^let^load = p^{
     vp.arena.push("opening")
-    scene := vp.title.play(demos, demos.opening)
+    scene := vp.title.openingScreen(true^)
 }
 
-# The opening ends (a button, or its time): the title screen. The title
-# screen ends (a button): VS mode's select screen (story mode is not made yet).
+# A button on the title still opens the mode menu; confirming the mode
+# opens character select (story mode is not made yet).
 let^sceneDone = p^{
     love.audio.stop()
     vp.arena.pop()                 # the opening's or the title's (TechnicalDocuments/0023)
@@ -354,6 +358,40 @@ let^sceneDone = p^{
     scene := nil^
     vp.arena.push("select")        # kept under every match, until the title
     selecting := vp.select.load(SYSTEM)
+}
+
+let^goBack = p^{
+    let^sc = scene
+    if^sc != nil^ and^sc.customOpening {
+        love.event.quit()
+        return^
+    }
+    # Battle will get its own pause screen later.
+    if^sc is^nil^ and^selecting is^nil^{ return^ }
+    upPressed := false^
+    downPressed := false^
+    pressed := 0
+    clock := 0
+    love.audio.stop()
+    vp.sprite.cancelAhead()
+    if^selecting != nil^ {
+        # Both characters may already be loading above the select arena.
+        if^matchLoading { vp.arena.pop() }
+        matchLoading := false^
+        vp.arena.pop()
+        selecting := nil^
+        vp.fighter.clearSystemVars()
+        opening := false^
+        vp.arena.push("title")
+        let^system = vp.script.load($"{SYSTEM}/script.lton") ?? vp.script.Script.new()
+        scene := vp.title.titleScreen(demos, SYSTEM, system)
+    else^:
+        vp.arena.pop()
+        vp.fighter.clearSystemVars()
+        opening := true^
+        vp.arena.push("opening")
+        scene := vp.title.openingScreen(false^)
+    }
 }
 
 # The camera (the view's top-left) moves half the way to its target each
@@ -390,7 +428,7 @@ let^tick = p^{
         upPressed := false^
         downPressed := false^
         pressed := 0
-        if^vp.select.bothChosen(s) and^!matchLoading { loadMatch(s) }
+        if^vp.select.bothChosen(s) and^s.wait >= LOAD_DELAY and^!matchLoading { loadMatch(s) }
         # the match starts when the screen's wait is over and its two have loaded
         let^loaded = !matchLoading or^vp.sprite.loadSome(LOAD_SLICE)
         if^s.done and^loaded { startBattle(s) }
@@ -403,6 +441,9 @@ let^tick = p^{
     # Only while they fight does input count.
     let^live = vp.round.fighting(flow)
     control(me, live and^love.keyboard.isDown(Key.up), live and^love.keyboard.isDown(Key.down), live and^forward, live and^back, if^live: pressed el^: 0;)
+    # Discard menu direction presses during battle so they cannot reach select.
+    upPressed := false^
+    downPressed := false^
     pressed := 0
     control(foe, false^, live and^dummyGuard = 2, false^, false^, 0)
 
@@ -460,6 +501,16 @@ let^tick = p^{
 }
 
 public^let^update = p^dt:number^{
+    let^sc = scene
+    if^sc != nil^ and^sc.customOpening {
+        vp.title.updateOpening(sc, dt, pressed)
+        upPressed := false^
+        downPressed := false^
+        pressed := 0
+        clock := 0
+        if^sc.done { sceneDone() }
+        return^
+    }
     clock += dt
     # At most two frames of catching up: after a stall (images loading on first
     # use) the game slows down instead of skipping what it did not show.
@@ -613,7 +664,10 @@ let^PALETTE_KEYS : t^{love.keyboard.Key[]} = {
 }
 
 public^let^keypressed = p^key:love.keyboard.Key, scancode:love.keyboard.Scancode, isrepeat:bool^{
-    if^key = Key.escape { love.event.quit() }
+    if^key = Key.escape {
+        if^!isrepeat { goBack() }
+        return^
+    }
     if^!isrepeat and^key = Key.up { upPressed := true^ }
     if^!isrepeat and^key = Key.down { downPressed := true^ }
     if^!isrepeat {

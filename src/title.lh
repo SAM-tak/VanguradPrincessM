@@ -1,26 +1,35 @@
-# The opening and the title screen (TechnicalDocuments/0016). Which demo is
-# which comes from the game's demo assignment (demos.lton, read from the
-# .kgt by tools/fm2k_convert/read_demos.py).
+# The custom opening (TechnicalDocuments/0026) and the mode menu (0016).
+# The opening uses only the original images and sounds; its script is not run.
+# The mode menu comes from the game's demo assignment (demos.lton, read
+# from the .kgt by tools/fm2k_convert/read_demos.py).
 #
-# - The opening demo plays until a button (when the demo may be skipped) or
-#   its time runs out (0: no limit).
+# - The opening lasts 35 seconds; a button skips to the title still.
+#   A separate press on the title still proceeds to the mode menu.
 # - The title demo is the mode menu. The engine puts the system's title
 #   cursor (#78) at the chosen item's position (#79 story, #80 VS); the
 #   cursor's #107 reads its y and shows the item's caption.
 module^vp.title
 
 import^std.lton
+import^love.graphics
+import^love.audio
 
 require^"fighter.lh"
 require^"script.lh"
 require^"stage.lh"
 require^"round.lh"
+require^"arena.lh"
 
 let^Fighter = vp.fighter.Fighter
 
 let^CURSOR = 78
 let^ITEM_X = 291              # "position: title cursor" story (#79) / VS single (#80)
 let^ITEM_Y : t^{number^[]} = { 70, 92 }
+let^OPENING_DIR = "assets/demos/タイトル"
+let^SCROLL_SECONDS = 35
+let^FLASH_SECONDS = 0.35
+let^CREDIT_GAP = 64
+let^CREDIT_FADE_HEIGHT = 96     # fade within the top / bottom fifth of the view
 
 # The game's demo assignment and each demo's settings.
 public^let^Demos = def^{
@@ -62,6 +71,13 @@ public^let^Scene = def^{
         skip = false^,              # a button ends it
         item = 0,                   # the title menu's choice (0 story, 1 VS)
         done = false^,
+        customOpening = false^,
+        elapsed = 0,
+        titleShown = false^,
+        flash = 0,
+        images : t^{[number^]:love.graphics.Texture|nil^} = {},
+        creditHeight = 0,
+        music : love.audio.Source|nil^= nil^,
     },
 }
 
@@ -72,6 +88,112 @@ public^let^play = p^demos:Demos, name:string^-> Scene{
     s.time := demos.times[name] ?? 0
     s.skip := demos.skips[name] ?? false^
     return^s
+}
+
+let^openingSound = p^n:number^-> love.audio.Source|nil^{
+    let^sound = love.audio.newSource($"{OPENING_DIR}/sounds/{n:%04d}.wav", love.audio.SourceType.stream) catch^nil^
+    if^sound != nil^ {
+        sound.setLooping(false^)
+        vp.arena.keep(sound)
+    }
+    return^sound
+}
+
+public^let^openingScreen = p^animate:bool^-> Scene{
+    let^s = Scene.new()
+    s.customOpening := true^
+    s.name := "タイトル"
+    for^n from^0 to^16 {
+        if^n < 2 or^n >= 5 {
+            let^tex = vp.arena.texture($"{OPENING_DIR}/images/{n:%04d}.png")
+            s.images[n] := tex
+            if^n >= 6 and^tex != nil^ {
+                let^w, h = tex.getDimensions()
+                s.creditHeight += h
+            }
+        }
+    }
+    s.creditHeight += CREDIT_GAP * 10
+    if^animate {
+        s.music := openingSound(1)
+        let^music = s.music
+        if^music != nil^ { music.play() }
+    else^:
+        revealTitle(s)
+    }
+    return^s
+}
+
+let^revealTitle = p^s:Scene{
+    s.titleShown := true^
+    s.flash := FLASH_SECONDS
+    # Keep the opening music playing through the reveal (including a skip).
+    # Returning from the mode menu creates a silent scene instead.
+}
+
+# Real seconds, independent of the battle's capped 100 Hz catch-up loop.
+# A press that skips the scroll is consumed here, never by the mode menu.
+public^let^updateOpening = p^s:Scene, dt:number^, pressed:number^{
+    s.elapsed += dt
+    if^s.titleShown {
+        s.flash := (s.flash - dt).clamp(0, FLASH_SECONDS)
+        if^pressed != 0 { s.done := true^ }
+        return^
+    }
+    if^pressed != 0 or^s.elapsed >= SCROLL_SECONDS {
+        revealTitle(s)
+        return^
+    }
+}
+
+let^drawOpening = p^s:Scene{
+    love.graphics.setColor(1, 1, 1, 1)
+    if^s.titleShown {
+        let^tex = s.images[0]
+        if^tex != nil^ { love.graphics.draw(tex, 0, 0) }
+        if^s.flash > 0 {
+            love.graphics.setColor(1, 1, 1, s.flash / FLASH_SECONDS)
+            love.graphics.rectangle(love.graphics.DrawMode.fill, 0, 0, 640, 480)
+            love.graphics.setColor(1, 1, 1, 1)
+        }
+    else^:
+        let^progress = (s.elapsed / SCROLL_SECONDS).clamp(0, 1)
+        let^background = s.images[5]
+        if^background != nil^ {
+            let^w, h = background.getDimensions()
+            love.graphics.draw(background, -(w - 640) * progress, 0)
+        }
+        var^y = 480 - (480 + s.creditHeight) * progress
+        for^n from^6 to^16 {
+            let^tex = s.images[n]
+            if^tex != nil^ {
+                let^w, h = tex.getDimensions()
+                # Only the final line stays at the centre until the title reveal.
+                let^at = if^n = 16 and^y < (480 - h) / 2: (480 - h) / 2 el^: y;
+                let^centre = at + h / 2
+                let^alpha = ((480 - centre) / CREDIT_FADE_HEIGHT).clamp(0, 1) * (centre / CREDIT_FADE_HEIGHT).clamp(0, 1)
+                if^at < 480 and^at + h > 0 {
+                    love.graphics.setColor(1, 1, 1, alpha)
+                    love.graphics.draw(tex, (640 - w) / 2, at)
+                }
+                y += h
+            }
+            y += CREDIT_GAP
+        }
+    }
+    # Keep the prompt's blink phase continuous through the title reveal.
+    love.graphics.setColor(1, 1, 1, 1)
+    if^(s.elapsed / 0.25).floor() % 2 = 0 {
+        let^prompt = s.images[1]
+        if^prompt != nil^ {
+            # Original title script: COLOR 3 (subtract), preserving the
+            # image's grey edge pixels instead of flattening them to black.
+            if^s.titleShown { love.graphics.setBlendMode(love.graphics.BlendMode.subtract) }
+            love.graphics.draw(prompt, 171, 421)
+            love.graphics.setBlendMode(love.graphics.BlendMode.alpha)
+            love.graphics.setColor(1, 1, 1, 1)
+        }
+    }
 }
 
 let^systemRun = p^systemDir:string^, sc:vp.script.Script, n:number^, x:number^, y:number^-> Fighter{
@@ -118,6 +240,7 @@ public^let^step = p^s:Scene, up:bool^, down:bool^, pressed:number^{
 # Draws a demo scene in view coordinates, by depth (layers 12 / 100, the
 # cursor 101, its caption 127).
 public^let^draw = p^s:Scene{
+    if^s.customOpening { drawOpening(s) return^ }
     let^st = s.layers
     if^st is^nil^{ return^}
     vp.fighter.setView(0, 0)

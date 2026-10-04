@@ -86,12 +86,21 @@ let^enter = p^r:Round, phase:string^, n:number^{
     r.left := if^sc != nil^: vp.script.showTime(sc, n) el^: 0;
 }
 
+# Restart every mark with the round: earned marks replay their entrance.
 let^placeMarks = p^r:Round{
     r.marks := {}
     for^k from^0 to^r.toWin - 1 {
         r.marks.push^(runAt(r, if^r.wins1 > k: MARK_ON el^: MARK_OFF;, MARK_1P_X - MARK_STEP * k, MARK_Y))
         r.marks.push^(runAt(r, if^r.wins2 > k: MARK_ON el^: MARK_OFF;, MARK_2P_X + MARK_STEP * k, MARK_Y))
     }
+}
+
+# Marks are interleaved 1P / 2P. Only the newly earned slot starts over;
+# all earlier marks keep their current animation and display state.
+let^awardMark = p^r:Round, side:number^, wins:number^{
+    let^k = wins - 1
+    let^x = if^side = 0: MARK_1P_X - MARK_STEP * k el^: MARK_2P_X + MARK_STEP * k;
+    r.marks[2 * k + side] := runAt(r, MARK_ON, x, MARK_Y)
 }
 
 public^let^load = p^dir:string^-> Round{
@@ -158,10 +167,12 @@ public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, ov
     elseif^r.phase = "ko":
         if^r.winner = 1 {
             r.wins1 += 1
+            awardMark(r, 0, r.wins1)
             p1.begin(VICTORY)
             enter(r, "win", WIN_1P)
         elseif^r.winner = 2:
             r.wins2 += 1
+            awardMark(r, 1, r.wins2)
             p2.begin(VICTORY)
             enter(r, "win", WIN_2P)
         else^:
@@ -169,7 +180,6 @@ public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, ov
         }
         # PERFECT shows with "1P / 2P WIN", not with KO (the original, VS mode)
         if^r.perfect { r.layers.push^(runAt(r, PERFECT, 0, 0)) }
-        placeMarks(r)
     elseif^r.phase = "win":
         enter(r, "end", ROUND_END)
     elseif^r.phase = "end":
@@ -184,6 +194,7 @@ public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, ov
         r.layers := {}
         r.combos := {}
         enter(r, "start", ROUND_START)
+        placeMarks(r)
     }
 }
 
