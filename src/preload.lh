@@ -8,161 +8,159 @@ require^"scriptdata.lh"
 
 let^Directory = t^{ path:string^, portrait:bool^, support:number^, winner:number^}
 let^SUPPORTS = {"えこ", "シエラ", "ジュリエット", "かなえ", "ヒルダ"}
-public^let^Load = def^{ self^{
-    abstract^batch : vp.resource.Batch,
-    directories : t^{Directory[]} = {},
-    dependenciesQueued = false^,
-    assetsQueued = false^,
-}, override^new = f^name:string^{ self^{batch = vp.resource.Batch.new(name)} } }
+public^let^Load = def^{
+    self^{
+        abstract^batch : vp.resource.Batch,
+        directories : t^{Directory[]} = {},
+        dependenciesQueued = false^,
+        assetsQueued = false^,
+    },
+    override^new = f^name:string^{ self^{batch = vp.resource.Batch.new(name)} },
 
-public^let^add = p^l:Load, dir:string^, portrait:bool^{
-    l.directories.push^({path = dir, portrait = portrait, support = -1, winner = -1})
-    let^file = if^portrait: "portrait.lton" el^: "script.lton";
-    vp.resource.request(l.batch, $"{dir}/{file}", "script", false^)
-    vp.resource.request(l.batch, $"{dir}/images.lton", "lton", false^)
-    vp.resource.request(l.batch, $"{dir}/sounds.lton", "lton", false^)
-}
-
-# A match selects media independently for each player, even with the same owner.
-public^let^character = p^l:Load, dir:string^, support:number^{
-    add(l, dir, false^)
-    let^d = l.directories[l.directories.length^ - 1]
-    if^d? { d.support := support }
-}
-
-public^let^victory = p^l:Load, dir:string^, winner:number^{
-    add(l, dir, false^)
-    let^d = l.directories[l.directories.length^ - 1]
-    if^d? { d.winner := winner }
-    vp.resource.request(l.batch, $"{dir}/preload.lton", "lton", false^)
-}
-
-let^media = p^l:Load, dir:string^, op:string^, n:number^{
-    let^file = if^op = "I": "images" el^: "sounds";
-    let^list = vp.resource.data($"{dir}/{file}.lton")
-    if^list is^nil^ { return^ }
-    let^e = list[n]
-    let^path = vp.sprite.assetPath(dir, e)
-    if^path is^nil^ { return^ }
-    if^op = "I" {
-        if^e fits^t^{format:string^} and^e.format = "indexed" {
-            vp.resource.request(l.batch, $"{dir}/palettes.png", "image", false^)
-        }
-        vp.resource.request(l.batch, path, "image", false^)
-    else^:
-        let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
-        vp.resource.request(l.batch, path, "sound", loop)
-    }
-}
-
-let^assets = p^l:Load, d:Directory {
-    let^dir = d.path
-    let^file = if^d.portrait: "portrait.lton" el^: "script.lton";
-    let^sc = vp.script.load($"{dir}/{file}")
-    if^d.winner >= 0 {
-        let^lists = vp.resource.data($"{dir}/preload.lton")
-        if^lists? {
-            for^row:any^ in^lists {
-                if^row fits^t^{winner:number^, images:t^{number^[]}, sounds:t^{number^[]}} and^row.winner = d.winner {
-                    for^n in^row.images { media(l, dir, "I", n) }
-                    for^n in^row.sounds { media(l, dir, "S", n) }
-                    return^
-                }
-            }
-        }
-        # Unknown winner codes retain the conservative full-list behavior.
-    }
-    # Keep all owner skills (including Kurumi's collaboration attacks), but
-    # only the selected support's bodies and the common helper definitions.
-    # The effective namespace map includes Kurumi's explicit adapters.
-    let^independent = sc != nil^ and^sc.raw fits^t^{supportNamespaces:bool^} and^sc.raw.supportNamespaces
-    if^(d.support >= 0 or^independent) and^sc? {
-        let^selected = SUPPORTS[d.support - 101] ?? ""
-        for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
-            let^wanted = d.support < 0 or^sk.space = "" or^sk.space = selected or^sk.space = "common"
-            if^wanted {
-                let^source = if^sk.media = "": dir el^: sk.media;
-                for^b in^sk.blocks {
-                    if^b.op = "I" or^b.op = "S" { media(l, source, b.op, b.n[0] ?? 0) }
-                }
-            }
-        }
-        return^
-    }
-    let^images = vp.resource.data($"{dir}/images.lton")
-    let^sounds = vp.resource.data($"{dir}/sounds.lton")
-    if^images? {
-        var^wanted : t^{number^[]} = {}
-        if^d.portrait and^sc? { wanted := vp.script.imagesFrom(sc, 25)
-        else^:
-            for^e:any^ in^images { if^e? { wanted.push^(index^) } }
-        }
-        for^n in^wanted {
-            let^e = images[n]
+    add = p^self^, dir:string^, portrait:bool^{
+        self^.directories.push^({path = dir, portrait = portrait, support = -1, winner = -1})
+        let^file = if^portrait: "portrait.lton" el^: "script.lton";
+        self^.batch.request($"{dir}/{file}", "script", false^)
+        self^.batch.request($"{dir}/images.lton", "lton", false^)
+        self^.batch.request($"{dir}/sounds.lton", "lton", false^)
+    },
+    # A match selects media independently for each player, even with the same owner.
+    character = p^self^, dir:string^, support:number^{
+        self^.add(dir, false^)
+        let^d = self^.directories[self^.directories.length^ - 1]
+        if^d? { d.support := support }
+    },
+    victory = p^self^, dir:string^, winner:number^{
+        self^.add(dir, false^)
+        let^d = self^.directories[self^.directories.length^ - 1]
+        if^d? { d.winner := winner }
+        self^.batch.request($"{dir}/preload.lton", "lton", false^)
+    },
+    media = p^self^, dir:string^, op:string^, n:number^{
+        let^file = if^op = "I": "images" el^: "sounds";
+        let^list = vp.resource.data($"{dir}/{file}.lton")
+        if^list is^nil^ { return^ }
+        let^e = list[n]
+        let^path = vp.sprite.assetPath(dir, e)
+        if^path is^nil^ { return^ }
+        if^op = "I" {
             if^e fits^t^{format:string^} and^e.format = "indexed" {
-                vp.resource.request(l.batch, $"{dir}/palettes.png", "image", false^)
+                self^.batch.request($"{dir}/palettes.png", "image", false^)
             }
-            let^path = vp.sprite.assetPath(dir, images[n])
-            if^path? { vp.resource.request(l.batch, path, "image", false^) }
+            self^.batch.request(path, "image", false^)
+        else^:
+            let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
+            self^.batch.request(path, "sound", loop)
         }
-    }
-    var^used : t^{[number^]:bool^|nil^} = {}
-    if^d.portrait and^sc? {
-        for^sk in^sc.skills {
-            for^b in^sk.blocks { if^b.op = "S" { used[b.n[0] ?? 0] := true^ } }
-        }
-    }
-    if^sounds? {
-        for^n:number^, e:any^ in^sounds {
-            if^!d.portrait or^used[n]? {
-                let^path = vp.sprite.assetPath(dir, e)
-                let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
-                if^path? { vp.resource.request(l.batch, path, "sound", loop) }
-            }
-        }
-    }
-}
-
-public^let^ready = p^l:Load -> bool^{
-    if^l.batch.error != "" { panic^$"Asset loading failed: {l.batch.error}" }
-    if^!vp.resource.ready(l.batch) { return^false^ }
-    if^!l.dependenciesQueued {
-        l.dependenciesQueued := true^
-        var^supportMedia = false^
-        var^allSupports = false^
-        for^d in^l.directories {
-            let^file = if^d.portrait: "portrait.lton" el^: "script.lton";
-            let^sc = vp.resource.script($"{d.path}/{file}")
-            if^sc? {
-                let^namespaced = sc.raw fits^t^{supportNamespaces:bool^} and^sc.raw.supportNamespaces
-                if^namespaced {
-                    supportMedia := true^
-                    for^name in^vp.script.SUPPORTS {
-                        vp.resource.request(l.batch, $"assets/supports/{name}/script.lton", "script", false^)
+    },
+    assets = p^self^, d:Directory {
+        let^dir = d.path
+        let^file = if^d.portrait: "portrait.lton" el^: "script.lton";
+        let^sc = vp.script.load($"{dir}/{file}")
+        if^d.winner >= 0 {
+            let^lists = vp.resource.data($"{dir}/preload.lton")
+            if^lists? {
+                for^row:any^ in^lists {
+                    if^row fits^t^{winner:number^, images:t^{number^[]}, sounds:t^{number^[]}} and^row.winner = d.winner {
+                        for^n in^row.images { self^.media(dir, "I", n) }
+                        for^n in^row.sounds { self^.media(dir, "S", n) }
+                        return^
                     }
                 }
-                if^!namespaced {
-                    for^sk in^sc.skills {
-                        let^ref = sk.binding
-                        if^ref != nil^ or^sk.media != "" {
-                            supportMedia := true^
-                            if^d.support < 0 { allSupports := true^ }
+            }
+            # Unknown winner codes retain the conservative full-list behavior.
+        }
+        # Keep all owner skills (including Kurumi's collaboration attacks), but
+        # only the selected support's bodies and the common helper definitions.
+        # The effective namespace map includes Kurumi's explicit adapters.
+        let^independent = sc != nil^ and^sc.raw fits^t^{supportNamespaces:bool^} and^sc.raw.supportNamespaces
+        if^(d.support >= 0 or^independent) and^sc? {
+            let^selected = SUPPORTS[d.support - 101] ?? ""
+            for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
+                let^wanted = d.support < 0 or^sk.space = "" or^sk.space = selected or^sk.space = "common"
+                if^wanted {
+                    let^source = if^sk.media = "": dir el^: sk.media;
+                    for^b in^sk.blocks {
+                        if^b.op = "I" or^b.op = "S" { self^.media(source, b.op, b.n[0] ?? 0) }
+                    }
+                }
+            }
+            return^
+        }
+        let^images = vp.resource.data($"{dir}/images.lton")
+        let^sounds = vp.resource.data($"{dir}/sounds.lton")
+        if^images? {
+            var^wanted : t^{number^[]} = {}
+            if^d.portrait and^sc? { wanted := sc.imagesFrom(25)
+            else^:
+                for^e:any^ in^images { if^e? { wanted.push^(index^) } }
+            }
+            for^n in^wanted {
+                let^e = images[n]
+                if^e fits^t^{format:string^} and^e.format = "indexed" {
+                    self^.batch.request($"{dir}/palettes.png", "image", false^)
+                }
+                let^path = vp.sprite.assetPath(dir, images[n])
+                if^path? { self^.batch.request(path, "image", false^) }
+            }
+        }
+        var^used : t^{[number^]:bool^|nil^} = {}
+        if^d.portrait and^sc? {
+            for^sk in^sc.skills {
+                for^b in^sk.blocks { if^b.op = "S" { used[b.n[0] ?? 0] := true^ } }
+            }
+        }
+        if^sounds? {
+            for^n:number^, e:any^ in^sounds {
+                if^!d.portrait or^used[n]? {
+                    let^path = vp.sprite.assetPath(dir, e)
+                    let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
+                    if^path? { self^.batch.request(path, "sound", loop) }
+                }
+            }
+        }
+    },
+    ready = p^self^-> bool^{
+        if^self^.batch.error != "" { panic^$"Asset loading failed: {self^.batch.error}" }
+        if^!self^.batch.ready() { return^false^ }
+        if^!self^.dependenciesQueued {
+            self^.dependenciesQueued := true^
+            var^supportMedia = false^
+            var^allSupports = false^
+            for^d in^self^.directories {
+                let^file = if^d.portrait: "portrait.lton" el^: "script.lton";
+                let^sc = vp.resource.script($"{d.path}/{file}")
+                if^sc? {
+                    let^namespaced = sc.raw fits^t^{supportNamespaces:bool^} and^sc.raw.supportNamespaces
+                    if^namespaced {
+                        supportMedia := true^
+                        for^name in^vp.script.SUPPORTS {
+                            self^.batch.request($"assets/supports/{name}/script.lton", "script", false^)
                         }
-                        if^ref != nil^ { vp.resource.request(l.batch, $"assets/supports/{ref.support}/support-source.lton", "script", false^) }
+                    }
+                    if^!namespaced {
+                        for^sk in^sc.skills {
+                            let^ref = sk.binding
+                            if^ref != nil^ or^sk.media != "" {
+                                supportMedia := true^
+                                if^d.support < 0 { allSupports := true^ }
+                            }
+                            if^ref != nil^ { self^.batch.request($"assets/supports/{ref.support}/support-source.lton", "script", false^) }
+                        }
                     }
                 }
             }
+            if^allSupports { self^.add("assets/supports/common", false^)
+            elseif^supportMedia:
+                self^.batch.request("assets/supports/common/images.lton", "lton", false^)
+                self^.batch.request("assets/supports/common/sounds.lton", "lton", false^)
+            }
+            if^!self^.batch.ready() { return^false^ }
         }
-        if^allSupports { add(l, "assets/supports/common", false^)
-        elseif^supportMedia:
-            vp.resource.request(l.batch, "assets/supports/common/images.lton", "lton", false^)
-            vp.resource.request(l.batch, "assets/supports/common/sounds.lton", "lton", false^)
+        if^!self^.assetsQueued {
+            self^.assetsQueued := true^
+            for^d in^self^.directories { self^.assets(d) }
         }
-        if^!vp.resource.ready(l.batch) { return^false^ }
-    }
-    if^!l.assetsQueued {
-        l.assetsQueued := true^
-        for^d in^l.directories { assets(l, d) }
-    }
-    return^vp.resource.ready(l.batch)
+        return^self^.batch.ready()
+    },
 }

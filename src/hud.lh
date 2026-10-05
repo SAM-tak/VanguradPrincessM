@@ -48,13 +48,90 @@ public^let^Hud = def^{
         ones : Fighter|nil^= nil^,
         shownSeconds = -2,
     },
+
+    # A round starts the HUD's skills over (layout 5, the big "60", times itself
+    # by the round: 699 frames in round 1, 349 after).
+    restart = p^self^{
+        self^.layers := {}
+        for^n in^LAYOUTS { self^.layers.push^(run(self^.dir, n)) }
+        self^.life1 := run(self^.dir, LIFE_1P)
+        self^.life2 := run(self^.dir, LIFE_2P)
+        self^.special1 := run(self^.dir, SPECIAL_1P)
+        self^.special2 := run(self^.dir, SPECIAL_2P)
+        self^.shown1 := -1
+        self^.shown2 := -1
+        self^.shownSeconds := -2
+    },
+    # The clock starts: layout 5's big "60" goes (it outlasts the round's start
+    # by some frames and showed under "59") and the timer's digits start over
+    # (started hidden, they would look again only hundreds of frames later).
+    fightBegins = p^self^{
+        for^l in^self^.layers {
+            if^l.skillNo = LAYOUT_TIME { l.alive := false^ }
+        }
+        self^.shownSeconds := -2
+    },
+    each = p^self^-> t^{Fighter[]} {
+        var^all : t^{Fighter[]} = {}
+        for^l in^self^.layers { all.push^(l) }
+        for^l in^{ self^.life1, self^.life2, self^.special1, self^.special2, self^.stock1, self^.stock2, self^.tens, self^.ones } {
+            if^l fits^Fighter { all.push^(l) }
+        }
+        return^all
+    },
+    # The timer's digits for `seconds` left (negative: no time limit, "∞").
+    stepTimer = p^self^, seconds:number^{
+        if^seconds = self^.shownSeconds { return^}
+        let^before = self^.shownSeconds
+        self^.shownSeconds := seconds
+        if^seconds < 0 {
+            self^.tens := runAt(self^.dir, TIMER_INFINITE, TIMER_X, TIMER_Y)
+            self^.ones := nil^
+            return^
+        }
+        let^s = seconds.clamp(0, 99)
+        let^tens = (s / 10).floor()
+        let^ones = s % 10
+        let^half = TIMER_SPACING / 2
+        if^before < 0 or^tens != (before / 10).floor() {
+            self^.tens := runAt(self^.dir, TIMER_NUMBER_0 + tens, TIMER_X - half, TIMER_Y)
+        }
+        if^before < 0 or^ones != before % 10 {
+            self^.ones := runAt(self^.dir, TIMER_NUMBER_0 + ones, TIMER_X + half, TIMER_Y)
+        }
+    },
+    step = p^self^, p1:Fighter, p2:Fighter, seconds:number^{
+        self^.stepTimer(seconds)
+        let^n1 = stocks(p1)
+        if^n1 != self^.shown1 {
+            self^.shown1 := n1
+            self^.stock1 := runAt(self^.dir, STOCK_NUMBER_0 + n1, STOCK_1P_X, STOCK_Y)
+        }
+        let^n2 = stocks(p2)
+        if^n2 != self^.shown2 {
+            self^.shown2 := n2
+            self^.stock2 := runAt(self^.dir, STOCK_NUMBER_0 + n2, STOCK_2P_X, STOCK_Y)
+        }
+        for^l in^self^.each() { l.step() }
+    },
+    # Draws the HUD in view coordinates (call it with the view's transform).
+    draw = p^self^, p1:Fighter, p2:Fighter{
+        for^l in^self^.layers { drawWhole(l) }
+        drawGauge(self^.life1, p1.life / p1.lifeMax, true^)
+        drawGauge(self^.life2, p2.life / p2.lifeMax, true^)
+        drawGauge(self^.special1, stockFraction(p1), false^)
+        drawGauge(self^.special2, stockFraction(p2), false^)
+        for^l in^{ self^.stock1, self^.stock2, self^.tens, self^.ones } {
+            if^l fits^Fighter { drawWhole(l) }
+        }
+    },
 }
 
 var^script = vp.script.Script.new()     # the system file's skills
 
-let^runAt = p^dir:string^, n:number^, x:number^, y:number^-> Fighter{
+let^runAt = p^dir:string^, n:number^, x:number^, y:number^-> Fighter {
     let^l = Fighter.new(dir, x, y)
-    vp.script.install(l, script)
+    script.install(l)
     l.begin(n)
     l.ground := 1000000
     l.system := true^
@@ -65,45 +142,12 @@ let^run = p^dir:string^, n:number^-> Fighter{
     return^runAt(dir, n, 0, 0)
 }
 
-public^let^load = p^dir:string^-> Hud{
+public^let^load = p^dir:string^-> Hud {
     let^h = Hud.new()
     h.dir := dir
     script := vp.script.load($"{dir}/script.lton") ?? vp.script.Script.new()
-    restart(h)
+    h.restart()
     return^h
-}
-
-# A round starts the HUD's skills over (layout 5, the big "60", times itself
-# by the round: 699 frames in round 1, 349 after).
-public^let^restart = p^h:Hud{
-    h.layers := {}
-    for^n in^LAYOUTS { h.layers.push^(run(h.dir, n)) }
-    h.life1 := run(h.dir, LIFE_1P)
-    h.life2 := run(h.dir, LIFE_2P)
-    h.special1 := run(h.dir, SPECIAL_1P)
-    h.special2 := run(h.dir, SPECIAL_2P)
-    h.shown1 := -1
-    h.shown2 := -1
-    h.shownSeconds := -2
-}
-
-# The clock starts: layout 5's big "60" goes (it outlasts the round's start
-# by some frames and showed under "59") and the timer's digits start over
-# (started hidden, they would look again only hundreds of frames later).
-public^let^fightBegins = p^h:Hud{
-    for^l in^h.layers {
-        if^l.skillNo = LAYOUT_TIME { l.alive := false^ }
-    }
-    h.shownSeconds := -2
-}
-
-let^each = p^h:Hud-> t^{Fighter[]}{
-    var^all : t^{Fighter[]} = {}
-    for^l in^h.layers { all.push^(l) }
-    for^l in^{ h.life1, h.life2, h.special1, h.special2, h.stock1, h.stock2, h.tens, h.ones } {
-        if^l fits^Fighter { all.push^(l) }
-    }
-    return^all
 }
 
 # A side's stock count, as the number skill to show (0-9).
@@ -111,45 +155,8 @@ let^stocks = f^p:Fighter-> number^{
     return^(p.special / p.specialPer).floor().clamp(0, 9)
 }
 
-# The timer's digits for `seconds` left (negative: no time limit, "∞").
-let^stepTimer = p^h:Hud, seconds:number^{
-    if^seconds = h.shownSeconds { return^}
-    let^before = h.shownSeconds
-    h.shownSeconds := seconds
-    if^seconds < 0 {
-        h.tens := runAt(h.dir, TIMER_INFINITE, TIMER_X, TIMER_Y)
-        h.ones := nil^
-        return^
-    }
-    let^s = seconds.clamp(0, 99)
-    let^tens = (s / 10).floor()
-    let^ones = s % 10
-    let^half = TIMER_SPACING / 2
-    if^before < 0 or^tens != (before / 10).floor() {
-        h.tens := runAt(h.dir, TIMER_NUMBER_0 + tens, TIMER_X - half, TIMER_Y)
-    }
-    if^before < 0 or^ones != before % 10 {
-        h.ones := runAt(h.dir, TIMER_NUMBER_0 + ones, TIMER_X + half, TIMER_Y)
-    }
-}
-
-public^let^step = p^h:Hud, p1:Fighter, p2:Fighter, seconds:number^{
-    stepTimer(h, seconds)
-    let^n1 = stocks(p1)
-    if^n1 != h.shown1 {
-        h.shown1 := n1
-        h.stock1 := runAt(h.dir, STOCK_NUMBER_0 + n1, STOCK_1P_X, STOCK_Y)
-    }
-    let^n2 = stocks(p2)
-    if^n2 != h.shown2 {
-        h.shown2 := n2
-        h.stock2 := runAt(h.dir, STOCK_NUMBER_0 + n2, STOCK_2P_X, STOCK_Y)
-    }
-    for^l in^each(h) { l.step() }
-}
-
 # A layout layer's image at its script position (top-left), as it is.
-public^let^drawWhole = p^l:Fighter{
+public^let^drawWhole = p^l:Fighter {
     if^!l.alive { return^}             # ended with E
     let^w, h = l.sheet.size(l.image)
     if^w = 0 { return^}
@@ -176,16 +183,4 @@ let^drawGauge = p^l:Fighter|nil^, fraction:number^, fromEnd:bool^{
 let^stockFraction = f^p:Fighter-> number^{
     if^p.special >= p.specialPer * p.stockMax: 1
     el^:(p.special % p.specialPer) / p.specialPer;
-}
-
-# Draws the HUD in view coordinates (call it with the view's transform).
-public^let^draw = p^h:Hud, p1:Fighter, p2:Fighter{
-    for^l in^h.layers { drawWhole(l) }
-    drawGauge(h.life1, p1.life / p1.lifeMax, true^)
-    drawGauge(h.life2, p2.life / p2.lifeMax, true^)
-    drawGauge(h.special1, stockFraction(p1), false^)
-    drawGauge(h.special2, stockFraction(p2), false^)
-    for^l in^{ h.stock1, h.stock2, h.tens, h.ones } {
-        if^l fits^Fighter { drawWhole(l) }
-    }
 }

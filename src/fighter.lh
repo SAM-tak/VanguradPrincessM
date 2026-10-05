@@ -143,7 +143,7 @@ public^let^Fighter = def^{
 
     # Replaces the running skill, as the engine does when it picks one: attack
     # boxes, event handlers and task variables go, and on the ground so does motion.
-    play = p^self^, name:string^, co:Skill{
+    play = p^self^, name:string^, co:Skill {
         self^.skillName := name
         self^.skillNo := -1
         self^.skill := co
@@ -157,7 +157,7 @@ public^let^Fighter = def^{
         self^.onGuard := { 0, 0, 0 }
         self^.hitConfirmed := false^
         self^.cancelByHit := false^
-        for^n from^0 to^16 { self^.vars[n] := nil^ }
+        for^n from^0 to^16 { self^.vars[n] := nil^}
         self^.waitTimer := 0
         if^!self^.airborne() {
             self^.vx := 0
@@ -325,6 +325,586 @@ public^let^Fighter = def^{
         }
         love.graphics.setColor(1, 1, 1, 1)
     },
+
+    # SG to another skill: the fighter switches once this skill returns.
+    jump = p^self^, n:number^, b:number^{
+        self^.jumpSkill := n
+        self^.jumpBlock := b
+    },
+    # SC / SF: another skill as a subroutine. `await^ call(me, n, b)`.
+    call = p^self^, n:number^, b:number^-> c^{p^-> nil^} {
+        let^proc = self^.skills[n]
+        if^proc != nil^ { return^proc(self^, b) }
+        return^nothing(self^, b)
+    },
+    # Guards a loop that might go round without showing an image: after enough
+    # rounds in one frame it waits for the next (FM2K would hang).
+    spin = p^self^-> bool^{
+        self^.spins += 1
+        return^self^.spins > 300          # FM2K's own per-frame limit
+    },
+    # Settings: the skill's priority level (what C blocks cancel against).
+    settings = p^self^, level:number^{
+        self^.level := level
+    },
+    # DS: while this skill runs, jump to (n, b) when `event` happens.
+    # Events: landing, attacking, defending, wallHitting, offsetWay, whileThrowDo.
+    on = p^self^, event:string^, n:number^, b:number^{
+        self^.onSkill[event] := n
+        self^.onBlock[event] := b
+    },
+    addCommand = p^self^, name:string^, time:number^, air:number^, stand:number^, far:number^, crouch:number^, dirs:t^{number^[]}, buttons:t^{number^[]}, modes:t^{number^[]}, amounts:t^{number^[]}{
+        let^c = Command.new()
+        c.name := name
+        c.time := time
+        c.air := air
+        c.stand := stand
+        c.far := far
+        c.crouch := crouch
+        c.dirs := dirs
+        c.buttons := buttons
+        c.modes := modes
+        c.amounts := amounts
+        self^.commands.push^(c)
+    },
+    skillLevel = p^self^, n:number^-> number^{
+        return^self^.levels[n] ?? 0
+    },
+    # Remembers this frame's input: a numpad direction relative to the way the
+    # fighter faces (6 = forward) and the buttons newly pressed.
+    record = p^self^, dir:number^, pressed:number^{
+        self^.inputFrame += 1
+        let^slot = self^.inputFrame % HISTORY
+        self^.inDirs[slot] := dir
+        self^.inPress[slot] := pressed
+    },
+    # The steps were entered in order within `time` frames, the last one this frame.
+    # A rotation step (mode 3) is met by the stick going round `amount` times.
+    entered = p^self^, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}, modes:t^{number^[]}, amounts:t^{number^[]}-> bool^{
+        var^step = dirs.length^ - 1
+        if^step < 0 { return^false^ }
+        let^limit = std.math.min(std.math.max(time, 1), HISTORY)
+        var^age = 0
+        repeat^while^step >= 0 and^age < limit and^self^.inputFrame - age >= 1 {
+            let^slot = (self^.inputFrame - age) % HISTORY
+            let^d = self^.inDirs[slot] ?? 5
+            let^p = self^.inPress[slot] ?? 0
+            if^(modes[step] ?? 0) = 3 {
+                # going back through the frames, collect the sides the stick visited
+                turnSeen := addSides(turnSeen, sideOf(d))
+                if^turnSeen = 15 {
+                    turnRounds += 1
+                    turnSeen := 0
+                    if^turnRounds >= std.math.max(amounts[step] ?? 1, 1) {
+                        turnRounds := 0
+                        step -= 1
+                    }
+                }
+            elseif^dirFits(dirs[step] ?? 0, d) and^hasButtons(p, buttons[step] ?? 0):
+                step -= 1
+            elseif^age = 0:
+                return^false^
+            }
+            age += 1
+        }
+        turnSeen := 0
+        turnRounds := 0
+        return^step < 0
+    },
+    # COM inside a skill.
+    command = p^self^, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}-> bool^{
+        # Support HUD objects evaluate the owning player's command history.
+        let^owner = self^.owner
+        let^button = buttons[0] ?? 0
+        if^owner != nil^ and^dirs.length^ = 1 and^buttons.length^ = 1 and^button > 0 {
+            # HUD animation waits between polls. Retain the newest matching press
+            # within COM's window, then consume it once (never repeat a held press).
+            var^frame = owner.inputFrame
+            let^oldest = std.math.max(self^.commandFrame + 1, owner.inputFrame - std.math.min(std.math.max(time, 1), HISTORY) + 1)
+            repeat^while^frame >= oldest and^frame >= 1 {
+                let^slot = frame % HISTORY
+                if^hasButtons(owner.inPress[slot] ?? 0, button) {
+                    if^!dirFits(dirs[0] ?? 0, owner.inDirs[slot] ?? 5) { return^false^ }
+                    self^.commandFrame := frame
+                    return^true^
+                }
+                frame -= 1
+            }
+            return^false^
+        }
+        return^(owner ?? self^).entered(time, dirs, buttons, {}, {})
+    },
+    # The skill the command table gives for this frame's input, or 0.
+    fromCommands = p^self^, crouching:bool^-> number^{
+        for^c in^self^.commands {
+            if^self^.entered(c.time, c.dirs, c.buttons, c.modes, c.amounts) {
+                let^n = if^self^.airborne(): c.air el^crouching: c.crouch el^: c.stand;
+                if^n > 0 { return^n }
+            }
+        }
+        return^0
+    },
+    # Whether skill n may start now (the FM2002 compendium's reading of C):
+    #   - the running skill is level 0 (a basic move), or
+    #   - the last C block allows it: "uncond" any time, "hits" once an attack has
+    #     connected; into skill `cancelSkill`, or any skill of level from..to.
+    #     "fails" means not cancellable at all.
+    #   - an FA with the "cancel" flag connected, and n is of a higher level.
+    #     (Assumption: which skills an FA cancel allows is not documented.)
+    mayStart = p^self^, n:number^-> bool^{
+        let^current = self^.skillLevel(self^.skillNo)
+        if^current = 0 { return^true^ }
+        if^self^.cancelByHit and^self^.skillLevel(n) > current { return^true^ }
+        let^when = self^.cancelWhen
+        let^met = when = "uncond" or^(when = "hits" and^self^.hitConfirmed)
+        if^!met { return^false^ }
+        if^self^.cancelSkill >= 0 { return^n = self^.cancelSkill }
+        if^self^.cancelFrom = 0 and^self^.cancelTo = 0 { return^false^ }
+        let^lv = self^.skillLevel(n)
+        return^lv >= self^.cancelFrom and^lv <= self^.cancelTo
+    },
+    # An attack box of this fighter's connected.
+    landed = p^self^, box:Box{
+        if^box.flags.find("cancel") != nil^ { self^.cancelByHit := true^ }
+        if^!self^.hitConfirmed {
+            self^.hitConfirmed := true^
+            self^.fire("attacking")
+        }
+    },
+    # One row of the .player's hit-junction table.
+    reactsWith = p^self^, reaction:number^, hit:number^, spark:number^{
+        self^.reactHit[reaction] := hit
+        self^.reactSpark[reaction] := spark
+    },
+    # 0 standing, 1 crouching, 2 in the air.
+    posture = p^self^, crouched:bool^-> number^{
+        if^self^.airborne() { return^2 }
+        return^if^crouched: 1 el^: 0;
+    },
+    # `atk`'s attack box `box` has reached `def`. `crouched` says whether the
+    # defender is in a crouching skill. The defender goes to the hit (or guard)
+    # skill its own table gives for the reaction the attacker's R block names,
+    # facing the attacker; a hit takes power x damage rate / 100 off its life.
+    # Both freeze for the attacker's PS hitstop. Answers whether it was guarded,
+    # and the spark skill for the reaction (0: none): the ATTACKER's table gives
+    # it, and it runs as the attacker's (measured in the original: ゆい's jump C
+    # on はるか, reaction 20, spawned ゆい's #317 -- はるか's table names 315;
+    # TechnicalDocuments/0008).
+    #
+    # R's guard slot is what a guarding defender gets. Where it is the same as the
+    # hit slot, the attack cannot be guarded in that posture: a low kick has the
+    # hit reaction in its standing-guard slot, an air attack in its crouching one.
+    struck = p^self^, box:Box, def:Fighter, rate:number^, crouched:bool^-> bool^, number^{
+        let^pose = def.posture(crouched)
+        let^onHit = self^.onHit[pose] ?? 0
+        let^onGuard = self^.onGuard[pose] ?? 0
+        let^guardable = box.flags.find("guardFail") is^nil^ and^onGuard > 0 and^onGuard != onHit
+        let^guarded = def.guarding and^guardable
+        let^reaction = if^guarded: onGuard el^: onHit;
+        let^skill = def.reactHit[reaction] ?? 0
+        def.facing := if^self^.x < def.x: -1 el^: 1;
+        if^skill > 0 { def.begin(skill) }
+        if^!guarded {
+            def.life := std.math.max(def.life - box.power * rate / 100, 0)
+        }
+        self^.hits := {}                 # one box connects once
+        if^guarded {
+            self^.fire("defending")
+        else^:
+            self^.landed(box)
+        }
+        let^source = self^.owner ?? self^
+        return^guarded, source.reactSpark[reaction] ?? 0
+    },
+    # DS with no skill: stop handling `event`.
+    off = p^self^, event:string^{
+        self^.onSkill[event] := nil^
+        self^.onBlock[event] := nil^
+    },
+    home = f^self^, n:number^-> t^{[number^]:number^|nil^} {
+        if^n <= 16 { return^self^.vars }
+        if^n >= 128 and^n < 192 { return^systemVars }
+        return^(self^.owner ?? self^).vars
+    },
+    # Data variables (read only): 192 / 193 own x / y, 194 / 195 the map (camera)
+    # position, 196 / 197 the parent's (spawner's) x / y, 198 the round time in
+    # seconds, 199 the round number.
+    v = f^self^, n:number^-> number^{
+        for^n:
+        when^192: self^.x
+        when^193: self^.y
+        when^194: viewX
+        when^195: viewY
+        when^196: (self^.parent ?? self^).x
+        when^197: (self^.parent ?? self^).y
+        when^198: (std.math.max(roundFrames - 1, 0) / 100).floor() # a frame behind the display
+        when^199: roundNumber
+        other^:self^.home(n)[n] ?? 0
+        ;
+    },
+    setv = p^self^, n:number^, value:number^{
+        let^t = self^.home(n)
+        t[n] := value
+    },
+    addv = p^self^, n:number^, value:number^{
+        let^t = self^.home(n)
+        t[n] := (t[n] ?? 0) + value
+    },
+    # Rnd: a roll of 0..total-1 above `above`.
+    chance = p^self^, total:number^, above:number^-> bool^{
+        return^love.math.random(0, total - 1) > above
+    },
+    # The character a skill belongs to (an object's gauges are its owner's).
+    charOf = f^self^-> Fighter { self^.owner ?? self^ },
+    # GL / GS are forks: when the condition holds the skill goes on, otherwise it
+    # goes to the block's skill ("if it failed"). The generated code jumps when
+    # these answer true, so they answer whether the condition FAILED.
+    #
+    # GL: life above `amount` (isMore), or below it. (The compendium's wording is
+    # ambiguous; this reading makes "GL more 0" the usual "still alive" check.)
+    lifeGauge = f^self^, isMore:bool^, amount:number^-> bool^{
+        let^life = self^.charOf().life
+        let^met = if^isMore: life > amount el^: life < amount;
+        return^!met
+    },
+    # GS: the special gauge's level (whole stocks, 0-9) at least `level` (isMore),
+    # or below it; when it holds, `amount` stocks are added (negative: spent).
+    specialGauge = p^self^, level:number^, isMore:bool^, amount:number^-> bool^{
+        let^b = self^.charOf()
+        let^stocks = (b.special / b.specialPer).floor()
+        # "more" is strictly more: this game starts everyone at 4 stocks (shown as
+        # 0) and its supers check "more than 4" (shown as 1 or more).
+        let^met = if^isMore: stocks > level el^: stocks < level;
+        if^met and^amount != 0 {
+            b.special := (b.special + amount * b.specialPer).clamp(0, b.specialPer * b.stockMax)
+        }
+        return^!met
+    },
+    # Holds an I block's image for `wait`, as FM2K's timer does: the block ADDS
+    # 100 per wait unit to the timer (0 sets it to -1 and does not hold), and each
+    # frame the timer loses 100 and the script moves on once it is below zero. The
+    # timer keeps what the last image left (-100, or -1 after a wait of 0), so the
+    # first image of a skill the engine starts holds N + 1 frames and the ones
+    # after it N (measured: #21's 9-frame walk).
+    hold = p^self^, wait:number^{
+        if^wait = 0 {
+            self^.waitTimer := -1
+            return^
+        }
+        self^.waitTimer += 100 * wait
+        repeat^while^true^ {
+            yield^
+            if^self^.waitTimer < 0 { return^}
+            self^.waitTimer -= 100
+            if^self^.waitTimer < 0 { return^}
+        }
+    },
+    # I — show image i, its bottom-centre at (x, y) from the feet.
+    show = p^self^, i:number^, wait:number^, x:number^, y:number^{
+        self^.image := i
+        self^.ix := x
+        self^.iy := y
+        self^.turnX := false^
+        self^.turnY := false^
+        self^.fixed := false^
+        await^self^.hold(wait)
+    },
+    # I with its flags: "turnX" / "turnY" mirror the image, "ignoreDirection"
+    # draws it the same way whichever way the fighter faces.
+    showEx = p^self^, i:number^, wait:number^, x:number^, y:number^, flags:string^{
+        self^.image := i
+        self^.ix := x
+        self^.iy := y
+        self^.turnX := flags.find("turnX") != nil^
+        self^.turnY := flags.find("turnY") != nil^
+        self^.fixed := flags.find("ignoreDirection") != nil^
+        await^self^.hold(wait)
+    },
+    # FD — a hurt box. `body` marks the push box (FM2K's "collide").
+    hurt = p^self^, slot:number^, x:number^, y:number^, w:number^, h:number^{
+        self^.hurts[slot] := Box.new(x, y, w, h)
+    },
+    body = p^self^, slot:number^, x:number^, y:number^, w:number^, h:number^{
+        let^b = Box.new(x, y, w, h)
+        b.body := true^
+        self^.hurts[slot] := b
+    },
+    # FD with its flags spelled out ("damaged collide throw") and damage rate.
+    fd = p^self^, slot:number^, x:number^, y:number^, w:number^, h:number^, flags:string^, rate:number^{
+        let^b = Box.new(x, y, w, h)
+        b.body := flags.find("collide") != nil^
+        b.flags := flags
+        b.rate := rate
+        self^.hurts[slot] := b
+    },
+    noHurt = p^self^, slot:number^{
+        self^.hurts[slot] := nil^
+    },
+    # FA — an attack box with its damage.
+    hit = p^self^, slot:number^, x:number^, y:number^, w:number^, h:number^, power:number^{
+        let^b = Box.new(x, y, w, h)
+        b.power := power
+        self^.hits[slot] := b
+    },
+    # FA with its flags ("cancel combo guardFail ...").
+    fa = p^self^, slot:number^, x:number^, y:number^, w:number^, h:number^, power:number^, flags:string^{
+        let^b = Box.new(x, y, w, h)
+        b.power := power
+        b.flags := flags
+        self^.hits[slot] := b
+    },
+    noHit = p^self^, slot:number^{
+        self^.hits[slot] := nil^
+    },
+    # M in full. Flags: "add" adds to the current values; "keepVX" / "keepVY" /
+    # "keepAX" / "keepAY" leave that one as it is.
+    motion = p^self^, vx:number^, vy:number^, ax:number^, ay:number^, flags:string^{
+        let^add = flags.find("add") != nil^
+        let^dvx = vx * SPEED * self^.facing
+        let^dvy = vy * SPEED
+        let^dax = ax * GRAVITY * self^.facing
+        let^day = ay * GRAVITY
+        if^flags.find("keepVX") is^nil^{ self^.vx := if^add: self^.vx + dvx el^: dvx; }
+        if^flags.find("keepVY") is^nil^{ self^.vy := if^add: self^.vy + dvy el^: dvy; }
+        if^flags.find("keepAX") is^nil^{ self^.ax := if^add: self^.ax + dax el^: dax; }
+        if^flags.find("keepAY") is^nil^{ self^.ay := if^add: self^.ay + day el^: day; }
+    },
+    # M — horizontal speed and gravity only (the hand-written sample's form).
+    move = p^self^, vx:number^, ax:number^{
+        self^.motion(vx, 0, ax, 0, "keepVY keepAY")
+    },
+    # S — a sound by its FM2K number.
+    sound = p^self^, n:number^{
+        if^(self^.owner ?? self^).mutedSounds[n] = true^ { return^ }
+        if^logSounds {
+            let^who = if^self^.owner?: "object" el^: "fighter";
+            print($"sound {n} by {who} {self^.skillName}")
+        }
+        # A character and its objects share its sounds; a new scene (vp.arena)
+        # disposed the last one's.
+        let^holder = self^.owner ?? self^
+        if^holder.soundsGen != vp.arena.generation() {
+            holder.sounds := {}
+            holder.soundsGen := vp.arena.generation()
+        }
+        var^src = holder.sounds[n]
+        if^src is^nil^{
+            # A looping sound (the music) is long: streamed, looped over the whole
+            # file (the tracks have no loop points and end in a fade).
+            let^e = soundEntry(self^.dir, n)
+            let^loop = e fits^t^{ endlessLoop : bool^ } and^e.endlessLoop
+            let^path = vp.sprite.assetPath(self^.dir, e) ?? $"{self^.soundDir}/{n:%04d}.wav"
+            let^loaded = vp.arena.sound(path, loop)
+            holder.sounds[n] := loaded
+            src := loaded
+        }
+        if^src fits^love.audio.Source {
+            src.stop()
+            src.play()
+        }
+    },
+    # ---------------------------------------------------------------------------
+    # Shared definitions have their own sound numbering. The arena caches by path,
+    # so these sources never collide with the owner's numeric sound cache.
+    soundFrom = p^self^, dir:string^, n:number^{
+        let^e = soundEntry(dir, n)
+        let^path = vp.sprite.assetPath(dir, e)
+        if^path is^nil^ { return^ }
+        let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
+        let^src = vp.arena.sound(path, loop)
+        if^src fits^love.audio.Source { src.stop() src.play() }
+    },
+    # A new object of `me`'s character running skill n from block b, at (x, y) in
+    # the world. It shares the character's skills, images and sounds, faces the
+    # way `me` faces, and is drawn at `depth`.
+    makeObject = p^self^, n:number^, b:number^, x:number^, y:number^, depth:number^-> Fighter{
+        let^root = self^.owner ?? self^
+        let^o = newObjectFighter(root.dir, x, y)
+        o.owner := root
+        o.commandFrame := std.math.max(0, root.inputFrame - 1)
+        o.parent := self^
+        o.sheet := root.sheet
+        o.sounds := root.sounds
+        o.skills := root.skills
+        o.levels := root.levels
+        o.palette := root.palette
+        o.facing := self^.facing
+        o.ground := root.ground        # objects stand on the same floor (FM2K keeps a ground Y per object)
+        o.depth := depth
+        o.system := root.system
+        o.lastOwnerX := self^.x
+        o.lastOwnerY := self^.y
+        o.start(n, b)
+        root.objects.push^(o)
+        return^o
+    },
+    # O — an object running skill (n, b), placed (x, y) from `me` (mirrored with
+    # its facing), or at (x, y) of the view with "picXY". Flags: "out" in front of
+    # the characters (127), "point" at `depth` (characters are 70-80), neither
+    # just behind its spawner (its depth - 1: measured in the original, a select
+    # screen face at 80 spawns its big face at 79; "ROUND 1"'s shadow goes behind
+    # its letters so);
+    # "parent" moves it with its owner; without "unCond", managed number `slot`
+    # (0-9) replaces the object already there. The "it's out" skill is not used yet.
+    #
+    # The system file's objects (the round, the HUD) are placed at (x, y) of the
+    # view whatever the flags.
+    spawn = p^self^, n:number^, b:number^, x:number^, y:number^, slot:number^, depth:number^, outSkill:number^, outBlock:number^, flags:string^{
+        if^n <= 0 { return^}
+        let^root = self^.owner ?? self^
+        # "picXY" objects, and whatever they spawn, live in view coordinates.
+        let^atView = flags.find("picXY") != nil^ or^root.system
+        let^wx = if^atView: x el^: self^.x + x * self^.facing;
+        let^wy = if^atView: y el^: self^.y + y;
+        let^below = std.math.max(self^.depth - 1, 0)
+        let^d = if^flags.find("out") != nil^: 127 el^flags.find("point") != nil^: depth el^: below;
+        # FM2K keeps managed numbers for a character and its objects only.
+        let^managed = !root.system and^flags.find("unCond") is^nil^ and^slot >= 0 and^slot < 10
+        if^managed {
+            let^old = root.slots[slot]
+            if^old fits^Fighter { old.alive := false^ }
+        }
+        let^o = self^.makeObject(n, b, wx, wy, d)
+        o.follow := flags.find("parent") != nil^
+        o.onScreen := atView or^self^.onScreen
+        if^managed { root.slots[slot] := o }
+    },
+    # The character's shadow: its built-in shadow skill run as an object that
+    # stays at the character's x on the floor (FM2K runs it by itself).
+    castShadow = p^self^, n:number^{
+        let^o = self^.makeObject(n, 0, self^.x, self^.ground, 10)
+        o.shadowOf := true^
+    },
+    # One frame of a character's objects; finished ones are dropped.
+    # A "parent" object moves with whatever spawned it (FM2K's child attach).
+    stepObjects = p^self^{
+        var^live : t^{Fighter[]} = {}
+        for^o in^self^.objects {
+            let^par = o.parent ?? self^
+            if^o.shadowOf {
+                o.x := self^.x
+                o.y := self^.ground
+                o.facing := self^.facing
+            elseif^o.follow:
+                o.x += par.x - o.lastOwnerX
+                o.y += par.y - o.lastOwnerY
+            }
+            o.lastOwnerX := par.x
+            o.lastOwnerY := par.y
+            o.step()
+            if^o.alive and^!o.finished() { live.push^(o) }
+        }
+        self^.objects := live
+    },
+    # Draws a character's objects in the world behind (front = false) or in
+    # front of the characters. "picXY" objects in front are left to
+    # drawScreenObjects; those behind (a super's backdrop, depth 68) stay here.
+    drawObjects = p^self^, front:bool^{
+        for^o in^self^.objects {
+            let^inFront = o.depth > 80
+            if^inFront = front and^!(o.onScreen and^inFront) { o.draw() }
+        }
+    },
+    # Draws a character's "picXY" objects in front of the characters (its part
+    # of the HUD, a super's cut-in) over everything, stage foreground included.
+    # Call it in view coordinates.
+    drawScreenObjects = p^self^{
+        let^x, y = viewX, viewY
+        setView(0, 0)
+        for^o in^self^.objects {
+            if^o.onScreen and^o.depth > 80 { o.draw() }
+        }
+        setView(x, y)
+    },
+    # C — cancel window: into skill `n` (or any skill of level from..to) on "hits" / "uncond" / "fails".
+    # The last one run is the one in force.
+    cancel = p^self^, when:string^, from:number^, to:number^, n:number^{
+        self^.cancelWhen := when
+        self^.cancelFrom := from
+        self^.cancelTo := to
+        self^.cancelSkill := n
+    },
+    # R — the reaction numbers (the game's shared hit-junction list) this skill's
+    # attack gives the opponent, by the opponent's posture, on a hit and on a guard.
+    # 0: none (a guard of 0 cannot be guarded).
+    reactions = p^self^, hitStand:number^, hitCrouch:number^, hitAir:number^, guardStand:number^, guardCrouch:number^, guardAir:number^{
+        self^.onHit := { hitStand, hitCrouch, hitAir }
+        self^.onGuard := { guardStand, guardCrouch, guardAir }
+    },
+    # PS — stops this character for `mine` frames and the opponent for `theirs`,
+    # there and then (wanwan's decompile of FM2K's [PS]). Hitstop comes from the
+    # hit reactions' own PS (#135 "hit super": 0 for itself, 16 for the attacker,
+    # who stands while it is thrown up), a super's pause from its start (#292:
+    # the opponent 110). An object's PS does nothing.
+    pause = p^self^, mine:number^, theirs:number^{
+        if^self^.owner != nil^ { return^}
+        self^.stop := mine
+        let^e = self^.enemy
+        if^e != nil^ { e.stop := theirs }
+    },
+    # GP — add to this character's and the opponent's life and special gauge
+    # (special in points; a stock is `specialPer` of them).
+    addGauges = p^self^, life:number^, special:number^{
+        self^.life := (self^.life + life).clamp(0, self^.lifeMax)
+        self^.special := (self^.special + special).clamp(0, self^.specialPer * self^.stockMax)
+    },
+    gauges = p^self^, life:number^, special:number^, enemyLife:number^, enemySpecial:number^{
+        let^b = self^.charOf()
+        b.addGauges(life, special)
+        let^e = b.enemy
+        if^e != nil^ { e.addGauges(enemyLife, enemySpecial) }
+    },
+    # EB — screen / background effect.
+    screen = p^self^, fading:number^, r:number^, g:number^, b:number^, a:number^, duration:number^, flags:string^{
+    },
+    # AI — afterimages.
+    afterimage = p^self^, count:number^, time:number^, option:number^, fading:number^, r:number^, g:number^, b:number^, a:number^{
+    },
+    # COLOR — how this is blended: 0 normal, 1 half transparent, 2 additive,
+    # 3 subtractive, 4 alpha (32 - a) / 32; r g b are added to the colour.
+    color = p^self^, option:number^, r:number^, g:number^, b:number^, a:number^{
+        self^.blend := option
+        self^.alpha := if^option = 1: 0.5 el^option = 4: std.math.max(32 - a, 0) / 32 el^: 1;
+        self^.tintR := tintOf(r)
+        self^.tintG := tintOf(g)
+        self^.tintB := tintOf(b)
+    },
+    # A stage layer's settings: how far it scrolls with the camera, in percent
+    # ("scrollX" / "scrollY" on, else it stays put on screen), and whether its
+    # image repeats ("loopX" / "loopY").
+    layer = p^self^, x:number^, y:number^, flags:string^{
+        self^.scrollX := if^flags.find("scrollX") != nil^: x / 100 el^: 0;
+        self^.scrollY := if^flags.find("scrollY") != nil^: y / 100 el^: 0;
+        self^.loopX := flags.find("loopX") != nil^
+        self^.loopY := flags.find("loopY") != nil^
+    },
+    # E in a stage layer: the layer is gone (one that runs past its last block
+    # keeps showing its last image instead).
+    vanish = p^self^{
+        self^.alive := false^
+    },
+    # RC — overlay a common image.
+    commonImage = p^self^, n:number^, x:number^, y:number^, flags:string^{
+    },
+    # RP — hit junction: puts the opponent into its own skill for reaction n
+    # (its hit-junction table), standing at (x, y) from `me` (x mirrored by me's
+    # facing) and facing me ("turnX": the other way). How throws work: the
+    # throw's #250 sends the opponent to "throw start" (#71) in front of the
+    # thrower, then to the throw's own reaction. "in" / "out" is not whom it acts
+    # on (リリス's throw has "in" and throws the opponent): probably whether the
+    # opponent is drawn behind or in front of the thrower (not done yet).
+    hitJunction = p^self^, n:number^, x:number^, y:number^, flags:string^{
+        let^root = self^.charOf()
+        let^who = root.enemy
+        if^who is^nil^ { return^}
+        let^target : Fighter = who
+        let^skill = target.reactHit[n] ?? 0
+        if^skill <= 0 { return^}
+        target.x := self^.x + x * self^.facing
+        target.y := self^.y + y
+        target.facing := if^flags.find("turnX") != nil^: self^.facing el^: -self^.facing;
+        target.begin(skill)
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -333,68 +913,8 @@ public^let^Fighter = def^{
 # A skill that does nothing: what calling a missing skill gives.
 let^nothing = p^me:Fighter, at:number^{ _yield^ }
 
-# SG to another skill: the fighter switches once this skill returns.
-public^let^jump = p^me:Fighter, n:number^, b:number^{
-    me.jumpSkill := n
-    me.jumpBlock := b
-}
-
-# SC / SF: another skill as a subroutine. `await^ call(me, n, b)`.
-public^let^call = p^me:Fighter, n:number^, b:number^-> c^{p^-> nil^}{
-    let^proc = me.skills[n]
-    if^proc != nil^ { return^proc(me, b) }
-    return^nothing(me, b)
-}
-
-# Guards a loop that might go round without showing an image: after enough
-# rounds in one frame it waits for the next (FM2K would hang).
-public^let^spin = p^me:Fighter-> bool^{
-    me.spins += 1
-    return^me.spins > 300          # FM2K's own per-frame limit
-}
-
-# Settings: the skill's priority level (what C blocks cancel against).
-public^let^settings = p^me:Fighter, level:number^{
-    me.level := level
-}
-
-# DS: while this skill runs, jump to (n, b) when `event` happens.
-# Events: landing, attacking, defending, wallHitting, offsetWay, whileThrowDo.
-public^let^on = p^me:Fighter, event:string^, n:number^, b:number^{
-    me.onSkill[event] := n
-    me.onBlock[event] := b
-}
-
 # ---------------------------------------------------------------------------
 # Commands and cancels
-
-public^let^addCommand = p^me:Fighter, name:string^, time:number^, air:number^, stand:number^, far:number^, crouch:number^, dirs:t^{number^[]}, buttons:t^{number^[]}, modes:t^{number^[]}, amounts:t^{number^[]}{
-    let^c = Command.new()
-    c.name := name
-    c.time := time
-    c.air := air
-    c.stand := stand
-    c.far := far
-    c.crouch := crouch
-    c.dirs := dirs
-    c.buttons := buttons
-    c.modes := modes
-    c.amounts := amounts
-    me.commands.push^(c)
-}
-
-public^let^level = p^me:Fighter, n:number^-> number^{
-    return^me.levels[n] ?? 0
-}
-
-# Remembers this frame's input: a numpad direction relative to the way the
-# fighter faces (6 = forward) and the buttons newly pressed.
-public^let^record = p^me:Fighter, dir:number^, pressed:number^{
-    me.inputFrame += 1
-    let^slot = me.inputFrame % HISTORY
-    me.inDirs[slot] := dir
-    me.inPress[slot] := pressed
-}
 
 # FM2K direction codes: 0 any, 1 neutral, 2-9 the eight directions from
 # forward round, 10-13 a whole side (back / up / forward / down).
@@ -441,163 +961,11 @@ let^addSides = f^seen:number^, sides:number^-> number^{
     return^out
 }
 
-# The steps were entered in order within `time` frames, the last one this frame.
-# A rotation step (mode 3) is met by the stick going round `amount` times.
-public^let^entered = p^me:Fighter, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}, modes:t^{number^[]}, amounts:t^{number^[]}-> bool^{
-    var^step = dirs.length^ - 1
-    if^step < 0 { return^false^ }
-    let^limit = std.math.min(std.math.max(time, 1), HISTORY)
-    var^age = 0
-    repeat^while^step >= 0 and^age < limit and^me.inputFrame - age >= 1 {
-        let^slot = (me.inputFrame - age) % HISTORY
-        let^d = me.inDirs[slot] ?? 5
-        let^p = me.inPress[slot] ?? 0
-        if^(modes[step] ?? 0) = 3 {
-            # going back through the frames, collect the sides the stick visited
-            turnSeen := addSides(turnSeen, sideOf(d))
-            if^turnSeen = 15 {
-                turnRounds += 1
-                turnSeen := 0
-                if^turnRounds >= std.math.max(amounts[step] ?? 1, 1) {
-                    turnRounds := 0
-                    step -= 1
-                }
-            }
-        elseif^dirFits(dirs[step] ?? 0, d) and^hasButtons(p, buttons[step] ?? 0):
-            step -= 1
-        elseif^age = 0:
-            return^false^
-        }
-        age += 1
-    }
-    turnSeen := 0
-    turnRounds := 0
-    return^step < 0
-}
-
 var^turnSeen = 0
 var^turnRounds = 0
 
-# COM inside a skill.
-public^let^command = p^me:Fighter, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}-> bool^{
-    # Support HUD objects evaluate the owning player's command history.
-    let^owner = me.owner
-    let^button = buttons[0] ?? 0
-    if^owner != nil^ and^dirs.length^ = 1 and^buttons.length^ = 1 and^button > 0 {
-        # HUD animation waits between polls. Retain the newest matching press
-        # within COM's window, then consume it once (never repeat a held press).
-        var^frame = owner.inputFrame
-        let^oldest = std.math.max(me.commandFrame + 1, owner.inputFrame - std.math.min(std.math.max(time, 1), HISTORY) + 1)
-        repeat^while^frame >= oldest and^frame >= 1 {
-            let^slot = frame % HISTORY
-            if^hasButtons(owner.inPress[slot] ?? 0, button) {
-                if^!dirFits(dirs[0] ?? 0, owner.inDirs[slot] ?? 5) { return^false^ }
-                me.commandFrame := frame
-                return^true^
-            }
-            frame -= 1
-        }
-        return^false^
-    }
-    return^entered(owner ?? me, time, dirs, buttons, {}, {})
-}
-
-# The skill the command table gives for this frame's input, or 0.
-public^let^fromCommands = p^me:Fighter, crouching:bool^-> number^{
-    for^c in^me.commands {
-        if^entered(me, c.time, c.dirs, c.buttons, c.modes, c.amounts) {
-            let^n = if^me.airborne(): c.air el^crouching: c.crouch el^: c.stand;
-            if^n > 0 { return^n }
-        }
-    }
-    return^0
-}
-
-# Whether skill n may start now (the FM2002 compendium's reading of C):
-#   - the running skill is level 0 (a basic move), or
-#   - the last C block allows it: "uncond" any time, "hits" once an attack has
-#     connected; into skill `cancelSkill`, or any skill of level from..to.
-#     "fails" means not cancellable at all.
-#   - an FA with the "cancel" flag connected, and n is of a higher level.
-#     (Assumption: which skills an FA cancel allows is not documented.)
-public^let^mayStart = p^me:Fighter, n:number^-> bool^{
-    let^current = level(me, me.skillNo)
-    if^current = 0 { return^true^ }
-    if^me.cancelByHit and^level(me, n) > current { return^true^ }
-    let^when = me.cancelWhen
-    let^met = when = "uncond" or^(when = "hits" and^me.hitConfirmed)
-    if^!met { return^false^ }
-    if^me.cancelSkill >= 0 { return^n = me.cancelSkill }
-    if^me.cancelFrom = 0 and^me.cancelTo = 0 { return^false^ }
-    let^lv = level(me, n)
-    return^lv >= me.cancelFrom and^lv <= me.cancelTo
-}
-
-# An attack box of this fighter's connected.
-public^let^landed = p^me:Fighter, box:Box{
-    if^box.flags.find("cancel") != nil^ { me.cancelByHit := true^ }
-    if^!me.hitConfirmed {
-        me.hitConfirmed := true^
-        me.fire("attacking")
-    }
-}
-
 # ---------------------------------------------------------------------------
 # Being hit
-
-# One row of the .player's hit-junction table.
-public^let^reactsWith = p^me:Fighter, reaction:number^, hit:number^, spark:number^{
-    me.reactHit[reaction] := hit
-    me.reactSpark[reaction] := spark
-}
-
-# 0 standing, 1 crouching, 2 in the air.
-public^let^posture = p^me:Fighter, crouched:bool^-> number^{
-    if^me.airborne() { return^2 }
-    return^if^crouched: 1 el^: 0;
-}
-
-# `atk`'s attack box `box` has reached `def`. `crouched` says whether the
-# defender is in a crouching skill. The defender goes to the hit (or guard)
-# skill its own table gives for the reaction the attacker's R block names,
-# facing the attacker; a hit takes power x damage rate / 100 off its life.
-# Both freeze for the attacker's PS hitstop. Answers whether it was guarded,
-# and the spark skill for the reaction (0: none): the ATTACKER's table gives
-# it, and it runs as the attacker's (measured in the original: ゆい's jump C
-# on はるか, reaction 20, spawned ゆい's #317 -- はるか's table names 315;
-# TechnicalDocuments/0008).
-#
-# R's guard slot is what a guarding defender gets. Where it is the same as the
-# hit slot, the attack cannot be guarded in that posture: a low kick has the
-# hit reaction in its standing-guard slot, an air attack in its crouching one.
-public^let^struck = p^atk:Fighter, box:Box, def:Fighter, rate:number^, crouched:bool^-> bool^, number^{
-    let^pose = posture(def, crouched)
-    let^onHit = atk.onHit[pose] ?? 0
-    let^onGuard = atk.onGuard[pose] ?? 0
-    let^guardable = box.flags.find("guardFail") is^nil^ and^onGuard > 0 and^onGuard != onHit
-    let^guarded = def.guarding and^guardable
-    let^reaction = if^guarded: onGuard el^: onHit;
-    let^skill = def.reactHit[reaction] ?? 0
-    def.facing := if^atk.x < def.x: -1 el^: 1;
-    if^skill > 0 { def.begin(skill) }
-    if^!guarded {
-        def.life := std.math.max(def.life - box.power * rate / 100, 0)
-    }
-    atk.hits := {}                 # one box connects once
-    if^guarded {
-        atk.fire("defending")
-    else^:
-        landed(atk, box)
-    }
-    let^source = atk.owner ?? atk
-    return^guarded, source.reactSpark[reaction] ?? 0
-}
-
-# DS with no skill: stop handling `event`.
-public^let^off = p^me:Fighter, event:string^{
-    me.onSkill[event] := nil^
-    me.onBlock[event] := nil^
-}
 
 # ---------------------------------------------------------------------------
 # Variables (V). 0-16 task (this skill), 64-79 character, 128-143 system,
@@ -613,12 +981,6 @@ public^let^clearSystemVars = p^{
     systemVars := {}
 }
 
-let^home = f^me:Fighter, n:number^-> t^{[number^]:number^|nil^}{
-    if^n <= 16 { return^me.vars }
-    if^n >= 128 and^n < 192 { return^systemVars }
-    return^(me.owner ?? me).vars
-}
-
 # The round's clock (frames left; FM2K counts 100 a second) and number (1-).
 var^roundFrames = 0
 var^roundNumber = 1
@@ -628,155 +990,8 @@ public^let^setRound = p^frames:number^, number:number^{
     roundNumber := number
 }
 
-# Data variables (read only): 192 / 193 own x / y, 194 / 195 the map (camera)
-# position, 196 / 197 the parent's (spawner's) x / y, 198 the round time in
-# seconds, 199 the round number.
-public^let^v = f^me:Fighter, n:number^-> number^{
-    for^n:
-    when^192: me.x
-    when^193: me.y
-    when^194: viewX
-    when^195: viewY
-    when^196: (me.parent ?? me).x
-    when^197: (me.parent ?? me).y
-    when^198: (std.math.max(roundFrames - 1, 0) / 100).floor() # a frame behind the display
-    when^199: roundNumber
-    other^:home(me, n)[n] ?? 0
-    ;
-}
-
-public^let^setv = p^me:Fighter, n:number^, value:number^{
-    let^t = home(me, n)
-    t[n] := value
-}
-
-public^let^addv = p^me:Fighter, n:number^, value:number^{
-    let^t = home(me, n)
-    t[n] := (t[n] ?? 0) + value
-}
-
-# Rnd: a roll of 0..total-1 above `above`.
-public^let^chance = p^me:Fighter, total:number^, above:number^-> bool^{
-    return^love.math.random(0, total - 1) > above
-}
-
-# The character a skill belongs to (an object's gauges are its owner's).
-let^charOf = f^me:Fighter-> Fighter { me.owner ?? me }
-
-# GL / GS are forks: when the condition holds the skill goes on, otherwise it
-# goes to the block's skill ("if it failed"). The generated code jumps when
-# these answer true, so they answer whether the condition FAILED.
-#
-# GL: life above `amount` (isMore), or below it. (The compendium's wording is
-# ambiguous; this reading makes "GL more 0" the usual "still alive" check.)
-public^let^lifeGauge = f^me:Fighter, isMore:bool^, amount:number^-> bool^{
-    let^life = charOf(me).life
-    let^met = if^isMore: life > amount el^: life < amount;
-    return^!met
-}
-
-# GS: the special gauge's level (whole stocks, 0-9) at least `level` (isMore),
-# or below it; when it holds, `amount` stocks are added (negative: spent).
-public^let^specialGauge = p^me:Fighter, level:number^, isMore:bool^, amount:number^-> bool^{
-    let^b = charOf(me)
-    let^stocks = (b.special / b.specialPer).floor()
-    # "more" is strictly more: this game starts everyone at 4 stocks (shown as
-    # 0) and its supers check "more than 4" (shown as 1 or more).
-    let^met = if^isMore: stocks > level el^: stocks < level;
-    if^met and^amount != 0 {
-        b.special := (b.special + amount * b.specialPer).clamp(0, b.specialPer * b.stockMax)
-    }
-    return^!met
-}
-
 # ---------------------------------------------------------------------------
 # Image, boxes, motion, sound
-
-# Holds an I block's image for `wait`, as FM2K's timer does: the block ADDS
-# 100 per wait unit to the timer (0 sets it to -1 and does not hold), and each
-# frame the timer loses 100 and the script moves on once it is below zero. The
-# timer keeps what the last image left (-100, or -1 after a wait of 0), so the
-# first image of a skill the engine starts holds N + 1 frames and the ones
-# after it N (measured: #21's 9-frame walk).
-let^hold = p^me:Fighter, wait:number^{
-    if^wait = 0 {
-        me.waitTimer := -1
-        return^
-    }
-    me.waitTimer += 100 * wait
-    repeat^while^true^ {
-        yield^
-        if^me.waitTimer < 0 { return^}
-        me.waitTimer -= 100
-        if^me.waitTimer < 0 { return^}
-    }
-}
-
-# I — show image i, its bottom-centre at (x, y) from the feet.
-public^let^show = p^me:Fighter, i:number^, wait:number^, x:number^, y:number^{
-    me.image := i
-    me.ix := x
-    me.iy := y
-    me.turnX := false^
-    me.turnY := false^
-    me.fixed := false^
-    await^hold(me, wait)
-}
-
-# I with its flags: "turnX" / "turnY" mirror the image, "ignoreDirection"
-# draws it the same way whichever way the fighter faces.
-public^let^showEx = p^me:Fighter, i:number^, wait:number^, x:number^, y:number^, flags:string^{
-    me.image := i
-    me.ix := x
-    me.iy := y
-    me.turnX := flags.find("turnX") != nil^
-    me.turnY := flags.find("turnY") != nil^
-    me.fixed := flags.find("ignoreDirection") != nil^
-    await^hold(me, wait)
-}
-
-# FD — a hurt box. `body` marks the push box (FM2K's "collide").
-public^let^hurt = p^me:Fighter, slot:number^, x:number^, y:number^, w:number^, h:number^{
-    me.hurts[slot] := Box.new(x, y, w, h)
-}
-
-public^let^body = p^me:Fighter, slot:number^, x:number^, y:number^, w:number^, h:number^{
-    let^b = Box.new(x, y, w, h)
-    b.body := true^
-    me.hurts[slot] := b
-}
-
-# FD with its flags spelled out ("damaged collide throw") and damage rate.
-public^let^fd = p^me:Fighter, slot:number^, x:number^, y:number^, w:number^, h:number^, flags:string^, rate:number^{
-    let^b = Box.new(x, y, w, h)
-    b.body := flags.find("collide") != nil^
-    b.flags := flags
-    b.rate := rate
-    me.hurts[slot] := b
-}
-
-public^let^noHurt = p^me:Fighter, slot:number^{
-    me.hurts[slot] := nil^
-}
-
-# FA — an attack box with its damage.
-public^let^hit = p^me:Fighter, slot:number^, x:number^, y:number^, w:number^, h:number^, power:number^{
-    let^b = Box.new(x, y, w, h)
-    b.power := power
-    me.hits[slot] := b
-}
-
-# FA with its flags ("cancel combo guardFail ...").
-public^let^fa = p^me:Fighter, slot:number^, x:number^, y:number^, w:number^, h:number^, power:number^, flags:string^{
-    let^b = Box.new(x, y, w, h)
-    b.power := power
-    b.flags := flags
-    me.hits[slot] := b
-}
-
-public^let^noHit = p^me:Fighter, slot:number^{
-    me.hits[slot] := nil^
-}
 
 # FM2K's scales at the default game speed (16.16 fixed point): speeds are
 # value * 655 / 65536 px per frame (about 1/100), gravities value * 393 / 65536
@@ -784,25 +999,6 @@ public^let^noHit = p^me:Fighter, slot:number^{
 # and turned into the world direction here, when the M block runs.
 let^SPEED = 655 / 65536
 let^GRAVITY = 393 / 65536
-
-# M in full. Flags: "add" adds to the current values; "keepVX" / "keepVY" /
-# "keepAX" / "keepAY" leave that one as it is.
-public^let^motion = p^me:Fighter, vx:number^, vy:number^, ax:number^, ay:number^, flags:string^{
-    let^add = flags.find("add") != nil^
-    let^dvx = vx * SPEED * me.facing
-    let^dvy = vy * SPEED
-    let^dax = ax * GRAVITY * me.facing
-    let^day = ay * GRAVITY
-    if^flags.find("keepVX") is^nil^{ me.vx := if^add: me.vx + dvx el^: dvx; }
-    if^flags.find("keepVY") is^nil^{ me.vy := if^add: me.vy + dvy el^: dvy; }
-    if^flags.find("keepAX") is^nil^{ me.ax := if^add: me.ax + dax el^: dax; }
-    if^flags.find("keepAY") is^nil^{ me.ay := if^add: me.ay + day el^: day; }
-}
-
-# M — horizontal speed and gravity only (the hand-written sample's form).
-public^let^move = p^me:Fighter, vx:number^, ax:number^{
-    motion(me, vx, 0, ax, 0, "keepVY keepAY")
-}
 
 # Debugging: when on, every S block is printed with who played it.
 var^logSounds = false^
@@ -817,49 +1013,6 @@ let^soundEntry = p^dir:string^, n:number^-> any^{
     return^l[n]
 }
 
-# S — a sound by its FM2K number.
-public^let^sound = p^me:Fighter, n:number^{
-    if^(me.owner ?? me).mutedSounds[n] = true^ { return^ }
-    if^logSounds {
-        let^who = if^me.owner?: "object" el^: "fighter";
-        print($"sound {n} by {who} {me.skillName}")
-    }
-    # A character and its objects share its sounds; a new scene (vp.arena)
-    # disposed the last one's.
-    let^holder = me.owner ?? me
-    if^holder.soundsGen != vp.arena.generation() {
-        holder.sounds := {}
-        holder.soundsGen := vp.arena.generation()
-    }
-    var^src = holder.sounds[n]
-    if^src is^nil^{
-        # A looping sound (the music) is long: streamed, looped over the whole
-        # file (the tracks have no loop points and end in a fade).
-        let^e = soundEntry(me.dir, n)
-        let^loop = e fits^t^{ endlessLoop : bool^ } and^e.endlessLoop
-        let^path = vp.sprite.assetPath(me.dir, e) ?? $"{me.soundDir}/{n:%04d}.wav"
-        let^loaded = vp.arena.sound(path, loop)
-        holder.sounds[n] := loaded
-        src := loaded
-    }
-    if^src fits^love.audio.Source {
-        src.stop()
-        src.play()
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Shared definitions have their own sound numbering. The arena caches by path,
-# so these sources never collide with the owner's numeric sound cache.
-public^let^soundFrom = p^me:Fighter, dir:string^, n:number^{
-    let^e = soundEntry(dir, n)
-    let^path = vp.sprite.assetPath(dir, e)
-    if^path is^nil^ { return^ }
-    let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
-    let^src = vp.arena.sound(path, loop)
-    if^src fits^love.audio.Source { src.stop() src.play() }
-}
-
 # ---------------------------------------------------------------------------
 # Objects (O)
 
@@ -871,165 +1024,6 @@ public^let^setView = p^x:number^, y:number^{
     viewY := y
 }
 
-# A new object of `me`'s character running skill n from block b, at (x, y) in
-# the world. It shares the character's skills, images and sounds, faces the
-# way `me` faces, and is drawn at `depth`.
-public^let^makeObject = p^me:Fighter, n:number^, b:number^, x:number^, y:number^, depth:number^-> Fighter{
-    let^root = me.owner ?? me
-    let^o = Fighter.new(root.dir, x, y)
-    o.owner := root
-    o.commandFrame := std.math.max(0, root.inputFrame - 1)
-    o.parent := me
-    o.sheet := root.sheet
-    o.sounds := root.sounds
-    o.skills := root.skills
-    o.levels := root.levels
-    o.palette := root.palette
-    o.facing := me.facing
-    o.ground := root.ground        # objects stand on the same floor (FM2K keeps a ground Y per object)
-    o.depth := depth
-    o.system := root.system
-    o.lastOwnerX := me.x
-    o.lastOwnerY := me.y
-    o.start(n, b)
-    root.objects.push^(o)
-    return^o
-}
-
-# O — an object running skill (n, b), placed (x, y) from `me` (mirrored with
-# its facing), or at (x, y) of the view with "picXY". Flags: "out" in front of
-# the characters (127), "point" at `depth` (characters are 70-80), neither
-# just behind its spawner (its depth - 1: measured in the original, a select
-# screen face at 80 spawns its big face at 79; "ROUND 1"'s shadow goes behind
-# its letters so);
-# "parent" moves it with its owner; without "unCond", managed number `slot`
-# (0-9) replaces the object already there. The "it's out" skill is not used yet.
-#
-# The system file's objects (the round, the HUD) are placed at (x, y) of the
-# view whatever the flags.
-public^let^spawn = p^me:Fighter, n:number^, b:number^, x:number^, y:number^, slot:number^, depth:number^, outSkill:number^, outBlock:number^, flags:string^{
-    if^n <= 0 { return^}
-    let^root = me.owner ?? me
-    # "picXY" objects, and whatever they spawn, live in view coordinates.
-    let^atView = flags.find("picXY") != nil^ or^root.system
-    let^wx = if^atView: x el^: me.x + x * me.facing;
-    let^wy = if^atView: y el^: me.y + y;
-    let^below = std.math.max(me.depth - 1, 0)
-    let^d = if^flags.find("out") != nil^: 127 el^flags.find("point") != nil^: depth el^: below;
-    # FM2K keeps managed numbers for a character and its objects only.
-    let^managed = !root.system and^flags.find("unCond") is^nil^ and^slot >= 0 and^slot < 10
-    if^managed {
-        let^old = root.slots[slot]
-        if^old fits^Fighter { old.alive := false^ }
-    }
-    let^o = makeObject(me, n, b, wx, wy, d)
-    o.follow := flags.find("parent") != nil^
-    o.onScreen := atView or^me.onScreen
-    if^managed { root.slots[slot] := o }
-}
-
-# The character's shadow: its built-in shadow skill run as an object that
-# stays at the character's x on the floor (FM2K runs it by itself).
-public^let^castShadow = p^me:Fighter, n:number^{
-    let^o = makeObject(me, n, 0, me.x, me.ground, 10)
-    o.shadowOf := true^
-}
-
-# One frame of a character's objects; finished ones are dropped.
-# A "parent" object moves with whatever spawned it (FM2K's child attach).
-public^let^stepObjects = p^p:Fighter{
-    var^live : t^{Fighter[]} = {}
-    for^o in^p.objects {
-        let^par = o.parent ?? p
-        if^o.shadowOf {
-            o.x := p.x
-            o.y := p.ground
-            o.facing := p.facing
-        elseif^o.follow:
-            o.x += par.x - o.lastOwnerX
-            o.y += par.y - o.lastOwnerY
-        }
-        o.lastOwnerX := par.x
-        o.lastOwnerY := par.y
-        o.step()
-        if^o.alive and^!o.finished() { live.push^(o) }
-    }
-    p.objects := live
-}
-
-# Draws a character's objects in the world behind (front = false) or in
-# front of the characters. "picXY" objects in front are left to
-# drawScreenObjects; those behind (a super's backdrop, depth 68) stay here.
-public^let^drawObjects = p^p:Fighter, front:bool^{
-    for^o in^p.objects {
-        let^inFront = o.depth > 80
-        if^inFront = front and^!(o.onScreen and^inFront) { o.draw() }
-    }
-}
-
-# Draws a character's "picXY" objects in front of the characters (its part
-# of the HUD, a super's cut-in) over everything, stage foreground included.
-# Call it in view coordinates.
-public^let^drawScreenObjects = p^p:Fighter{
-    let^x, y = viewX, viewY
-    setView(0, 0)
-    for^o in^p.objects {
-        if^o.onScreen and^o.depth > 80 { o.draw() }
-    }
-    setView(x, y)
-}
-
-# C — cancel window: into skill `n` (or any skill of level from..to) on "hits" / "uncond" / "fails".
-# The last one run is the one in force.
-public^let^cancel = p^me:Fighter, when:string^, from:number^, to:number^, n:number^{
-    me.cancelWhen := when
-    me.cancelFrom := from
-    me.cancelTo := to
-    me.cancelSkill := n
-}
-
-# R — the reaction numbers (the game's shared hit-junction list) this skill's
-# attack gives the opponent, by the opponent's posture, on a hit and on a guard.
-# 0: none (a guard of 0 cannot be guarded).
-public^let^reactions = p^me:Fighter, hitStand:number^, hitCrouch:number^, hitAir:number^, guardStand:number^, guardCrouch:number^, guardAir:number^{
-    me.onHit := { hitStand, hitCrouch, hitAir }
-    me.onGuard := { guardStand, guardCrouch, guardAir }
-}
-
-# PS — stops this character for `mine` frames and the opponent for `theirs`,
-# there and then (wanwan's decompile of FM2K's [PS]). Hitstop comes from the
-# hit reactions' own PS (#135 "hit super": 0 for itself, 16 for the attacker,
-# who stands while it is thrown up), a super's pause from its start (#292:
-# the opponent 110). An object's PS does nothing.
-public^let^pause = p^me:Fighter, mine:number^, theirs:number^{
-    if^me.owner != nil^ { return^}
-    me.stop := mine
-    let^e = me.enemy
-    if^e != nil^ { e.stop := theirs }
-}
-
-# GP — add to this character's and the opponent's life and special gauge
-# (special in points; a stock is `specialPer` of them).
-let^addGauges = p^f:Fighter, life:number^, special:number^{
-    f.life := (f.life + life).clamp(0, f.lifeMax)
-    f.special := (f.special + special).clamp(0, f.specialPer * f.stockMax)
-}
-
-public^let^gauges = p^me:Fighter, life:number^, special:number^, enemyLife:number^, enemySpecial:number^{
-    let^b = charOf(me)
-    addGauges(b, life, special)
-    let^e = b.enemy
-    if^e != nil^ { addGauges(e, enemyLife, enemySpecial) }
-}
-
-# EB — screen / background effect.
-public^let^screen = p^me:Fighter, fading:number^, r:number^, g:number^, b:number^, a:number^, duration:number^, flags:string^{
-}
-
-# AI — afterimages.
-public^let^afterimage = p^me:Fighter, count:number^, time:number^, option:number^, fading:number^, r:number^, g:number^, b:number^, a:number^{
-}
-
 # A COLOR channel byte is a signed offset of -32..32 (246 = -10): as a
 # fraction added to the channel.
 let^tintOf = f^byte:number^-> number^{
@@ -1037,52 +1031,5 @@ let^tintOf = f^byte:number^-> number^{
     return^signed.clamp(-32, 32) / 32
 }
 
-# COLOR — how this is blended: 0 normal, 1 half transparent, 2 additive,
-# 3 subtractive, 4 alpha (32 - a) / 32; r g b are added to the colour.
-public^let^color = p^me:Fighter, option:number^, r:number^, g:number^, b:number^, a:number^{
-    me.blend := option
-    me.alpha := if^option = 1: 0.5 el^option = 4: std.math.max(32 - a, 0) / 32 el^: 1;
-    me.tintR := tintOf(r)
-    me.tintG := tintOf(g)
-    me.tintB := tintOf(b)
-}
-
-# A stage layer's settings: how far it scrolls with the camera, in percent
-# ("scrollX" / "scrollY" on, else it stays put on screen), and whether its
-# image repeats ("loopX" / "loopY").
-public^let^layer = p^me:Fighter, x:number^, y:number^, flags:string^{
-    me.scrollX := if^flags.find("scrollX") != nil^: x / 100 el^: 0;
-    me.scrollY := if^flags.find("scrollY") != nil^: y / 100 el^: 0;
-    me.loopX := flags.find("loopX") != nil^
-    me.loopY := flags.find("loopY") != nil^
-}
-
-# E in a stage layer: the layer is gone (one that runs past its last block
-# keeps showing its last image instead).
-public^let^vanish = p^me:Fighter{
-    me.alive := false^
-}
-
-# RC — overlay a common image.
-public^let^commonImage = p^me:Fighter, n:number^, x:number^, y:number^, flags:string^{
-}
-
-# RP — hit junction: puts the opponent into its own skill for reaction n
-# (its hit-junction table), standing at (x, y) from `me` (x mirrored by me's
-# facing) and facing me ("turnX": the other way). How throws work: the
-# throw's #250 sends the opponent to "throw start" (#71) in front of the
-# thrower, then to the throw's own reaction. "in" / "out" is not whom it acts
-# on (リリス's throw has "in" and throws the opponent): probably whether the
-# opponent is drawn behind or in front of the thrower (not done yet).
-public^let^hitJunction = p^me:Fighter, n:number^, x:number^, y:number^, flags:string^{
-    let^root = charOf(me)
-    let^who = root.enemy
-    if^who is^nil^ { return^}
-    let^target : Fighter = who
-    let^skill = target.reactHit[n] ?? 0
-    if^skill <= 0 { return^}
-    target.x := me.x + x * me.facing
-    target.y := me.y + y
-    target.facing := if^flags.find("turnX") != nil^: me.facing el^: -me.facing;
-    target.begin(skill)
-}
+# Construct through the completed definition (its sheet is initialized by new).
+let^newObjectFighter = p^dir:string^, x:number^, y:number^-> Fighter{ return^Fighter.new(dir, x, y) }

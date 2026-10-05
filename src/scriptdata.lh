@@ -7,7 +7,7 @@ public^let^Binding = t^{ support:string^, base:number^, recipe:t^{number^[]}, ch
 public^let^Skill = t^{ id:number^, space:string^, name:string^, level:number^, blocks:t^{Block[]}, binding:Binding|nil^, media:string^ }
 public^let^Data = t^{ raw:t^{}, layers:bool^, skills:t^{Skill[]} }
 
-let^parseBlock = p^raw:t^{}-> Block{
+let^parseBlock = p^raw:t^{}-> Block {
     let^b : Block = { op = "", n = {}, s = "", dirs = {}, buttons = {} }
     for^e:any^ in^raw {
         if^index^ = 0 {
@@ -28,7 +28,7 @@ let^parseBlock = p^raw:t^{}-> Block{
     return^b
 }
 
-public^let^parse = p^raw:t^{}-> Data{
+public^let^parse = p^raw:t^{}-> Data {
     let^out : Data = { raw = raw, layers = false^, skills = {} }
     if^raw fits^t^{layers:bool^} { out.layers := raw.layers }
     var^media = ""
@@ -58,7 +58,7 @@ public^let^parse = p^raw:t^{}-> Data{
 
 # Shared blocks are immutable. Bindings only allocate an array of references;
 # unchanged block tables, including their operands, stay shared across owners.
-public^let^link = p^sk:Skill, base:Skill-> Skill{
+public^let^link = p^sk:Skill, base:Skill-> Skill {
     let^ref = sk.binding
     if^ref is^nil^ { return^sk }
     if^base.binding != nil^ { panic^"Nested support binding" }
@@ -85,6 +85,6 @@ public^let^link = p^sk:Skill, base:Skill-> Skill{
         if^start = -1 { used += count }
         i += 2
     }
-    if^used != ref.changes.length^ { panic^"Unused support changes" }
+    if^used != ref.changes.length^{ panic^"Unused support changes" }
     return^out
 }

@@ -30,6 +30,255 @@ public^let^Script = def^{
         loops = false^,                # running off the end starts over (a stage's or demo's layers)
         raw : t^{} = {},               # the whole file: commands, reactions, settings
     },
+
+    # Runs skill n from block `at`. The block cap per frame is FM2K's (spin).
+    run = p^self^, me:Fighter, n:number^, at:number^{
+        let^sk = self^.byId[n]
+        if^sk is^nil^ { return^}
+        let^bs = sk.blocks
+        let^count = bs.length^
+        var^pc = at
+        var^shown = false^              # an image was shown since the layer last started over
+        # Where a jump goes: on in this skill, or into another (which ends this one).
+        # false^ when the skill is over.
+        let^go = p^s:number^, b:number^-> bool^{
+            if^s = n {
+                if^b >= count {
+                    # past the end: a stage's or demo's layer starts over, anything else ends
+                    if^!self^.loops { return^false^ }
+                    pc := count            # the loop below starts it over
+                    return^true^
+                }
+                pc := b
+                return^true^
+            }
+            me.jump(s, b)
+            return^false^
+        }
+        repeat^while^me.alive {
+            if^pc < 0 { return^}
+            if^pc >= count {
+                # A stage's or demo's layer that runs off its end starts over;
+                # only E ends it (the title screen's flash, #4 of モードセレクト,
+                # repeats so). A character's or the system's skill ends.
+                if^!self^.loops { return^}
+                # A layer that showed nothing on its way round (only a Settings
+                # block, such as プレーヤー位置) waits a frame before it goes
+                # round again, instead of going round 300 times a frame.
+                if^!shown { yield^ }
+                shown := false^
+                pc := 0
+            }
+            if^me.spin() { yield^ }
+            let^b = bs[pc]
+            if^b is^nil^ { return^}
+            pc += 1
+            let^op = b.op
+            let^a = b.n
+            let^a0 = a[0] ?? 0
+            let^a1 = a[1] ?? 0
+            let^a2 = a[2] ?? 0
+            let^a3 = a[3] ?? 0
+            let^a4 = a[4] ?? 0
+            let^a5 = a[5] ?? 0
+            let^a6 = a[6] ?? 0
+            let^a7 = a[7] ?? 0
+            if^op = "I" {
+                shown := true^
+                me.sheet := vp.sprite.sheetFor(if^sk.media = "": me.dir el^: sk.media;)
+                if^b.s = "" { await^me.show(a0, a1, a2, a3) else^: await^me.showEx(a0, a1, a2, a3, b.s) }
+            elseif^op = "FD":
+                # number, x, y, w, h, rate
+                if^a3 = 0 and^a4 = 0 {
+                    me.noHurt(a0)
+                elseif^a5 = 100 and^b.s = "damaged":
+                    me.hurt(a0, a1, a2, a3, a4)
+                elseif^a5 = 100 and^b.s = "collide":
+                    me.body(a0, a1, a2, a3, a4)
+                else^:
+                    me.fd(a0, a1, a2, a3, a4, b.s, a5)
+                }
+            elseif^op = "FA":
+                # number, x, y, w, h, power
+                if^a3 = 0 and^a4 = 0 {
+                    me.noHit(a0)
+                elseif^b.s = "":
+                    me.hit(a0, a1, a2, a3, a4, a5)
+                else^:
+                    me.fa(a0, a1, a2, a3, a4, a5, b.s)
+                }
+            elseif^op = "M":
+                me.motion(a0, a1, a2, a3, b.s)
+            elseif^op = "S":
+                if^sk.media = "" { me.sound(a0) else^: me.soundFrom(sk.media, a0) }
+            elseif^op = "V":
+                # var, mode (1 set, 2 add), operand is a variable, operand, compare (1 =, 2 >, 3 <), value, skill, block
+                let^operand = if^a2 = 1: me.v(a3) el^: a3;
+                if^a1 = 1 {
+                    me.setv(a0, operand)
+                elseif^a1 = 2:
+                    me.addv(a0, operand)
+                }
+                if^a4 > 0 and^a6 >= 0 {
+                    let^x = me.v(a0)
+                    let^hit = if^a4 = 1: x = a5 el^a4 = 2: x > a5 el^: x < a5;
+                    if^hit and^!go(a6, a7) { return^}
+                }
+            elseif^op = "SG":
+                if^a0 >= 0 and^!go(a0, a1) { return^}
+            elseif^op = "E":
+                if^self^.layers { me.vanish() }
+                return^
+            elseif^op = "SC" or^op = "SF":
+                if^a0 >= 0 {
+                    for^k from^1 to^a2 { await^me.call(a0, a1) }
+                }
+            elseif^op = "Rnd":
+                if^a2 >= 0 and^me.chance(a0, a1) and^!go(a2, a3) { return^}
+            elseif^op = "COM":
+                if^a1 >= 0 and^me.command(a0, b.dirs, b.buttons) and^!go(a1, a2) { return^}
+            elseif^op = "GL":
+                # the gauge procedures answer whether the condition FAILED
+                if^a2 >= 0 and^me.lifeGauge(a0 = 1, a1) and^!go(a2, a3) { return^}
+            elseif^op = "GS":
+                if^a3 >= 0 and^me.specialGauge(a0, a1 = 1, a2) and^!go(a3, a4) { return^}
+            elseif^op = "DS":
+                if^a0 >= 0 { me.on(b.s, a0, a1) else^: me.off(b.s) }
+            elseif^op = "O":
+                me.spawn(a0, a1, a2, a3, a4, a5, a6, a7, b.s)
+            elseif^op = "C":
+                me.cancel(b.s, a0, a1, a2)
+            elseif^op = "R":
+                me.reactions(a0, a1, a2, a3, a4, a5)
+            elseif^op = "PS":
+                me.pause(a0, a1)
+            elseif^op = "GP":
+                me.gauges(a0, a1, a2, a3)
+            elseif^op = "COLOR":
+                me.color(a0, a1, a2, a3, a4)
+            elseif^op = "Settings":
+                me.settings(a0)
+            elseif^op = "Layer":
+                me.layer(a0, a1, b.s)
+            elseif^op = "EB":
+                me.screen(a0, a1, a2, a3, a4, a5, b.s)
+            elseif^op = "AI":
+                me.afterimage(a0, a1, a2, a3, a4, a5, a6, a7)
+            elseif^op = "RC":
+                me.commonImage(a0, a1, a2, b.s)
+            elseif^op = "RP":
+                me.hitJunction(a0, a1, a2, b.s)
+            }
+        }
+    },
+    # Skill n of the script as an entry for the fighter's skill table.
+    entry = p^self^, n:number^-> (p^Fighter, number^ -> c^{p^-> nil^};){
+        return^p^me:Fighter, at:number^{ await^self^.run(me, n, at) }
+    },
+    # Puts every skill of the script into the fighter's table, with the levels
+    # (what C blocks cancel against); a character's script also brings its hit
+    # reactions, gauges and command table.
+    install = p^self^, me:Fighter{
+        for^n:number^, sk:Skill in^self^.byId {
+            me.skills[n] := self^.entry(n)
+            if^sk.level != 0 { me.levels[n] := sk.level }
+        }
+        let^d = self^.raw
+        if^d fits^t^{ reactions : t^{} } {
+            let^rs = d.reactions
+            for^r:t^{} in^rs {
+                let^i = r[0]
+                let^hit = r[1]
+                let^spark = r[2]
+                if^i fits^number^ and^hit fits^number^ and^spark fits^number^ {
+                    me.reactsWith(i, hit, spark)
+                }
+            }
+        }
+        if^d fits^t^{ settings : t^{ lifeMax : number^, specialPer : number^, stockMax : number^, startStock : number^ } } {
+            let^st = d.settings
+            me.lifeMax := st.lifeMax
+            me.life := st.lifeMax
+            me.specialPer := st.specialPer
+            me.stockMax := st.stockMax
+            me.special := st.specialPer * std.math.min(st.startStock, st.stockMax)
+        }
+        if^d fits^t^{ commands : t^{} } {
+            let^cs = d.commands
+            for^c:t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{}, modes : t^{}, amounts : t^{} } in^cs {
+                let^dirs = numbers(c.directions)
+                let^buttons = numbers(c.buttons)
+                let^s = numbers(c.skills)
+                me.addCommand(c.name, c.time, s[0] ?? 0, s[1] ?? 0, s[2] ?? 0, s[3] ?? 0, dirs, buttons, numbers(c.modes), numbers(c.amounts))
+            }
+        }
+    },
+    # A system skill's show time (frames): how long the engine gives a round's
+    # stage (the second number of its Settings block).
+    showTime = p^self^, n:number^-> number^{
+        let^sk = self^.byId[n]
+        if^sk is^nil^ { return^0 }
+        let^b = sk.blocks[0]
+        if^b is^nil^ { return^0 }
+        if^b.op != "Settings" { return^0 }
+        return^b.n[1] ?? 0
+    },
+    # A stage's layers, back to front: the named scripts after "none" that have
+    # blocks. The players go where the one named プレーヤー位置 stands (a demo's
+    # engine-drawn things, such as the select screen's cursors: ｼｽﾃﾑｲﾒｰｼﾞ位置).
+    layerIds = p^self^-> t^{number^[]}{
+        var^out : t^{number^[]} = {}
+        for^n, sk in^self^.skills {
+            if^sk.id >= 1 and^sk.name != "" and^sk.blocks.length^ > 0 { out.push^(sk.id) }
+        }
+        return^out
+    },
+    playersLayer = p^self^-> number^{
+        for^n, sk in^self^.skills {
+            if^sk.id >= 1 and^(sk.name = "プレーヤー位置" or^sk.name = "ｼｽﾃﾑｲﾒｰｼﾞ位置") and^sk.blocks.length^ > 0 { return^sk.id }
+        }
+        return^-1
+    },
+    # The images skill n can show (its I blocks), following every jump, branch,
+    # call and spawned object from it: what to load before it runs (the select
+    # screen's portraits, TechnicalDocuments/0023).
+    imagesFrom = p^self^, n:number^-> t^{number^[]}{
+        var^images : t^{number^[]} = {}
+        var^seenImage : t^{[number^]:bool^|nil^} = {}
+        var^seen : t^{[string^]:bool^|nil^} = {}
+        var^todo : t^{number^[]} = { n, 0 }
+        repeat^while^todo.length^ > 0 {
+            let^b = todo.pop^() ?? 0
+            let^s = todo.pop^() ?? 0
+            var^at = b
+            repeat^while^true^ {
+                let^sk = self^.byId[s]
+                if^sk is^nil^{ break^}
+                let^blk = sk.blocks[at]
+                if^blk is^nil^ or^seen[$"{s}:{at}"] != nil^ { break^}
+                seen[$"{s}:{at}"] := true^
+                if^blk.op = "I" {
+                    let^i = blk.n[0] ?? -1
+                    if^i >= 0 and^seenImage[i] is^nil^ {
+                        seenImage[i] := true^
+                        images.push^(i)
+                    }
+                }
+                let^t = TARGETS[blk.op]
+                if^t != nil^ {
+                    let^ts = blk.n[t[0] ?? 0] ?? 0
+                    let^tb = blk.n[t[1] ?? 0] ?? 0
+                    if^ts > 0 {
+                        todo.push^(ts)
+                        todo.push^(tb)
+                    }
+                }
+                if^blk.op = "E" or^blk.op = "SG" { break^}
+                at += 1
+            }
+        }
+        return^images
+    },
 }
 
 # Prepared and normalized on a worker; only this small runtime wrapper is new.
@@ -67,191 +316,6 @@ public^let^load = p^path:string^-> Script|nil^{
     return^sc
 }
 
-# Runs skill n from block `at`. The block cap per frame is FM2K's (spin).
-public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
-    let^sk = sc.byId[n]
-    if^sk is^nil^ { return^}
-    let^bs = sk.blocks
-    let^count = bs.length^
-    var^pc = at
-    var^shown = false^              # an image was shown since the layer last started over
-    # Where a jump goes: on in this skill, or into another (which ends this one).
-    # false^ when the skill is over.
-    let^go = p^s:number^, b:number^-> bool^{
-        if^s = n {
-            if^b >= count {
-                # past the end: a stage's or demo's layer starts over, anything else ends
-                if^!sc.loops { return^false^ }
-                pc := count            # the loop below starts it over
-                return^true^
-            }
-            pc := b
-            return^true^
-        }
-        fighter.jump(me, s, b)
-        return^false^
-    }
-    repeat^while^me.alive {
-        if^pc < 0 { return^}
-        if^pc >= count {
-            # A stage's or demo's layer that runs off its end starts over;
-            # only E ends it (the title screen's flash, #4 of モードセレクト,
-            # repeats so). A character's or the system's skill ends.
-            if^!sc.loops { return^}
-            # A layer that showed nothing on its way round (only a Settings
-            # block, such as プレーヤー位置) waits a frame before it goes
-            # round again, instead of going round 300 times a frame.
-            if^!shown { yield^ }
-            shown := false^
-            pc := 0
-        }
-        if^fighter.spin(me) { yield^ }
-        let^b = bs[pc]
-        if^b is^nil^ { return^}
-        pc += 1
-        let^op = b.op
-        let^a = b.n
-        let^a0 = a[0] ?? 0
-        let^a1 = a[1] ?? 0
-        let^a2 = a[2] ?? 0
-        let^a3 = a[3] ?? 0
-        let^a4 = a[4] ?? 0
-        let^a5 = a[5] ?? 0
-        let^a6 = a[6] ?? 0
-        let^a7 = a[7] ?? 0
-        if^op = "I" {
-            shown := true^
-            me.sheet := vp.sprite.sheetFor(if^sk.media = "": me.dir el^: sk.media;)
-            if^b.s = "" { await^fighter.show(me, a0, a1, a2, a3) else^: await^fighter.showEx(me, a0, a1, a2, a3, b.s) }
-        elseif^op = "FD":
-            # number, x, y, w, h, rate
-            if^a3 = 0 and^a4 = 0 {
-                fighter.noHurt(me, a0)
-            elseif^a5 = 100 and^b.s = "damaged":
-                fighter.hurt(me, a0, a1, a2, a3, a4)
-            elseif^a5 = 100 and^b.s = "collide":
-                fighter.body(me, a0, a1, a2, a3, a4)
-            else^:
-                fighter.fd(me, a0, a1, a2, a3, a4, b.s, a5)
-            }
-        elseif^op = "FA":
-            # number, x, y, w, h, power
-            if^a3 = 0 and^a4 = 0 {
-                fighter.noHit(me, a0)
-            elseif^b.s = "":
-                fighter.hit(me, a0, a1, a2, a3, a4, a5)
-            else^:
-                fighter.fa(me, a0, a1, a2, a3, a4, a5, b.s)
-            }
-        elseif^op = "M":
-            fighter.motion(me, a0, a1, a2, a3, b.s)
-        elseif^op = "S":
-            if^sk.media = "" { fighter.sound(me, a0) else^: fighter.soundFrom(me, sk.media, a0) }
-        elseif^op = "V":
-            # var, mode (1 set, 2 add), operand is a variable, operand, compare (1 =, 2 >, 3 <), value, skill, block
-            let^operand = if^a2 = 1: fighter.v(me, a3) el^: a3;
-            if^a1 = 1 {
-                fighter.setv(me, a0, operand)
-            elseif^a1 = 2:
-                fighter.addv(me, a0, operand)
-            }
-            if^a4 > 0 and^a6 >= 0 {
-                let^x = fighter.v(me, a0)
-                let^hit = if^a4 = 1: x = a5 el^a4 = 2: x > a5 el^: x < a5;
-                if^hit and^!go(a6, a7) { return^}
-            }
-        elseif^op = "SG":
-            if^a0 >= 0 and^!go(a0, a1) { return^}
-        elseif^op = "E":
-            if^sc.layers { fighter.vanish(me) }
-            return^
-        elseif^op = "SC" or^op = "SF":
-            if^a0 >= 0 {
-                for^k from^1 to^a2 { await^fighter.call(me, a0, a1) }
-            }
-        elseif^op = "Rnd":
-            if^a2 >= 0 and^fighter.chance(me, a0, a1) and^!go(a2, a3) { return^}
-        elseif^op = "COM":
-            if^a1 >= 0 and^fighter.command(me, a0, b.dirs, b.buttons) and^!go(a1, a2) { return^}
-        elseif^op = "GL":
-            # the gauge procedures answer whether the condition FAILED
-            if^a2 >= 0 and^fighter.lifeGauge(me, a0 = 1, a1) and^!go(a2, a3) { return^}
-        elseif^op = "GS":
-            if^a3 >= 0 and^fighter.specialGauge(me, a0, a1 = 1, a2) and^!go(a3, a4) { return^}
-        elseif^op = "DS":
-            if^a0 >= 0 { fighter.on(me, b.s, a0, a1) else^: fighter.off(me, b.s) }
-        elseif^op = "O":
-            fighter.spawn(me, a0, a1, a2, a3, a4, a5, a6, a7, b.s)
-        elseif^op = "C":
-            fighter.cancel(me, b.s, a0, a1, a2)
-        elseif^op = "R":
-            fighter.reactions(me, a0, a1, a2, a3, a4, a5)
-        elseif^op = "PS":
-            fighter.pause(me, a0, a1)
-        elseif^op = "GP":
-            fighter.gauges(me, a0, a1, a2, a3)
-        elseif^op = "COLOR":
-            fighter.color(me, a0, a1, a2, a3, a4)
-        elseif^op = "Settings":
-            fighter.settings(me, a0)
-        elseif^op = "Layer":
-            fighter.layer(me, a0, a1, b.s)
-        elseif^op = "EB":
-            fighter.screen(me, a0, a1, a2, a3, a4, a5, b.s)
-        elseif^op = "AI":
-            fighter.afterimage(me, a0, a1, a2, a3, a4, a5, a6, a7)
-        elseif^op = "RC":
-            fighter.commonImage(me, a0, a1, a2, b.s)
-        elseif^op = "RP":
-            fighter.hitJunction(me, a0, a1, a2, b.s)
-        }
-    }
-}
-
-# Skill n of the script as an entry for the fighter's skill table.
-let^entry = p^sc:Script, n:number^-> (p^Fighter, number^ -> c^{p^-> nil^};){
-    return^p^me:Fighter, at:number^{ await^run(me, sc, n, at) }
-}
-
-# Puts every skill of the script into the fighter's table, with the levels
-# (what C blocks cancel against); a character's script also brings its hit
-# reactions, gauges and command table.
-public^let^install = p^me:Fighter, sc:Script{
-    for^n:number^, sk:Skill in^sc.byId {
-        me.skills[n] := entry(sc, n)
-        if^sk.level != 0 { me.levels[n] := sk.level }
-    }
-    let^d = sc.raw
-    if^d fits^t^{ reactions : t^{} } {
-        let^rs = d.reactions
-        for^r:t^{} in^rs {
-            let^i = r[0]
-            let^hit = r[1]
-            let^spark = r[2]
-            if^i fits^number^ and^hit fits^number^ and^spark fits^number^ {
-                fighter.reactsWith(me, i, hit, spark)
-            }
-        }
-    }
-    if^d fits^t^{ settings : t^{ lifeMax : number^, specialPer : number^, stockMax : number^, startStock : number^ } } {
-        let^st = d.settings
-        me.lifeMax := st.lifeMax
-        me.life := st.lifeMax
-        me.specialPer := st.specialPer
-        me.stockMax := st.stockMax
-        me.special := st.specialPer * std.math.min(st.startStock, st.stockMax)
-    }
-    if^d fits^t^{ commands : t^{} } {
-        let^cs = d.commands
-        for^c:t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{}, modes : t^{}, amounts : t^{} } in^cs {
-            let^dirs = numbers(c.directions)
-            let^buttons = numbers(c.buttons)
-            let^s = numbers(c.skills)
-            fighter.addCommand(me, c.name, c.time, s[0] ?? 0, s[1] ?? 0, s[2] ?? 0, s[3] ?? 0, dirs, buttons, numbers(c.modes), numbers(c.amounts))
-        }
-    }
-}
-
 let^numbers = p^list:t^{}-> t^{number^[]}{
     var^out : t^{number^[]} = {}
     for^e:number^ in^list {
@@ -260,80 +324,10 @@ let^numbers = p^list:t^{}-> t^{number^[]}{
     return^out
 }
 
-# A system skill's show time (frames): how long the engine gives a round's
-# stage (the second number of its Settings block).
-public^let^showTime = p^sc:Script, n:number^-> number^{
-    let^sk = sc.byId[n]
-    if^sk is^nil^ { return^0 }
-    let^b = sk.blocks[0]
-    if^b is^nil^ { return^0 }
-    if^b.op != "Settings" { return^0 }
-    return^b.n[1] ?? 0
-}
-
-# A stage's layers, back to front: the named scripts after "none" that have
-# blocks. The players go where the one named プレーヤー位置 stands (a demo's
-# engine-drawn things, such as the select screen's cursors: ｼｽﾃﾑｲﾒｰｼﾞ位置).
-public^let^layers = p^sc:Script-> t^{number^[]}{
-    var^out : t^{number^[]} = {}
-    for^n, sk in^sc.skills {
-        if^sk.id >= 1 and^sk.name != "" and^sk.blocks.length^ > 0 { out.push^(sk.id) }
-    }
-    return^out
-}
-
-public^let^playersLayer = p^sc:Script-> number^{
-    for^n, sk in^sc.skills {
-        if^sk.id >= 1 and^(sk.name = "プレーヤー位置" or^sk.name = "ｼｽﾃﾑｲﾒｰｼﾞ位置") and^sk.blocks.length^ > 0 { return^sk.id }
-    }
-    return^-1
-}
-
 # Where a block can send control or start a skill: (skill, block) at these
 # positions of its numbers (SG jumps, a V / Rnd / COM / GL / GS / DS branch,
 # SC / SF calls, an O's object).
 let^TARGETS : t^{[string^]:t^{number^[]}|nil^} = {
     SG = { 0, 1 }, V = { 6, 7 }, Rnd = { 2, 3 }, COM = { 1, 2 }, GL = { 2, 3 },
     GS = { 3, 4 }, DS = { 0, 1 }, SC = { 0, 1 }, SF = { 0, 1 }, O = { 0, 1 },
-}
-
-# The images skill n can show (its I blocks), following every jump, branch,
-# call and spawned object from it: what to load before it runs (the select
-# screen's portraits, TechnicalDocuments/0023).
-public^let^imagesFrom = p^sc:Script, n:number^-> t^{number^[]}{
-    var^images : t^{number^[]} = {}
-    var^seenImage : t^{[number^]:bool^|nil^} = {}
-    var^seen : t^{[string^]:bool^|nil^} = {}
-    var^todo : t^{number^[]} = { n, 0 }
-    repeat^while^todo.length^ > 0 {
-        let^b = todo.pop^() ?? 0
-        let^s = todo.pop^() ?? 0
-        var^at = b
-        repeat^while^true^ {
-            let^sk = sc.byId[s]
-            if^sk is^nil^{ break^}
-            let^blk = sk.blocks[at]
-            if^blk is^nil^ or^seen[$"{s}:{at}"] != nil^ { break^}
-            seen[$"{s}:{at}"] := true^
-            if^blk.op = "I" {
-                let^i = blk.n[0] ?? -1
-                if^i >= 0 and^seenImage[i] is^nil^ {
-                    seenImage[i] := true^
-                    images.push^(i)
-                }
-            }
-            let^t = TARGETS[blk.op]
-            if^t != nil^ {
-                let^ts = blk.n[t[0] ?? 0] ?? 0
-                let^tb = blk.n[t[1] ?? 0] ?? 0
-                if^ts > 0 {
-                    todo.push^(ts)
-                    todo.push^(tb)
-                }
-            }
-            if^blk.op = "E" or^blk.op = "SG" { break^}
-            at += 1
-        }
-    }
-    return^images
 }

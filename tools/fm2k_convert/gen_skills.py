@@ -9,8 +9,8 @@ TechnicalDocuments/0005.
 
 Jumps inside a skill become structured where that is trivial (a skill whose
 only target is its own start is a `repeat^` loop) and a `pc` dispatch loop
-otherwise. Jumps to other skills become `jump(...)` + `return^`; calls become
-`await^call(...)`. The output is a draft to be edited, not a build artefact.
+otherwise. Jumps to other skills become `me.jump(...)` + `return^`; calls become
+`await^me.call(...)`. The output is a draft to be edited, not a build artefact.
 
 usage: gen_skills.py <fm2ndparser json> <id> [--out src/chara]
 """
@@ -103,7 +103,7 @@ class SkillWriter:
             if self.dispatch:
                 return ["pc := %d" % b]
             return ["next^"]
-        return ["jump(me, %d, %d)" % (n, b), "return^"]
+        return ["me.jump(%d, %d)" % (n, b), "return^"]
 
     def branch(self, cond, ref):
         if self.dispatch and ref[0] == self.n:
@@ -117,44 +117,44 @@ class SkillWriter:
         t = b["type"]
         if t == "Settings":
             if b.get("settingsType") == 6:     # a stage layer: scroll ratios and loops
-                return ["layer(me, %d, %d, %s)" % (b["width"], b["height"], q(flags(
+                return ["me.layer(%d, %d, %s)" % (b["width"], b["height"], q(flags(
                     b, ["widthEnabled", "heightEnabled", "connectLtRt", "connectUpDw"],
                     {"widthEnabled": "scrollX", "heightEnabled": "scrollY", "connectLtRt": "loopX", "connectUpDw": "loopY"})))], False
-            return ["settings(me, %d)" % b["level"]], False
+            return ["me.settings(%d)" % b["level"]], False
         if t == "I":
             f = flags(b, ["turnX", "turnY", "ignoreDirection"])
             if f:
-                return ["await^showEx(me, %d, %d, %d, %d, %s)" % (b["i"], b["wait"], b["x"], b["y"], q(f))], False
-            return ["await^show(me, %d, %d, %d, %d)" % (b["i"], b["wait"], b["x"], b["y"])], False
+                return ["await^me.showEx(%d, %d, %d, %d, %s)" % (b["i"], b["wait"], b["x"], b["y"], q(f))], False
+            return ["await^me.show(%d, %d, %d, %d)" % (b["i"], b["wait"], b["x"], b["y"])], False
         if t == "FD":
             if b["width"] == 0 and b["height"] == 0:
-                return ["noHurt(me, %d)" % b["number"]], False
+                return ["me.noHurt(%d)" % b["number"]], False
             f = flags(b, ["damaged", "collide", "throw"])
             args = (b["number"], b["x"], b["y"], b["width"], b["height"])
             if b["damageRate"] == 100 and f == "damaged":
-                return ["hurt(me, %d, %d, %d, %d, %d)" % args], False
+                return ["me.hurt(%d, %d, %d, %d, %d)" % args], False
             if b["damageRate"] == 100 and f == "collide":
-                return ["body(me, %d, %d, %d, %d, %d)" % args], False
-            return ["fd(me, %d, %d, %d, %d, %d, %s, %d)" % (args + (q(f), b["damageRate"]))], False
+                return ["me.body(%d, %d, %d, %d, %d)" % args], False
+            return ["me.fd(%d, %d, %d, %d, %d, %s, %d)" % (args + (q(f), b["damageRate"]))], False
         if t == "FA":
             if b["width"] == 0 and b["height"] == 0:
-                return ["noHit(me, %d)" % b["number"]], False
+                return ["me.noHit(%d)" % b["number"]], False
             f = flags(b, ["cancel", "noDetection", "combo", "noSkyDetection", "guardFail", "duringGuard",
                           "duringReceipt", "halfed"])
             args = (b["number"], b["x"], b["y"], b["width"], b["height"], b["power"])
             if not f:
-                return ["hit(me, %d, %d, %d, %d, %d, %d)" % args], False
-            return ["fa(me, %d, %d, %d, %d, %d, %d, %s)" % (args + (q(f),))], False
+                return ["me.hit(%d, %d, %d, %d, %d, %d)" % args], False
+            return ["me.fa(%d, %d, %d, %d, %d, %d, %s)" % (args + (q(f),))], False
         if t == "M":
             f = flags(b, ["add", "stopMoveX", "stopMoveY", "stopGravityX", "stopGravityY"],
                       {"stopMoveX": "keepVX", "stopMoveY": "keepVY", "stopGravityX": "keepAX", "stopGravityY": "keepAY"})
-            return ["motion(me, %d, %d, %d, %d, %s)" % (b["moveX"], b["moveY"], b["gravityX"], b["gravityY"], q(f))], False
+            return ["me.motion(%d, %d, %d, %d, %s)" % (b["moveX"], b["moveY"], b["gravityX"], b["gravityY"], q(f))], False
         if t == "S":
-            return ["sound(me, %d)" % b["sound"]["number"]], False
+            return ["me.sound(%d)" % b["sound"]["number"]], False
         if t == "E":
             # A stage layer that ends with E is gone; one that runs past its
             # last block keeps showing its last image.
-            return (["vanish(me)"] if SkillWriter.stage else []) + ["return^"], True
+            return (["me.vanish()"] if SkillWriter.stage else []) + ["return^"], True
         if t == "SG":
             ref = target(b["skill"])
             return (self.goto(ref), True) if ref else (["# SG to nothing"], False)
@@ -162,82 +162,82 @@ class SkillWriter:
             ref = target(b["skill"])
             if not ref:
                 return ["# %s to nothing" % t], False
-            line = "await^call(me, %d, %d)" % ref
+            line = "await^me.call(%d, %d)" % ref
             if t == "SC":
                 return [line], False
             return ["for^k from^1 to^%d {" % b["loop"], "    " + line, "}"], False
         if t == "V":
             lines = []
-            operand = "v(me, %d)" % b["useEvenVar"] if b["useEven"] else "%d" % b["value"]
+            operand = "me.v(%d)" % b["useEvenVar"] if b["useEven"] else "%d" % b["value"]
             name = VAR_NAMES.get(b["var"], "?")
             if b["replace"]:
-                lines.append("setv(me, %d, %s)    # %s" % (b["var"], operand, name))
+                lines.append("me.setv(%d, %s)    # %s" % (b["var"], operand, name))
             elif b["add"]:
-                lines.append("addv(me, %d, %s)    # %s" % (b["var"], operand, name))
+                lines.append("me.addv(%d, %s)    # %s" % (b["var"], operand, name))
             op = "=" if b["itsTheSame"] else ">" if b["itsAbove"] else "<" if b["itsBelow"] else None
             ref = target(b["multiCondSkill"])
             if op and ref:
-                lines += self.branch("v(me, %d) %s %d" % (b["var"], op, b["multiCondValue"]), ref)
+                lines += self.branch("me.v(%d) %s %d" % (b["var"], op, b["multiCondValue"]), ref)
             return lines or ["# V: nothing"], False
         if t == "Rnd":
             ref = target(b["skill"])
             if not ref:
                 return ["# Rnd to nothing"], False
-            return self.branch("chance(me, %d, %d)" % (b["randomNum"], b["whenItsAbove"]), ref), False
+            return self.branch("me.chance(%d, %d)" % (b["randomNum"], b["whenItsAbove"]), ref), False
         if t == "COM":
             ref = target(b["skill"])
             if not ref:
                 return ["# COM to nothing"], False
             dirs, buttons = steps_of(b["steps"])
-            return self.branch("command(me, %d, %s, %s)" % (b["time"], dirs, buttons), ref), False
+            return self.branch("me.command(%d, %s, %s)" % (b["time"], dirs, buttons), ref), False
         if t == "GL":
             ref = target(b["skill"])
-            cond = "lifeGauge(me, %s, %d)" % ("true^" if b["isMore"] else "false^", b["add"])
+            cond = "me.lifeGauge(%s, %d)" % ("true^" if b["isMore"] else "false^", b["add"])
             return (self.branch(cond, ref) if ref else ["# GL to nothing"]), False
         if t == "GS":
             ref = target(b["skill"])
-            cond = "specialGauge(me, %d, %s, %d)" % (b["level"], "true^" if b["isMore"] else "false^", b["add"])
+            cond = "me.specialGauge(%d, %s, %d)" % (b["level"], "true^" if b["isMore"] else "false^", b["add"])
             return (self.branch(cond, ref) if ref else ["# GS to nothing"]), False
         if t == "DS":
             ref = target(b["skill"])
             if b["when"] not in DS_EVENTS:
                 return ["# DS: nothing"], False
             if not ref:
-                return ["off(me, %s)" % q(DS_EVENTS[b["when"]])], False
-            return ["on(me, %s, %d, %d)" % ((q(DS_EVENTS[b["when"]]),) + ref)], False
+                return ["me.off(%s)" % q(DS_EVENTS[b["when"]])], False
+            return ["me.on(%s, %d, %d)" % ((q(DS_EVENTS[b["when"]]),) + ref)], False
         if t == "O":
             ref = target(b["skill"]) or (0, 0)
             out = target(b["outSkill"]) or (0, 0)
             f = flags(b, ["out", "point", "unCond", "shadow", "parent", "picXY"])
-            return ["spawn(me, %d, %d, %d, %d, %d, %d, %d, %d, %s)" % (ref + (b["x"], b["y"], b["number"], b["depth"]) + out + (q(f),))], False
+            return ["me.spawn(%d, %d, %d, %d, %d, %d, %d, %d, %s)" % (ref + (b["x"], b["y"], b["number"], b["depth"]) + out + (q(f),))], False
         if t == "C":
             when = "hits" if b["hits"] else "uncond" if b["uncond"] else "fails"
             n = b["skill"]["number"] if b["skillCancelCondition"] else -1
-            return ["cancel(me, %s, %d, %d, %d)" % (q(when), b["from"], b["to"], n)], False
+            return ["me.cancel(%s, %d, %d, %d)" % (q(when), b["from"], b["to"], n)], False
         if t == "R":
             keys = ["hitsStand", "hitsCrouched", "hitsAir", "guardStand", "guardCrouched", "guardAir"]
-            return ["reactions(me, %s)" % ", ".join(str(b[k]["number"]) for k in keys)], False
+            return ["me.reactions(%s)" % ", ".join(str(b[k]["number"]) for k in keys)], False
         if t == "PS":
-            return ["pause(me, %d, %d)" % (b["playerTime"], b["enemyTime"])], False
+            return ["me.pause(%d, %d)" % (b["playerTime"], b["enemyTime"])], False
         if t == "GP":
-            return ["gauges(me, %d, %d, %d, %d)" % (b["playerLifeGauge"], b["playerSpecialGauge"],
+            return ["me.gauges(%d, %d, %d, %d)" % (b["playerLifeGauge"], b["playerSpecialGauge"],
                                                    b["enemyLifeGauge"], b["enemySpecialGauge"])], False
         if t == "EB":
             c = b["rgba"]
-            return ["screen(me, %d, %d, %d, %d, %d, %d, %s)" % (b["fadingType"], c["r"], c["g"], c["b"], c["a"], b["duration"],
+            return ["me.screen(%d, %d, %d, %d, %d, %d, %s)" % (b["fadingType"], c["r"], c["g"], c["b"], c["a"], b["duration"],
                                                               q(flags(b, ["player", "enemy", "bg", "system"])))], False
         if t == "AI":
             c = b["rgba"]
-            return ["afterimage(me, %d, %d, %d, %d, %d, %d, %d, %d)" % (b["num"], b["time"], b["option"], b["fadingType"],
+            return ["me.afterimage(%d, %d, %d, %d, %d, %d, %d, %d)" % (b["num"], b["time"], b["option"], b["fadingType"],
                                                                        c["r"], c["g"], c["b"], c["a"])], False
         if t == "COLOR":
             c = b["rgba"]
-            return ["color(me, %d, %d, %d, %d, %d)" % (b["option"], c["r"], c["g"], c["b"], c["a"])], False
+            return ["me.color(%d, %d, %d, %d, %d)" % (b["option"], c["r"], c["g"], c["b"], c["a"])], False
         if t == "RC":
-            return ["commonImage(me, %d, %d, %d, %s)" % (b["commonImage"]["number"], b["x"], b["y"],
+            return ["me.commonImage(%d, %d, %d, %s)" % (b["commonImage"]["number"], b["x"], b["y"],
                                                         q(flags(b, ["in", "turnX", "turnY", "same"])))], False
         if t == "RP":
-            return ["hitJunction(me, %d, %d, %d, %s)" % (b["hitJunction"]["number"], b["x"], b["y"],
+            return ["me.hitJunction(%d, %d, %d, %s)" % (b["hitJunction"]["number"], b["x"], b["y"],
                                                         q(flags(b, ["in", "turnX"])))], False
         return ["# %s block (not decoded)" % t], False
 
@@ -268,7 +268,7 @@ class SkillWriter:
         head = "public^let^s%04d = p^me:Fighter, at:number^{    # %s" % (self.n, self.skill["name"])
         body = []
         segs = self.segments()
-        guard = ["if^spin(me) { yield^ }"]
+        guard = ["if^me.spin() { yield^ }"]
         if not segs:
             body.append("_yield^")
         elif not self.dispatch:
@@ -339,11 +339,7 @@ def main():
         mod = "s%04d" % first
         lines = header + ["module^vp.%s.%s.%s" % (kind, args.id, mod), "",
                           'require^"%s"' % fighter_from(root / "skills"), ""]
-        for name in ("Fighter", "show", "showEx", "hurt", "body", "fd", "noHurt", "hit", "fa", "noHit", "motion",
-                     "sound", "jump", "call", "spin", "settings", "layer", "on", "off", "v", "setv", "addv", "chance", "command",
-                     "lifeGauge", "specialGauge", "spawn", "cancel", "reactions", "pause", "gauges", "screen",
-                     "afterimage", "color", "commonImage", "hitJunction", "vanish"):
-            lines.append("let^%s = vp.fighter.%s" % (name, name))
+        lines.append("let^Fighter = vp.fighter.Fighter")
         for n in range(first, min(first + PER_FILE, len(skills))):
             lines.append("")
             lines += SkillWriter(n, skills[n], entries).emit()
@@ -366,7 +362,7 @@ def main():
     for i, r in enumerate(d.get("hitJunctionsSkills", [])):
         hit, spark = r["hitJunction"]["number"], r["spark"]["number"]
         if hit or spark:
-            index.append("    vp.fighter.reactsWith(me, %d, %d, %d)" % (i, hit, spark))
+            index.append("    me.reactsWith(%d, %d, %d)" % (i, hit, spark))
     if "settings" in d:
         st = d["settings"]
         index.append("    me.lifeMax := %d" % st["lifeGaugeMax"])
@@ -379,7 +375,7 @@ def main():
         refs = [c[k]["number"] for k in ("airSkill", "standSkill", "standFarSkill", "crouchedSkill")]
         if not any(refs) or buttons == "{  }" and all(x == 0 for x in eval(dirs.replace("{", "[").replace("}", "]"))):
             continue
-        index.append("    vp.fighter.addCommand(me, %s, %d, %d, %d, %d, %d, %s, %s)"
+        index.append("    me.addCommand(%s, %d, %d, %d, %d, %d, %s, %s, {}, {})"
                      % ((q(c["name"]), c["time"]) + tuple(refs) + (dirs, buttons)))
     index.append("}")
     if args.stage:

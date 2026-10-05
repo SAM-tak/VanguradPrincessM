@@ -26,10 +26,10 @@ var^owner = 0
 
 public^let^load = p^{
     began := love.timer.getTime()
-    vp.preload.add(loadout, "assets/characters/ゆい", false^)
-    vp.preload.add(loadout, "assets/characters/くるみ", false^)
+    loadout.add("assets/characters/ゆい", false^)
+    loadout.add("assets/characters/くるみ", false^)
     for^name in^NAMES {
-        vp.resource.request(loadout.batch, $"assets/characters/{name}/script.lton", "script", false^)
+        loadout.batch.request($"assets/characters/{name}/script.lton", "script", false^)
     }
 }
 
@@ -55,26 +55,26 @@ let^check = p^name:string^{
         for^i, direction in^DIRS {
             let^p = vp.fighter.Fighter.new(dir, 100, 0)
             let^other = vp.fighter.Fighter.new(dir, 400, 0)
-            vp.script.install(p, sc)
+            sc.install(p)
             p.vars[71] := 100
             p.vars[76] := 0
-            vp.fighter.record(p, direction, 8)
+            p.record(direction, 8)
             # Opposite-side input must not feed this object's command checks.
-            vp.fighter.record(other, 5, 1)
-            let^object = vp.fighter.makeObject(p, skill, first, 0, 0, 100)
-            if^i % 2 = 1 { vp.fighter.record(p, direction, 0) }
+            other.record(5, 1)
+            let^object = p.makeObject(skill, first, 0, 0, 100)
+            if^i % 2 = 1 { p.record(direction, 0) }
             object.step()
-            let^actual = vp.fighter.v(p, 76)
+            let^actual = p.v(76)
             if^actual != REQUESTS[i] { panic^$"{name}/{hud}/{direction}D: request={actual}" }
-            let^actor = vp.fighter.makeObject(p, dispatch, 0, 0, 0, 80)
+            let^actor = p.makeObject(dispatch, 0, 0, 0, 80)
             actor.advance()
             let^target = sc.byId[actor.jumpSkill]
             if^target is^nil^ or^target.name != ENTRIES[hi * 5 + i] { panic^$"Wrong attack entry: {name}/{hud}/{direction}D" }
-            vp.fighter.record(p, direction, 0)
-            if^vp.fighter.command(object, 20, {0}, {8}) { panic^"Stale D press was reused" }
+            p.record(direction, 0)
+            if^object.command(20, {0}, {8}) { panic^"Stale D press was reused" }
             if^name = "くるみ" and^i = 0 {
                 p.vars[76] := 93
-                let^extra = vp.fighter.makeObject(p, dispatch, 0, 0, 0, 80)
+                let^extra = p.makeObject(dispatch, 0, 0, 0, 80)
                 extra.advance()
                 if^hi < 4 {
                     let^target = sc.byId[extra.jumpSkill]
@@ -91,7 +91,7 @@ let^check = p^name:string^{
 
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
-    if^vp.preload.ready(loadout) {
+    if^loadout.ready() {
         let^name = NAMES[owner]
         if^name != nil^ {
             check(name)

@@ -41,9 +41,33 @@ public^let^Demos = def^{
         skips : t^{[string^]:bool^|nil^} = {},
         times : t^{[string^]:number^|nil^} = {},
     },
+
+    play = p^self^, name:string^-> Scene {
+        let^s = Scene.new()
+        s.name := name
+        s.layers := vp.stage.load($"assets/demos/{name}")
+        s.time := self^.times[name] ?? 0
+        s.skip := self^.skips[name] ?? false^
+        return^s
+    },
+
+    # The title screen: the menu demo and the cursor, on story mode as in the
+    # original. The caller uses item to choose story or VS mode.
+    titleScreen = p^self^, systemDir:string^, system:vp.script.Script-> Scene {
+        let^s = self^.play(self^.title)
+        s.item := 0
+        s.extras := { systemRun(systemDir, system, CURSOR, ITEM_X, ITEM_Y[0] ?? 70) }
+        let^st = s.layers
+        if^st != nil^ {
+            for^k, l in^st.layers {
+                if^l.skillNo = MODE_CURTAIN { s.curtainLayer := k }
+            }
+        }
+        return^s
+    },
 }
 
-public^let^loadDemos = p^systemDir:string^-> Demos{
+public^let^loadDemos = p^systemDir:string^-> Demos {
     let^d = Demos.new()
     let^raw = vp.resource.data($"{systemDir}/demos.lton")
     if^raw fits^t^{ opening : string^, title : string^, vsSelect : string^ } {
@@ -85,22 +109,162 @@ public^let^Scene = def^{
         creditHeight = 0,
         music : love.audio.Source|nil^= nil^,
     },
-}
 
-public^let^play = p^demos:Demos, name:string^-> Scene{
-    let^s = Scene.new()
-    s.name := name
-    s.layers := vp.stage.load($"assets/demos/{name}")
-    s.time := demos.times[name] ?? 0
-    s.skip := demos.skips[name] ?? false^
-    return^s
+    revealTitle = p^self^{
+        self^.titleShown := true^
+        self^.flash := FLASH_SECONDS
+        # Keep the opening music playing through the reveal (including a skip).
+        # Returning from the mode menu creates a silent scene instead.
+    },
+    # Real seconds, independent of the battle's capped 100 Hz catch-up loop.
+    # A press that skips the scroll is consumed here, never by the mode menu.
+    updateOpening = p^self^, dt:number^, pressed:number^{
+        self^.elapsed += dt
+        if^pressed != 0 { self^.idleSeconds := 0 else^: self^.idleSeconds += dt }
+        let^music = self^.music
+        self^.attractReady := pressed = 0 and^(if^music != nil^: !music.isPlaying() el^: self^.idleSeconds >= 30;)
+        if^self^.titleShown {
+            self^.flash := (self^.flash - dt).clamp(0, FLASH_SECONDS)
+            if^pressed != 0 { self^.done := true^ }
+            return^
+        }
+        if^pressed != 0 or^self^.elapsed >= SCROLL_SECONDS {
+            self^.revealTitle()
+            return^
+        }
+    },
+    drawOpening = p^self^{
+        love.graphics.setColor(1, 1, 1, 1)
+        if^self^.titleShown {
+            let^tex = self^.images[0]
+            if^tex != nil^ { love.graphics.draw(tex, 0, 0) }
+            if^self^.flash > 0 {
+                love.graphics.setColor(1, 1, 1, self^.flash / FLASH_SECONDS)
+                love.graphics.rectangle(love.graphics.DrawMode.fill, 0, 0, 640, 480)
+                love.graphics.setColor(1, 1, 1, 1)
+            }
+        else^:
+            let^progress = (self^.elapsed / SCROLL_SECONDS).clamp(0, 1)
+            let^background = self^.images[5]
+            if^background != nil^ {
+                let^w, h = background.getDimensions()
+                love.graphics.draw(background, -(w - 640) * progress, 0)
+            }
+            var^y = 480 - (480 + self^.creditHeight) * progress
+            for^n from^6 to^16 {
+                let^tex = self^.images[n]
+                if^tex != nil^ {
+                    let^w, h = tex.getDimensions()
+                    # Only the final line stays at the centre until the title reveal.
+                    let^at = if^n = 16 and^y < (480 - h) / 2: (480 - h) / 2 el^: y;
+                    let^centre = at + h / 2
+                    let^alpha = ((480 - centre) / CREDIT_FADE_HEIGHT).clamp(0, 1) * (centre / CREDIT_FADE_HEIGHT).clamp(0, 1)
+                    if^at < 480 and^at + h > 0 {
+                        love.graphics.setColor(1, 1, 1, alpha)
+                        love.graphics.draw(tex, (640 - w) / 2, at)
+                    }
+                    y += h
+                }
+                y += CREDIT_GAP
+            }
+        }
+        # Keep the prompt'self^ blink phase continuous through the title reveal.
+        love.graphics.setColor(1, 1, 1, 1)
+        if^(self^.elapsed / 0.25).floor() % 2 = 0 {
+            let^prompt = self^.images[1]
+            if^prompt != nil^ {
+                # Original title script: COLOR 3 (subtract), preserving the
+                # image'self^ grey edge pixels instead of flattening them to black.
+                if^self^.titleShown { love.graphics.setBlendMode(love.graphics.BlendMode.subtract) }
+                love.graphics.draw(prompt, 171, 421)
+                love.graphics.setBlendMode(love.graphics.BlendMode.alpha)
+                love.graphics.setColor(1, 1, 1, 1)
+            }
+        }
+    },
+    # One frame. up / down: pressed this frame; pressed: buttons pressed.
+    step = p^self^, up:bool^, down:bool^, pressed:number^{
+        if^self^.exitFrames >= 0 {
+            if^self^.exitFrames < 50 { self^.exitFrames += 1 }
+            if^self^.exitFrames >= 50 { self^.done := true^ }
+            return^
+        }
+        let^st = self^.layers
+        if^st != nil^ { st.step() }
+        self^.frames += 1
+        let^cursor = self^.extras[0]
+        if^cursor != nil^ {
+            if^up or^down {
+                self^.item := (self^.item + 1) % 2    # two items: story, VS
+                cursor.y := ITEM_Y[self^.item] ?? 92
+            }
+            if^pressed != 0 {
+                let^cue = vp.arena.sound($"assets/demos/{self^.name}/sounds/0002.wav", false^)
+                self^.confirmSound := cue
+                if^cue != nil^ { cue.stop() cue.play() }
+                self^.exitFrames := 0
+            }
+        else^:
+            if^(self^.skip and^pressed != 0) or^(self^.time > 0 and^self^.frames >= self^.time) { self^.done := true^ }
+        }
+        for^e in^self^.extras {
+            e.step()
+            e.stepObjects()
+        }
+    },
+    # Draws a demo scene in view coordinates, by depth (layers 12 / 100, the
+    # cursor 101, its caption 127).
+    draw = p^self^{
+        if^self^.customOpening { self^.drawOpening() return^ }
+        let^st = self^.layers
+        if^st is^nil^{ return^}
+        vp.fighter.setView(0, 0)
+        var^list : t^{vp.round.Item[]} = {}
+        for^e in^self^.extras {
+            let^i = vp.round.Item.new()
+            i.depth := e.depth
+            i.f := e
+            i.system := true^
+            list.push^(i)
+            for^o in^e.objects {
+                let^j = vp.round.Item.new()
+                j.depth := o.depth
+                j.f := o
+                j.system := true^
+                list.push^(j)
+            }
+        }
+        vp.round.byDepth(list)
+        st.draw(0, 0, 0, st.players)
+        for^i in^list {
+            if^i.depth <= 100 { i.draw() }
+        }
+        for^k, l in^st.layers {
+            if^k >= st.players and^k != self^.curtainLayer {
+                st.draw(0, 0, k, k + 1)
+            }
+        }
+        for^i in^list {
+            if^i.depth > 100 { i.draw() }
+        }
+        # Deliberate presentation change: the original fade layer (depth 100)
+        # covers the cursor (101) and its caption (127), keeping its own timing.
+        if^self^.curtainLayer >= 0 {
+            st.draw(0, 0, self^.curtainLayer, self^.curtainLayer + 1)
+        }
+        if^self^.exitFrames >= 0 {
+            love.graphics.setColor(0, 0, 0, self^.exitFrames / 50)
+            love.graphics.rectangle(love.graphics.DrawMode.fill, 0, 0, 640, 480)
+            love.graphics.setColor(1, 1, 1, 1)
+        }
+    },
 }
 
 let^openingSound = p^n:number^-> love.audio.Source|nil^{
     return^vp.arena.sound($"{OPENING_DIR}/sounds/{n:%04d}.wav", false^)
 }
 
-public^let^openingScreen = p^animate:bool^-> Scene{
+public^let^openingScreen = p^animate:bool^-> Scene {
     let^s = Scene.new()
     s.customOpening := true^
     s.name := "タイトル"
@@ -120,186 +284,18 @@ public^let^openingScreen = p^animate:bool^-> Scene{
         let^music = s.music
         if^music != nil^ { music.play() }
     else^:
-        revealTitle(s)
+        s.revealTitle()
     }
     return^s
 }
 
-let^revealTitle = p^s:Scene{
-    s.titleShown := true^
-    s.flash := FLASH_SECONDS
-    # Keep the opening music playing through the reveal (including a skip).
-    # Returning from the mode menu creates a silent scene instead.
-}
-
-# Real seconds, independent of the battle's capped 100 Hz catch-up loop.
-# A press that skips the scroll is consumed here, never by the mode menu.
-public^let^updateOpening = p^s:Scene, dt:number^, pressed:number^{
-    s.elapsed += dt
-    if^pressed != 0 { s.idleSeconds := 0 else^: s.idleSeconds += dt }
-    let^music = s.music
-    s.attractReady := pressed = 0 and^(if^music != nil^: !music.isPlaying() el^: s.idleSeconds >= 30;)
-    if^s.titleShown {
-        s.flash := (s.flash - dt).clamp(0, FLASH_SECONDS)
-        if^pressed != 0 { s.done := true^ }
-        return^
-    }
-    if^pressed != 0 or^s.elapsed >= SCROLL_SECONDS {
-        revealTitle(s)
-        return^
-    }
-}
-
-let^drawOpening = p^s:Scene{
-    love.graphics.setColor(1, 1, 1, 1)
-    if^s.titleShown {
-        let^tex = s.images[0]
-        if^tex != nil^ { love.graphics.draw(tex, 0, 0) }
-        if^s.flash > 0 {
-            love.graphics.setColor(1, 1, 1, s.flash / FLASH_SECONDS)
-            love.graphics.rectangle(love.graphics.DrawMode.fill, 0, 0, 640, 480)
-            love.graphics.setColor(1, 1, 1, 1)
-        }
-    else^:
-        let^progress = (s.elapsed / SCROLL_SECONDS).clamp(0, 1)
-        let^background = s.images[5]
-        if^background != nil^ {
-            let^w, h = background.getDimensions()
-            love.graphics.draw(background, -(w - 640) * progress, 0)
-        }
-        var^y = 480 - (480 + s.creditHeight) * progress
-        for^n from^6 to^16 {
-            let^tex = s.images[n]
-            if^tex != nil^ {
-                let^w, h = tex.getDimensions()
-                # Only the final line stays at the centre until the title reveal.
-                let^at = if^n = 16 and^y < (480 - h) / 2: (480 - h) / 2 el^: y;
-                let^centre = at + h / 2
-                let^alpha = ((480 - centre) / CREDIT_FADE_HEIGHT).clamp(0, 1) * (centre / CREDIT_FADE_HEIGHT).clamp(0, 1)
-                if^at < 480 and^at + h > 0 {
-                    love.graphics.setColor(1, 1, 1, alpha)
-                    love.graphics.draw(tex, (640 - w) / 2, at)
-                }
-                y += h
-            }
-            y += CREDIT_GAP
-        }
-    }
-    # Keep the prompt's blink phase continuous through the title reveal.
-    love.graphics.setColor(1, 1, 1, 1)
-    if^(s.elapsed / 0.25).floor() % 2 = 0 {
-        let^prompt = s.images[1]
-        if^prompt != nil^ {
-            # Original title script: COLOR 3 (subtract), preserving the
-            # image's grey edge pixels instead of flattening them to black.
-            if^s.titleShown { love.graphics.setBlendMode(love.graphics.BlendMode.subtract) }
-            love.graphics.draw(prompt, 171, 421)
-            love.graphics.setBlendMode(love.graphics.BlendMode.alpha)
-            love.graphics.setColor(1, 1, 1, 1)
-        }
-    }
-}
-
-let^systemRun = p^systemDir:string^, sc:vp.script.Script, n:number^, x:number^, y:number^-> Fighter{
+let^systemRun = p^systemDir:string^, sc:vp.script.Script, n:number^, x:number^, y:number^-> Fighter {
     let^l = Fighter.new(systemDir, x, y)
-    vp.script.install(l, sc)
+    sc.install(l)
     l.system := true^
     l.onScreen := true^
     l.depth := 101
     l.begin(n)
     l.ground := 1000000
     return^l
-}
-
-# The title screen: the menu demo and the cursor, on story mode as in the
-# original. The caller uses item to choose story or VS mode.
-public^let^titleScreen = p^demos:Demos, systemDir:string^, system:vp.script.Script-> Scene{
-    let^s = play(demos, demos.title)
-    s.item := 0
-    s.extras := { systemRun(systemDir, system, CURSOR, ITEM_X, ITEM_Y[0] ?? 70) }
-    let^st = s.layers
-    if^st != nil^ {
-        for^k, l in^st.layers {
-            if^l.skillNo = MODE_CURTAIN { s.curtainLayer := k }
-        }
-    }
-    return^s
-}
-
-# One frame. up / down: pressed this frame; pressed: buttons pressed.
-public^let^step = p^s:Scene, up:bool^, down:bool^, pressed:number^{
-    if^s.exitFrames >= 0 {
-        if^s.exitFrames < 50 { s.exitFrames += 1 }
-        if^s.exitFrames >= 50 { s.done := true^ }
-        return^
-    }
-    let^st = s.layers
-    if^st != nil^ { vp.stage.step(st) }
-    s.frames += 1
-    let^cursor = s.extras[0]
-    if^cursor != nil^ {
-        if^up or^down {
-            s.item := (s.item + 1) % 2    # two items: story, VS
-            cursor.y := ITEM_Y[s.item] ?? 92
-        }
-        if^pressed != 0 {
-            let^cue = vp.arena.sound($"assets/demos/{s.name}/sounds/0002.wav", false^)
-            s.confirmSound := cue
-            if^cue != nil^ { cue.stop() cue.play() }
-            s.exitFrames := 0
-        }
-    else^:
-        if^(s.skip and^pressed != 0) or^(s.time > 0 and^s.frames >= s.time) { s.done := true^ }
-    }
-    for^e in^s.extras {
-        e.step()
-        vp.fighter.stepObjects(e)
-    }
-}
-
-# Draws a demo scene in view coordinates, by depth (layers 12 / 100, the
-# cursor 101, its caption 127).
-public^let^draw = p^s:Scene{
-    if^s.customOpening { drawOpening(s) return^ }
-    let^st = s.layers
-    if^st is^nil^{ return^}
-    vp.fighter.setView(0, 0)
-    var^list : t^{vp.round.Item[]} = {}
-    for^e in^s.extras {
-        let^i = vp.round.Item.new()
-        i.depth := e.depth
-        i.f := e
-        i.system := true^
-        list.push^(i)
-        for^o in^e.objects {
-            let^j = vp.round.Item.new()
-            j.depth := o.depth
-            j.f := o
-            j.system := true^
-            list.push^(j)
-        }
-    }
-    vp.round.byDepth(list)
-    vp.stage.draw(st, 0, 0, 0, st.players)
-    for^i in^list {
-        if^i.depth <= 100 { vp.round.drawItem(i) }
-    }
-    for^k, l in^st.layers {
-        if^k >= st.players and^k != s.curtainLayer {
-            vp.stage.draw(st, 0, 0, k, k + 1)
-        }
-    }
-    for^i in^list {
-        if^i.depth > 100 { vp.round.drawItem(i) }
-    }
-    # Deliberate presentation change: the original fade layer (depth 100)
-    # covers the cursor (101) and its caption (127), keeping its own timing.
-    if^s.curtainLayer >= 0 {
-        vp.stage.draw(st, 0, 0, s.curtainLayer, s.curtainLayer + 1)
-    }
-    if^s.exitFrames >= 0 {
-        love.graphics.setColor(0, 0, 0, s.exitFrames / 50)
-        love.graphics.rectangle(love.graphics.DrawMode.fill, 0, 0, 640, 480)
-        love.graphics.setColor(1, 1, 1, 1)
-    }
 }

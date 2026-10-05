@@ -19,12 +19,12 @@ public^let^update = p^dt:number^{
     elseif^phase = 2 and^where = "system / title": press() phase := 3
     elseif^phase = 3 and^vp.main.status().phase = "select":
         let^s = vp.story.State.new("ゆい", 0, 1)
-        vp.story.enter(s, "continue")
-        vp.story.step(s, 0.3, false^, false^, 1)
+        s.enter("continue")
+        s.step(0.3, false^, false^, 1)
         if^s.phase != "queue" { panic^"YES must retry" }
-        vp.story.enter(s, "continue")
-        vp.story.step(s, 0.3, false^, true^, 0)
-        vp.story.step(s, 0.02, false^, false^, 1)
+        s.enter("continue")
+        s.step(0.3, false^, true^, 0)
+        s.step(0.02, false^, false^, 1)
         if^s.phase != "gameover" { panic^"NO must show game over" }
         state := s
         phase := 4
@@ -33,7 +33,7 @@ public^let^update = p^dt:number^{
         if^s != nil^ {
             let^cue = s.gameOverSound
             let^playing = cue != nil^ and^cue.isPlaying()
-            vp.story.step(s, 0.02, false^, false^, 1)
+            s.step(0.02, false^, false^, 1)
             if^s.phase = "return-title" {
                 if^playing and^cue != nil^ and^cue.isPlaying() { panic^"title requested before audio finished" }
                 if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^"synchronous fallback" }
@@ -46,6 +46,6 @@ public^let^update = p^dt:number^{
 }
 public^let^draw = p^{
     let^s = state
-    if^s != nil^ { vp.story.draw(s) else^: vp.main.draw() }
+    if^s != nil^ { s.draw() else^: vp.main.draw() }
 }
 public^let^quit = p^-> bool^{ return^vp.main.quit() }

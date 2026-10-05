@@ -24,6 +24,19 @@ public^let^Stage = def^{
         layers : t^{Fighter[]} = {},
         players = 0,               # layers before this index are behind the players
     },
+
+    step = p^self^{
+        for^l in^self^.layers {
+            l.step()
+            l.stepObjects()   # what a layer spawns (O); none in the original's data
+        }
+    },
+    # Layers [from, to).
+    draw = p^self^, camX:number^, camY:number^, from:number^, to:number^{
+        for^k, l in^self^.layers {
+            if^k >= from and^k < to { drawLayer(l, camX, camY) }
+        }
+    },
 }
 
 # A converted stage folder: its script.lton, run as layers.
@@ -33,10 +46,10 @@ public^let^load = p^dir:string^-> Stage{
     if^maybe is^nil^ { return^st }
     let^sc : vp.script.Script = maybe
     sc.loops := true^              # its layers start over when they run off their end
-    let^players = vp.script.playersLayer(sc)
-    for^n in^vp.script.layers(sc) {
+    let^players = sc.playersLayer()
+    for^n in^sc.layerIds() {
         let^l = Fighter.new(dir, 0, 0)
-        vp.script.install(l, sc)
+        sc.install(l)
         l.begin(n)
         l.ground := 1000000        # layers move freely; nothing lands
         if^n = players { st.players := st.layers.length^ }
@@ -46,13 +59,6 @@ public^let^load = p^dir:string^-> Stage{
         st.layers.push^(l)
     }
     return^st
-}
-
-public^let^step = p^st:Stage{
-    for^l in^st.layers {
-        l.step()
-        vp.fighter.stepObjects(l)   # what a layer spawns (O); none in the original's data
-    }
 }
 
 # Draws one layer, in world coordinates (the caller has moved to the camera).
@@ -84,11 +90,4 @@ let^drawLayer = p^l:Fighter, camX:number^, camY:number^{
         }
     }
     vp.sprite.resetBlend()
-}
-
-# Layers [from, to).
-public^let^draw = p^st:Stage, camX:number^, camY:number^, from:number^, to:number^{
-    for^k, l in^st.layers {
-        if^k >= from and^k < to { drawLayer(l, camX, camY) }
-    }
 }

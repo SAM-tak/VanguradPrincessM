@@ -102,13 +102,13 @@ public^let^update = p^dt:number^{
             if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^$"synchronous fallback: lton={vp.resource.fallbackReads()} assets={vp.arena.fallbacks()}" }
             let^b = vp.resource.Batch.new("missing-file-test")
             failure := b
-            vp.resource.request(b, "assets/does-not-exist.png", "image", false^)
+            b.request("assets/does-not-exist.png", "image", false^)
             phase := 15
         }
     elseif^phase = 15:
         let^b = failure
         if^b != nil^ and^b.error != "" {
-            vp.resource.cancel(b)
+            b.cancel()
             if^vp.resource.outstanding() = 0 {
                 print($"PASS: cancel, retry, two fighters, D support attack, pause/freeze/resume, battle drawing, missing asset; frames={frames}; synchronous fallback reads=0")
                 love.event.quit()

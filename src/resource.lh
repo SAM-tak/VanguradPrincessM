@@ -11,18 +11,98 @@ import^love.timer
 require^"arena.lh"
 require^"scriptdata.lh"
 
-public^let^Batch = def^{ self^{
-    abstract^arena : vp.arena.Arena,
-    pending = 0,
-    cancelled = false^,
-    error = "",
-    seen : t^{[string^]:bool^|nil^} = {},
-}, override^new = f^name:string^{ self^{arena = vp.arena.Arena.new(name)} } }
-let^Job = def^{ self^{
-    abstract^batch : Batch, path = "", kind = "", loop = false^,
-    task : std.task.Task|nil^= nil^,
-    channel : std.channel.Channel|nil^= nil^,
-}, override^new = f^batch:Batch{ self^{batch = batch} } }
+public^let^Batch = def^{
+    self^{
+        abstract^arena : vp.arena.Arena,
+        pending = 0,
+        cancelled = false^,
+        error = "",
+        seen : t^{[string^]:bool^|nil^} = {},
+    },
+    override^new = f^name:string^{ self^{arena = vp.arena.Arena.new(name)} },
+
+    request = p^self^, path:string^, kind:string^, loop:bool^{
+        let^key = $"{kind}:{path}"
+        if^self^.cancelled or^self^.seen[key] != nil^ { return^ }
+        self^.seen[key] := true^
+        if^kind = "lton" and^tables[path] != nil^ { return^ }
+        if^kind = "script" and^scripts[path] != nil^ { return^ }
+        let^j = Job.new(self^)
+        j.path := path
+        j.kind := kind
+        j.loop := loop
+        self^.pending += 1
+        queue.push^(j)
+    },
+    ready = f^self^-> bool^{ return^self^.pending = 0 and^!self^.cancelled and^self^.error = "" },
+    cancel = p^self^{
+        self^.cancelled := true^
+        self^.arena.dispose()
+    },
+}
+
+let^Job = def^{
+    self^{
+        abstract^batch : Batch, path = "", kind = "", loop = false^,
+        task : std.task.Task|nil^= nil^,
+        channel : std.channel.Channel|nil^= nil^,
+    },
+    override^new = f^batch:Batch{ self^{batch = batch} },
+
+    launch = p^self^{
+        # Capture only immutable job arguments and this job's channel, never
+        # the scene, arena, queues, or main-thread caches.
+        let^path = self^.path
+        let^definition = metadataPath(path)
+        let^kind = self^.kind
+        let^loop = self^.loop
+        let^parse = vp.scriptdata.parse
+        let^out = try^std.channel.new()
+        self^.channel := out
+        self^.task := try^std.task.async(p^-> any^{
+            if^kind = "lton" or^kind = "script" {
+                let^raw = try^std.lton.load(definition)
+                if^!(raw fits^t^{}) { return^nil^ }
+                if^kind = "script" { return^parse(raw) }
+                return^raw
+            }
+            if^kind = "image" {
+                let^pixels = try^love.image.newImageData(path)
+                try^out.push(pixels)
+            else^:
+                let^source = try^love.audio.newSource(path, if^loop or^kind = "stream": love.audio.SourceType.stream el^: love.audio.SourceType.static;)
+                source.setLooping(loop)
+                try^out.push(source)
+            }
+            return^true^
+        })
+    catch^:
+        self^.batch.error := $"{self^.path}: {it^.message}"
+        let^ch = self^.channel
+        if^ch != nil^ { ch.dispose() self^.channel := nil^ }
+    },
+    finish = p^self^{
+        let^t = self^.task
+        if^t is^nil^{ return^ }
+        let^result = try^std.task.await(t)
+        if^!self^.batch.cancelled {
+            if^self^.kind = "script" {
+                if^result fits^vp.scriptdata.Data {
+                    scripts[self^.path] := result
+                    tables[self^.path] := result.raw
+                else^: self^.batch.error := $"{self^.path}: invalid script result"
+                }
+            elseif^self^.kind = "lton":
+                if^result fits^t^{} { tables[self^.path] := result
+                else^: self^.batch.error := $"{self^.path}: invalid LTON result"
+                }
+            }
+        }
+    catch^:
+        if^!self^.batch.cancelled { self^.batch.error := $"{self^.path}: {it^.message}" }
+    },
+}
+
 var^queue : t^{Job[]} = {}
 var^next = 0
 var^active : t^{Job[]} = {}
@@ -56,78 +136,6 @@ public^let^script = p^path:string^-> vp.scriptdata.Data|nil^{
     scripts[path] := parsed
     return^parsed
 }
-public^let^request = p^b:Batch, path:string^, kind:string^, loop:bool^{
-    let^key = $"{kind}:{path}"
-    if^b.cancelled or^b.seen[key] != nil^ { return^ }
-    b.seen[key] := true^
-    if^kind = "lton" and^tables[path] != nil^ { return^ }
-    if^kind = "script" and^scripts[path] != nil^ { return^ }
-    let^j = Job.new(b)
-    j.path := path
-    j.kind := kind
-    j.loop := loop
-    b.pending += 1
-    queue.push^(j)
-}
-public^let^ready = f^b:Batch-> bool^{ return^b.pending = 0 and^!b.cancelled and^b.error = "" }
-public^let^cancel = p^b:Batch{
-    b.cancelled := true^
-    vp.arena.release(b.arena)
-}
-
-let^launch = p^j:Job{
-    # Capture only immutable job arguments and this job's channel, never
-    # the scene, arena, queues, or main-thread caches.
-    let^path = j.path
-    let^definition = metadataPath(path)
-    let^kind = j.kind
-    let^loop = j.loop
-    let^parse = vp.scriptdata.parse
-    let^out = try^std.channel.new()
-    j.channel := out
-    j.task := try^std.task.async(p^-> any^{
-        if^kind = "lton" or^kind = "script" {
-            let^raw = try^std.lton.load(definition)
-            if^!(raw fits^t^{}) { return^nil^ }
-            if^kind = "script" { return^parse(raw) }
-            return^raw
-        }
-        if^kind = "image" {
-            let^pixels = try^love.image.newImageData(path)
-            try^out.push(pixels)
-        else^:
-            let^source = try^love.audio.newSource(path, if^loop or^kind = "stream": love.audio.SourceType.stream el^: love.audio.SourceType.static;)
-            source.setLooping(loop)
-            try^out.push(source)
-        }
-        return^true^
-    })
-catch^:
-    j.batch.error := $"{j.path}: {it^.message}"
-    let^ch = j.channel
-    if^ch != nil^ { ch.dispose() j.channel := nil^ }
-}
-
-let^finish = p^j:Job{
-    let^t = j.task
-    if^t is^nil^{ return^ }
-    let^result = try^std.task.await(t)
-    if^!j.batch.cancelled {
-        if^j.kind = "script" {
-            if^result fits^vp.scriptdata.Data {
-                scripts[j.path] := result
-                tables[j.path] := result.raw
-            else^: j.batch.error := $"{j.path}: invalid script result"
-            }
-        elseif^j.kind = "lton":
-            if^result fits^t^{} { tables[j.path] := result
-            else^: j.batch.error := $"{j.path}: invalid LTON result"
-            }
-        }
-    }
-catch^:
-    if^!j.batch.cancelled { j.batch.error := $"{j.path}: {it^.message}" }
-}
 
 # Called once per rendered update. Never await an unfinished task. Bound
 # both in-flight decoded memory and GPU uploads; a single upload can exceed
@@ -140,7 +148,7 @@ public^let^pump = p^seconds:number^{
     for^j in^active {
         let^t = j.task
         if^t != nil^ and^t.done() and^love.timer.getTime() - start < seconds {
-            finish(j)
+            j.finish()
             let^ch = j.channel
             if^ch != nil^ {
                 let^object = ch.pop()
@@ -173,7 +181,7 @@ public^let^pump = p^seconds:number^{
             let^j : Job = maybe
             if^j.batch.cancelled or^j.batch.error != "" { j.batch.pending -= 1
             else^:
-                launch(j)
+                j.launch()
                 if^j.task != nil^ { active.push^(j) else^: j.batch.pending -= 1 }
             }
         }
@@ -182,6 +190,7 @@ public^let^pump = p^seconds:number^{
 catch^:
     panic^$"Async loading: {it^.message}"
 }
+
 public^let^stop = p^{
     if^started { std.task.stop() started := false^ }
     for^j in^active {
@@ -199,4 +208,5 @@ public^let^stop = p^{
     queue := {}
     next := 0
 }
+
 public^let^outstanding = f^{ active.length^ + queue.length^ - next }

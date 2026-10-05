@@ -192,9 +192,9 @@ public^let^Sheet = def^{
 # portrait on each cursor move, read them all over again).
 var^sheets : t^{[string^]:Sheet|nil^} = {}
 
-public^let^sheetFor = p^dir:string^-> Sheet{
+public^let^sheetFor = p^dir:string^-> Sheet {
     let^known = sheets[dir]
-    if^known != nil^ { return^known }
+    if^known? { return^known }
     let^s = Sheet.new(dir)
     sheets[dir] := s
     return^s

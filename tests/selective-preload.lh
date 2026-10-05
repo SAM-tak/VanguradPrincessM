@@ -16,10 +16,10 @@ var^began = 0
 let^queue = p^{
     let^l = vp.preload.Load.new("selective-test")
     let^name = if^caseNo < 5: "ゆい" el^: "くるみ";
-    vp.preload.character(l, $"assets/characters/{name}", if^caseNo < 10: 101 + caseNo % 5 el^: 100;)
+    l.character($"assets/characters/{name}", if^caseNo < 10: 101 + caseNo % 5 el^: 100;)
     if^caseNo = 11 {
-        vp.preload.character(l, "assets/characters/くるみ", 101)
-        vp.preload.character(l, "assets/characters/くるみ", 105)
+        l.character("assets/characters/くるみ", 101)
+        l.character("assets/characters/くるみ", 105)
     }
     pending := l
 }
@@ -38,7 +38,7 @@ let^checkPath = p^path:string^{
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
     let^l = pending
-    if^l != nil^ and^vp.preload.ready(l) {
+    if^l != nil^ and^l.ready() {
         var^images = 0
         var^sounds = 0
         for^path:string^, tex:love.graphics.Texture in^l.batch.arena.textures { checkPath(path) images += 1 }
@@ -68,7 +68,7 @@ public^let^update = p^dt:number^{
             }
         }
         print($"PASS: selection case {caseNo}: images={images}, sounds={sounds}")
-        vp.resource.cancel(l.batch)
+        l.batch.cancel()
         caseNo += 1
         if^caseNo < 12 { queue()
         else^:

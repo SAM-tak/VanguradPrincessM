@@ -63,160 +63,175 @@ public^let^Round = def^{
         marks : t^{Fighter[]} = {},
         combos : t^{Fighter[]} = {},    # hit counts, in world coordinates
     },
+
+    runAt = p^self^, n:number^, x:number^, y:number^-> Fighter {
+        let^l = Fighter.new(self^.dir, x, y)
+        let^sc = self^.script
+        if^sc != nil^ { sc.install(l) }
+        l.begin(n)
+        l.ground := 1000000
+        l.system := true^
+        l.depth := 125                  # a round's own images: in front of the HUD
+        return^l
+    },
+    # Stage `phase`: system skill n for its show time. The show time is when the
+    # engine moves on; the skills already running go on until they end (FIGHT
+    # clears the timer's hiding after its show time).
+    enter = p^self^, phase:string^, n:number^{
+        self^.phase := phase
+        self^.layers.push^(self^.runAt(n, 0, 0))
+        let^sc = self^.script
+        self^.left := if^sc != nil^: sc.showTime(n) el^: 0;
+    },
+    # Restart every mark with the round: earned marks replay their entrance.
+    placeMarks = p^self^{
+        self^.marks := {}
+        for^k from^0 to^self^.toWin - 1 {
+            self^.marks.push^(self^.runAt(if^self^.wins1 > k: MARK_ON el^: MARK_OFF;, MARK_1P_X - MARK_STEP * k, MARK_Y))
+            self^.marks.push^(self^.runAt(if^self^.wins2 > k: MARK_ON el^: MARK_OFF;, MARK_2P_X + MARK_STEP * k, MARK_Y))
+        }
+    },
+    # Marks are interleaved 1P / 2P. Only the newly earned slot starts over;
+    # all earlier marks keep their current animation and display state.
+    awardMark = p^self^, side:number^, wins:number^{
+        let^k = wins - 1
+        let^x = if^side = 0: MARK_1P_X - MARK_STEP * k el^: MARK_2P_X + MARK_STEP * k;
+        self^.marks[2 * k + side] := self^.runAt(MARK_ON, x, MARK_Y)
+    },
+    fighting = f^self^-> bool^{
+        return^self^.phase = "fight"
+    },
+    # One frame. `timeUp`: the clock has run out. `reset` puts the fighters back
+    # for the next round; `over` is called when a side has won the match.
+    step = p^self^, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, over:p^;{
+        var^running : t^{Fighter[]} = {}
+        for^l in^self^.layers {
+            l.step()
+            l.stepObjects()
+            if^!(l.finished() and^l.objects.length^ = 0) { running.push^(l) }
+        }
+        self^.layers := running
+        for^m in^self^.marks { m.step() }
+        var^showing : t^{Fighter[]} = {}
+        for^c in^self^.combos {
+            c.step()
+            if^!c.finished() { showing.push^(c) }
+        }
+        self^.combos := showing
+
+        if^self^.phase = "fight" {
+            let^down1 = p1.life <= 0
+            let^down2 = p2.life <= 0
+            if^!(down1 or^down2 or^timeUp) { return^}
+            self^.winner := if^down1 and^down2: 0
+                el^down2: 1
+                el^down1: 2
+                el^p1.life > p2.life: 1
+                el^p2.life > p1.life: 2
+                el^: 0;
+            if^down1 { p1.begin(LOSS) }
+            if^down2 { p2.begin(LOSS) }
+            self^.enter("ko", if^down1 and^down2: DOUBLE_KO el^: KO;)
+            self^.perfect := false^
+            let^w = if^self^.winner = 1: p1 el^self^.winner = 2: p2 el^: nil^;
+            if^w != nil^ { self^.perfect := w.life >= w.lifeMax }
+            return^
+        }
+
+        if^self^.left > 0 {
+            self^.left -= 1
+            return^
+        }
+        if^self^.phase = "start" {
+            let^call = if^self^.number <= 9: ROUND_1 + self^.number - 1 el^: ROUND_FINAL;
+            self^.enter("call", call)
+        elseif^self^.phase = "call":
+            self^.enter("ready", FIGHT)
+        elseif^self^.phase = "ready":
+            self^.phase := "fight"
+        elseif^self^.phase = "ko":
+            if^self^.winner = 1 {
+                self^.wins1 += 1
+                self^.awardMark(0, self^.wins1)
+                p1.begin(VICTORY)
+                self^.enter("win", WIN_1P)
+            elseif^self^.winner = 2:
+                self^.wins2 += 1
+                self^.awardMark(1, self^.wins2)
+                p2.begin(VICTORY)
+                self^.enter("win", WIN_2P)
+            else^:
+                self^.enter("win", DRAW)
+            }
+            # PERFECT shows with "1P / 2P WIN", not with KO (the original, VS mode)
+            if^self^.perfect { self^.layers.push^(self^.runAt(PERFECT, 0, 0)) }
+        elseif^self^.phase = "win":
+            self^.enter("end", ROUND_END)
+        elseif^self^.phase = "end":
+            # #14 ends in black (its #112 fades out and stays); the new round
+            # clears the system's objects and #13 fades in.
+            if^self^.wins1 >= self^.toWin or^self^.wins2 >= self^.toWin {
+                over()
+                return^
+            }
+            self^.number += 1
+            reset()
+            self^.layers := {}
+            self^.combos := {}
+            self^.enter("start", ROUND_START)
+            self^.placeMarks()
+        }
+    },
+    # A combo's count (2 and up): the system's "HIT COMBO" and the count's digits,
+    # at (x, y) in the world. Measured in the original (TechnicalDocuments/0018):
+    # every hit from the second on spawns a fresh set, and the earlier ones play
+    # out their own scripts.
+    showCombo = p^self^, count:number^, x:number^, y:number^{
+        let^add = p^n:number^, at:number^{
+            let^c = self^.runAt(n, at, y)
+            c.depth := 101
+            self^.combos.push^(c)
+        }
+        add(HIT, x)
+        var^rest = count.floor()
+        var^at = x
+        repeat^while^true^ {
+            add(HIT_DIGIT + rest % 10, at)
+            rest := (rest / 10).floor()
+            at -= DIGIT_STEP
+            if^rest = 0 { break^}
+        }
+    },
+    items = p^self^-> t^{Item[]}{
+        var^out : t^{Item[]} = {}
+        let^add = p^f:Fighter, depth:number^{
+            let^i = Item.new()
+            i.depth := depth
+            i.f := f
+            i.system := true^
+            out.push^(i)
+        }
+        for^m in^self^.marks { add(m, 100) }
+        for^c in^self^.combos {
+            add(c, c.depth)
+            let^last = out[out.length^ - 1]
+            if^last != nil^ { last.world := true^}
+        }
+        for^l in^self^.layers {
+            add(l, l.depth)
+            for^o in^l.objects { add(o, o.depth) }
+        }
+        return^out
+    },
 }
 
-let^runAt = p^r:Round, n:number^, x:number^, y:number^-> Fighter{
-    let^l = Fighter.new(r.dir, x, y)
-    let^sc = r.script
-    if^sc != nil^ { vp.script.install(l, sc) }
-    l.begin(n)
-    l.ground := 1000000
-    l.system := true^
-    l.depth := 125                  # a round's own images: in front of the HUD
-    return^l
-}
-
-# Stage `phase`: system skill n for its show time. The show time is when the
-# engine moves on; the skills already running go on until they end (FIGHT
-# clears the timer's hiding after its show time).
-let^enter = p^r:Round, phase:string^, n:number^{
-    r.phase := phase
-    r.layers.push^(runAt(r, n, 0, 0))
-    let^sc = r.script
-    r.left := if^sc != nil^: vp.script.showTime(sc, n) el^: 0;
-}
-
-# Restart every mark with the round: earned marks replay their entrance.
-let^placeMarks = p^r:Round{
-    r.marks := {}
-    for^k from^0 to^r.toWin - 1 {
-        r.marks.push^(runAt(r, if^r.wins1 > k: MARK_ON el^: MARK_OFF;, MARK_1P_X - MARK_STEP * k, MARK_Y))
-        r.marks.push^(runAt(r, if^r.wins2 > k: MARK_ON el^: MARK_OFF;, MARK_2P_X + MARK_STEP * k, MARK_Y))
-    }
-}
-
-# Marks are interleaved 1P / 2P. Only the newly earned slot starts over;
-# all earlier marks keep their current animation and display state.
-let^awardMark = p^r:Round, side:number^, wins:number^{
-    let^k = wins - 1
-    let^x = if^side = 0: MARK_1P_X - MARK_STEP * k el^: MARK_2P_X + MARK_STEP * k;
-    r.marks[2 * k + side] := runAt(r, MARK_ON, x, MARK_Y)
-}
-
-public^let^load = p^dir:string^-> Round{
+public^let^load = p^dir:string^-> Round {
     let^r = Round.new()
     r.dir := dir
     r.script := vp.script.load($"{dir}/script.lton")
-    enter(r, "start", ROUND_START)
-    placeMarks(r)
+    r.enter("start", ROUND_START)
+    r.placeMarks()
     return^r
-}
-
-public^let^fighting = f^r:Round-> bool^{
-    return^r.phase = "fight"
-}
-
-# One frame. `timeUp`: the clock has run out. `reset` puts the fighters back
-# for the next round; `over` is called when a side has won the match.
-public^let^step = p^r:Round, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, over:p^;{
-    var^running : t^{Fighter[]} = {}
-    for^l in^r.layers {
-        l.step()
-        vp.fighter.stepObjects(l)
-        if^!(l.finished() and^l.objects.length^ = 0) { running.push^(l) }
-    }
-    r.layers := running
-    for^m in^r.marks { m.step() }
-    var^showing : t^{Fighter[]} = {}
-    for^c in^r.combos {
-        c.step()
-        if^!c.finished() { showing.push^(c) }
-    }
-    r.combos := showing
-
-    if^r.phase = "fight" {
-        let^down1 = p1.life <= 0
-        let^down2 = p2.life <= 0
-        if^!(down1 or^down2 or^timeUp) { return^}
-        r.winner := if^down1 and^down2: 0
-            el^down2: 1
-            el^down1: 2
-            el^p1.life > p2.life: 1
-            el^p2.life > p1.life: 2
-            el^: 0;
-        if^down1 { p1.begin(LOSS) }
-        if^down2 { p2.begin(LOSS) }
-        enter(r, "ko", if^down1 and^down2: DOUBLE_KO el^: KO;)
-        r.perfect := false^
-        let^w = if^r.winner = 1: p1 el^r.winner = 2: p2 el^: nil^;
-        if^w != nil^ { r.perfect := w.life >= w.lifeMax }
-        return^
-    }
-
-    if^r.left > 0 {
-        r.left -= 1
-        return^
-    }
-    if^r.phase = "start" {
-        let^call = if^r.number <= 9: ROUND_1 + r.number - 1 el^: ROUND_FINAL;
-        enter(r, "call", call)
-    elseif^r.phase = "call":
-        enter(r, "ready", FIGHT)
-    elseif^r.phase = "ready":
-        r.phase := "fight"
-    elseif^r.phase = "ko":
-        if^r.winner = 1 {
-            r.wins1 += 1
-            awardMark(r, 0, r.wins1)
-            p1.begin(VICTORY)
-            enter(r, "win", WIN_1P)
-        elseif^r.winner = 2:
-            r.wins2 += 1
-            awardMark(r, 1, r.wins2)
-            p2.begin(VICTORY)
-            enter(r, "win", WIN_2P)
-        else^:
-            enter(r, "win", DRAW)
-        }
-        # PERFECT shows with "1P / 2P WIN", not with KO (the original, VS mode)
-        if^r.perfect { r.layers.push^(runAt(r, PERFECT, 0, 0)) }
-    elseif^r.phase = "win":
-        enter(r, "end", ROUND_END)
-    elseif^r.phase = "end":
-        # #14 ends in black (its #112 fades out and stays); the new round
-        # clears the system's objects and #13 fades in.
-        if^r.wins1 >= r.toWin or^r.wins2 >= r.toWin {
-            over()
-            return^
-        }
-        r.number += 1
-        reset()
-        r.layers := {}
-        r.combos := {}
-        enter(r, "start", ROUND_START)
-        placeMarks(r)
-    }
-}
-
-# A combo's count (2 and up): the system's "HIT COMBO" and the count's digits,
-# at (x, y) in the world. Measured in the original (TechnicalDocuments/0018):
-# every hit from the second on spawns a fresh set, and the earlier ones play
-# out their own scripts.
-public^let^showCombo = p^r:Round, count:number^, x:number^, y:number^{
-    let^add = p^n:number^, at:number^{
-        let^c = runAt(r, n, at, y)
-        c.depth := 101
-        r.combos.push^(c)
-    }
-    add(HIT, x)
-    var^rest = count.floor()
-    var^at = x
-    repeat^while^true^ {
-        add(HIT_DIGIT + rest % 10, at)
-        rest := (rest / 10).floor()
-        at -= DIGIT_STEP
-        if^rest = 0 { break^}
-    }
 }
 
 # What to draw in view coordinates: the running system skills, their objects
@@ -228,32 +243,16 @@ public^let^Item = def^{
         system = false^,            # a system image (top-left), else a character's
         world = false^,             # at a place in the world (hit counts), not the view
     },
-}
 
-public^let^items = p^r:Round-> t^{Item[]}{
-    var^out : t^{Item[]} = {}
-    let^add = p^f:Fighter, depth:number^{
-        let^i = Item.new()
-        i.depth := depth
-        i.f := f
-        i.system := true^
-        out.push^(i)
-    }
-    for^m in^r.marks { add(m, 100) }
-    for^c in^r.combos {
-        add(c, c.depth)
-        let^last = out[out.length^ - 1]
-        if^last != nil^ { last.world := true^ }
-    }
-    for^l in^r.layers {
-        add(l, l.depth)
-        for^o in^l.objects { add(o, o.depth) }
-    }
-    return^out
+    draw = p^self^{
+        let^f = self^.f
+        if^f is^nil^ { return^}
+        if^self^.system { vp.hud.drawWhole(f) else^: f.draw() }
+    },
 }
 
 # Sorts by depth, keeping the order of equal ones.
-public^let^byDepth = p^list:t^{Item[]}{
+public^let^byDepth = p^list:t^{Item[]} {
     for^i from^1 to^list.length^ - 1 {
         let^x = list[i]
         if^x != nil^ {
@@ -267,10 +266,4 @@ public^let^byDepth = p^list:t^{Item[]}{
             list[j + 1] := x
         }
     }
-}
-
-public^let^drawItem = p^i:Item{
-    let^f = i.f
-    if^f is^nil^ { return^}
-    if^i.system { vp.hud.drawWhole(f) else^: f.draw() }
 }

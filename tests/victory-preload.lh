@@ -20,12 +20,12 @@ var^began = 0
 
 let^queue = p^{
     let^l = vp.preload.Load.new("victory-test")
-    vp.preload.victory(l, DIR, winner)
+    l.victory(DIR, winner)
     pending := l
 }
 let^play = p^{
-    vp.fighter.setv(me, 129, winner)
-    vp.fighter.setv(me, 130, opponent)
+    me.setv(129, winner)
+    me.setv(130, opponent)
     scene := vp.stage.load(DIR)
     frame := 0
 }
@@ -33,12 +33,12 @@ public^let^load = p^{ began := love.timer.getTime() queue() }
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
     let^l = pending
-    if^l != nil^ and^vp.preload.ready(l) {
+    if^l != nil^ and^l.ready() {
         var^count = 0
         for^path:string^, texture:love.graphics.Texture in^l.batch.arena.textures { count += 1 }
         if^count >= 149 { panic^"Victory images were not filtered" }
         print($"winner={winner}: images={count}")
-        vp.arena.attach(l.batch.arena)
+        l.batch.arena.attach()
         pending := nil^
         play()
     }
@@ -48,8 +48,8 @@ public^let^draw = p^{
     for^i from^0 to^19 {
         let^s = scene
         if^s is^nil^ { return^ }
-        vp.stage.step(s)
-        vp.stage.draw(s, 0, 0, 0, 999)
+        s.step()
+        s.draw(0, 0, 0, 999)
         if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 {
             panic^$"Victory preload miss: winner={winner}, opponent={opponent}, frame={frame}"
         }

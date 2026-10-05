@@ -45,6 +45,12 @@ public^let^Side = def^{
         confirmed = false^,
         colour = 0,
     },
+
+    # Which side's system variable 141 (set when a side confirms) the portraits
+    # see: each sees its own side's state (FM2K has one for both players).
+    confirmFlag = p^self^, fighter:Fighter{
+        fighter.setv(141, if^self^.confirmed: 1 el^: 0;)
+    },
 }
 
 public^let^Select = def^{
@@ -57,6 +63,132 @@ public^let^Select = def^{
         done = false^,
         story = false^,
     },
+
+    systemRun = p^self^, n:number^, x:number^, y:number^-> Fighter {
+        let^l = Fighter.new(self^.systemDir, x, y)
+        let^sc = self^.system
+        if^sc != nil^ { sc.install(l) }
+        l.system := true^
+        l.depth := 101
+        l.begin(n)
+        l.ground := 1000000
+        return^l
+    },
+    # The character under side k's cursor as its portrait object.
+    showPortrait = p^self^, k:number^{
+        let^maybe = self^.sides[k]
+        if^maybe is^nil^{ return^}
+        let^side : Side = maybe
+        let^name = CHARACTERS[side.row] ?? "ゆい"
+        let^p = Fighter.new($"assets/characters/{name}", if^k = 0: PORTRAIT_1P_X el^: PORTRAIT_2P_X;, PORTRAIT_Y)
+        (portraitOf(name)).install(p)
+        p.ground := 1000000
+        p.onScreen := true^
+        p.facing := if^k = 0: 1 el^: -1;
+        p.depth := 100
+        p.begin(PORTRAIT)
+        side.portrait := p
+        side.cursor := self^.systemRun(if^k = 0: CURSOR_1P el^: CURSOR_2P;, GRID_X, slotY(side.row))
+    },
+    # All human choices are confirmed (one in story, two in VS).
+    bothChosen = f^self^-> bool^{
+        let^first = self^.sides[0]
+        let^last = self^.sides[if^self^.story: 0 el^: 1;]
+        return^first != nil^ and^first.confirmed and^last != nil^ and^last.confirmed
+    },
+    # One frame. dir: FM2K's direction code (5 = none, 8 up, 2 down, 4 / 6 left
+    # / right), pressed: the buttons pressed this frame (A = 1 ... F = 32).
+    step = p^self^, up:bool^, down:bool^, dir:number^, pressed:number^, up2:bool^, down2:bool^, dir2:number^, pressed2:number^{
+        self^.demo?.step()
+
+        for^k from^0 to^(if^self^.story: 0 el^: 1;) {
+            let^u = if^k = 0: up el^: up2;
+            let^d = if^k = 0: down el^: down2;
+            let^b = if^k = 0: pressed el^: pressed2;
+            let^maybe = self^.sides[k]
+            if^maybe != nil^ and^!maybe.confirmed {
+                let^side : Side = maybe
+                if^u or^d {
+                    side.row := (side.row + (if^d: 1 el^: -1;) + ROWS) % ROWS
+                    self^.showPortrait(k)
+                elseif^b != 0:
+                    side.confirmed := true^
+                    side.colour := firstButton(b)
+                    side.cursor := self^.systemRun(if^k = 0: CONFIRMED_1P el^: CONFIRMED_2P;, GRID_X, slotY(side.row))
+                }
+            }
+        }
+
+        for^i, sd in^self^.sides {
+            let^p = sd.portrait
+            if^p != nil^ {
+                sd.confirmFlag(p)
+                p.record(if^sd.confirmed: 5 el^i = 0: dir el^: dir2;, 0)
+                p.step()
+                p.stepObjects()
+            }
+            let^c = sd.cursor
+            if^c != nil^ {
+                c.step()
+                c.stepObjects()
+            }
+        }
+
+        if^self^.bothChosen() {
+            self^.wait += 1
+            if^self^.wait > AFTER_BOTH { self^.done := true^ }
+        }
+    },
+    # The choices once done.
+    chosen = p^self^, k:number^-> string^, number^{
+        let^side = self^.sides[k]
+        if^side is^nil^{ return^"ゆい", 0 }
+        return^CHARACTERS[side.row] ?? "ゆい", side.colour
+    },
+    # Draws the screen in view coordinates, by depth as measured in the original
+    # (TechnicalDocuments/0015): the demo's layers before ｼｽﾃﾑｲﾒｰｼﾞ位置 (12), the
+    # portraits (80) and their big faces (79), the layers from the marker on
+    # (100: the grid's icons), the cursors (101) and the support arrows (127).
+    draw = p^self^{
+        let^st = self^.demo
+        if^st is^nil^{ return^}
+        vp.fighter.setView(0, 0)
+        st.draw(0, 0, 0, st.players)
+        var^list : t^{vp.round.Item[]} = {}
+        let^add = p^f:Fighter, system:bool^{
+            let^i = vp.round.Item.new()
+            i.depth := f.depth
+            i.f := f
+            i.system := system
+            list.push^(i)
+        }
+        for^sd in^self^.sides {
+            let^p = sd.portrait
+            if^p? {
+                add(p, false^)
+                for^o in^p.objects { add(o, false^) }
+            }
+            let^c = sd.cursor
+            if^c? {
+                add(c, true^)
+                for^o in^c.objects { add(o, true^) }
+            }
+        }
+        # Objects the screen'self^ layers spawn (the curtain the converter'self^ patch
+        # moved to depth 127, TechnicalDocuments/0019): after the others, so over
+        # those of the same depth.
+        for^l in^st.layers {
+            for^o in^l.objects { add(o, true^) }
+        }
+        vp.round.byDepth(list)
+        for^i in^list {
+            if^i.depth <= 100 { i.draw() }
+        }
+        st.draw(0, 0, st.players, st.layers.length^)
+        for^i in^list {
+            if^i.depth > 100 { i.draw() }
+        }
+    },
 }
 
 # Scripts of the characters, loaded once: the whole one (script.lton, for a
@@ -68,7 +200,7 @@ var^scripts : t^{[string^]:vp.script.Script|nil^} = {}
 let^loadScript = p^name:string^, file:string^-> vp.script.Script{
     let^key = $"{name}/{file}"
     let^known = scripts[key]
-    if^known != nil^ { return^known }
+    if^known? { return^known }
     let^sc = vp.script.load($"assets/characters/{name}/{file}") ?? vp.script.Script.new()
     scripts[key] := sc
     return^sc
@@ -82,36 +214,8 @@ let^portraitOf = p^name:string^-> vp.script.Script{
     return^loadScript(name, "portrait.lton")
 }
 
-let^systemRun = p^s:Select, n:number^, x:number^, y:number^-> Fighter{
-    let^l = Fighter.new(s.systemDir, x, y)
-    let^sc = s.system
-    if^sc != nil^ { vp.script.install(l, sc) }
-    l.system := true^
-    l.depth := 101
-    l.begin(n)
-    l.ground := 1000000
-    return^l
-}
-
 let^slotY = f^row:number^-> number^{
     return^GRID_Y + GRID_STEP * row
-}
-
-# The character under side k's cursor as its portrait object.
-let^showPortrait = p^s:Select, k:number^{
-    let^maybe = s.sides[k]
-    if^maybe is^nil^{ return^}
-    let^side : Side = maybe
-    let^name = CHARACTERS[side.row] ?? "ゆい"
-    let^p = Fighter.new($"assets/characters/{name}", if^k = 0: PORTRAIT_1P_X el^: PORTRAIT_2P_X;, PORTRAIT_Y)
-    vp.script.install(p, portraitOf(name))
-    p.ground := 1000000
-    p.onScreen := true^
-    p.facing := if^k = 0: 1 el^: -1;
-    p.depth := 100
-    p.begin(PORTRAIT)
-    side.portrait := p
-    side.cursor := systemRun(s, if^k = 0: CURSOR_1P el^: CURSOR_2P;, GRID_X, slotY(side.row))
 }
 
 public^let^load = p^systemDir:string^, story:bool^-> Select{
@@ -134,16 +238,9 @@ public^let^load = p^systemDir:string^, story:bool^-> Select{
     # VS mode: both sides are up from the start (the 2P cursor #85 moves
     # system variable 139 off 500, the select screen's "1P only" mark, and
     # the screen lays itself out for two: 2P's support, no move list).
-    showPortrait(s, 0)
-    if^!story { showPortrait(s, 1) }
+    s.showPortrait(0)
+    if^!story { s.showPortrait(1) }
     return^s
-}
-
-# All human choices are confirmed (one in story, two in VS).
-public^let^bothChosen = f^s:Select-> bool^{
-    let^first = s.sides[0]
-    let^last = s.sides[if^s.story: 0 el^: 1;]
-    return^first != nil^ and^first.confirmed and^last != nil^ and^last.confirmed
 }
 
 # The first button of a pressed set (A = 0 ... F = 5): the colour.
@@ -154,107 +251,4 @@ let^firstButton = f^pressed:number^-> number^{
         rest := (rest / 2).floor()
     }
     return^0
-}
-
-# Which side's system variable 141 (set when a side confirms) the portraits
-# see: each sees its own side's state (FM2K has one for both players).
-let^confirmFlag = p^side:Side, me:Fighter{
-    vp.fighter.setv(me, 141, if^side.confirmed: 1 el^: 0;)
-}
-
-# One frame. dir: FM2K's direction code (5 = none, 8 up, 2 down, 4 / 6 left
-# / right), pressed: the buttons pressed this frame (A = 1 ... F = 32).
-public^let^step = p^s:Select, up:bool^, down:bool^, dir:number^, pressed:number^, up2:bool^, down2:bool^, dir2:number^, pressed2:number^{
-    let^st = s.demo
-    if^st != nil^ { vp.stage.step(st) }
-
-    for^k from^0 to^(if^s.story: 0 el^: 1;) {
-        let^u = if^k = 0: up el^: up2;
-        let^d = if^k = 0: down el^: down2;
-        let^b = if^k = 0: pressed el^: pressed2;
-        let^maybe = s.sides[k]
-        if^maybe != nil^ and^!maybe.confirmed {
-            let^side : Side = maybe
-            if^u or^d {
-                side.row := (side.row + (if^d: 1 el^: -1;) + ROWS) % ROWS
-                showPortrait(s, k)
-            elseif^b != 0:
-                side.confirmed := true^
-                side.colour := firstButton(b)
-                side.cursor := systemRun(s, if^k = 0: CONFIRMED_1P el^: CONFIRMED_2P;, GRID_X, slotY(side.row))
-            }
-        }
-    }
-
-    for^i, sd in^s.sides {
-        let^p = sd.portrait
-        if^p != nil^ {
-            confirmFlag(sd, p)
-            vp.fighter.record(p, if^sd.confirmed: 5 el^i = 0: dir el^: dir2;, 0)
-            p.step()
-            vp.fighter.stepObjects(p)
-        }
-        let^c = sd.cursor
-        if^c != nil^ {
-            c.step()
-            vp.fighter.stepObjects(c)
-        }
-    }
-
-    if^bothChosen(s) {
-        s.wait += 1
-        if^s.wait > AFTER_BOTH { s.done := true^ }
-    }
-}
-
-# The choices once done.
-public^let^chosen = p^s:Select, k:number^-> (string^, number^){
-    let^side = s.sides[k]
-    if^side is^nil^{ return^"ゆい", 0 }
-    return^CHARACTERS[side.row] ?? "ゆい", side.colour
-}
-
-# Draws the screen in view coordinates, by depth as measured in the original
-# (TechnicalDocuments/0015): the demo's layers before ｼｽﾃﾑｲﾒｰｼﾞ位置 (12), the
-# portraits (80) and their big faces (79), the layers from the marker on
-# (100: the grid's icons), the cursors (101) and the support arrows (127).
-public^let^draw = p^s:Select{
-    let^st = s.demo
-    if^st is^nil^{ return^}
-    vp.fighter.setView(0, 0)
-    vp.stage.draw(st, 0, 0, 0, st.players)
-    var^list : t^{vp.round.Item[]} = {}
-    let^add = p^f:Fighter, system:bool^{
-        let^i = vp.round.Item.new()
-        i.depth := f.depth
-        i.f := f
-        i.system := system
-        list.push^(i)
-    }
-    for^sd in^s.sides {
-        let^p = sd.portrait
-        if^p != nil^ {
-            add(p, false^)
-            for^o in^p.objects { add(o, false^) }
-        }
-        let^c = sd.cursor
-        if^c != nil^ {
-            add(c, true^)
-            for^o in^c.objects { add(o, true^) }
-        }
-    }
-    # Objects the screen's layers spawn (the curtain the converter's patch
-    # moved to depth 127, TechnicalDocuments/0019): after the others, so over
-    # those of the same depth.
-    for^l in^st.layers {
-        for^o in^l.objects { add(o, true^) }
-    }
-    vp.round.byDepth(list)
-    for^i in^list {
-        if^i.depth <= 100 { vp.round.drawItem(i) }
-    }
-    vp.stage.draw(st, 0, 0, st.players, st.layers.length^)
-    for^i in^list {
-        if^i.depth > 100 { vp.round.drawItem(i) }
-    }
 }

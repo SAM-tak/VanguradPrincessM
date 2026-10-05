@@ -60,3 +60,4 @@
 - [0044-support-helper-isolation.md](0044-support-helper-isolation.md) — サポート補助54技の共通側への抽出、えりの音声誤発火修正、参照スロットと中間データの位置付け
 - [0045-support-skill-namespaces.md](0045-support-skill-namespaces.md) — サポート技を専用skillsへ移し、キャラ側の参照スロットを撤去。独立番号・くるみの差分・配布対象
 - [0046-versioned-game-data.md](0046-versioned-game-data.md) — 素材はassets、ゲーム用LTONはGit管理するdataへ分離。変換・非同期ロード・配布の対応
+- [0047-instance-methods.md](0047-instance-methods.md) — インスタンス操作をdef内のメソッドへ整理する方針、Arenaのattach/releaseから適用

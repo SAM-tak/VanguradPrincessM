@@ -15,7 +15,7 @@ let^keys : t^{t^{love.keyboard.Key[]}[]} = {
 let^buttons = {Button.a, Button.b, Button.x, Button.y, Button.leftshoulder, Button.rightshoulder, Button.back, Button.start}
 
 # Keep occupied slots stable when another controller disconnects.
-public^let^poll = p^-> t^{love.keyboard.Key[]}{
+public^let^poll = p^-> t^{love.keyboard.Key[]} {
     var^events : t^{love.keyboard.Key[]} = {}
     for^s in^slots {
         let^pad = s.pad
@@ -52,6 +52,7 @@ public^let^poll = p^-> t^{love.keyboard.Key[]}{
     }
     return^events
 }
+
 public^let^isDown = p^key:love.keyboard.Key-> bool^{
     if^love.keyboard.isDown(key) { return^true^ }
     for^i, s in^slots {

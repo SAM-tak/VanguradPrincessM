@@ -25,6 +25,15 @@ public^let^Arena = def^{
         sounds : t^{[string^]:love.audio.Source|nil^} = {},
     },
     override^new = f^name:string^{ self^{ name = name } },
+    # A prepared scene joins the stack when it becomes visible.
+    attach = p^self^{ stack.push^(self^) },
+    dispose = p^self^{
+        for^path:string^, t:love.graphics.Texture in^self^.textures { t.dispose() }
+        for^s in^self^.sources { s.dispose() }
+        self^.textures := {}
+        self^.sources := {}
+        self^.sounds := {}
+    },
 }
 
 let^resident = Arena.new("resident")
@@ -43,23 +52,12 @@ public^let^push = p^name:string^{
     stack.push^(Arena.new(name))
 }
 
-# A fully prepared scene joins the stack only when it becomes visible.
-public^let^attach = p^a:Arena{ stack.push^(a) }
-
-public^let^release = p^a:Arena{
-    for^path:string^, t:love.graphics.Texture in^a.textures { t.dispose() }
-    for^s in^a.sources { s.dispose() }
-    a.textures := {}
-    a.sources := {}
-    a.sounds := {}
-}
-
 # The top arena goes, and everything it loaded is disposed (the memory goes
 # back at once, VRAM too); the caches start over.
 public^let^pop = p^{
     let^a = stack.pop^()
     if^a is^nil^{ return^}
-    release(a)
+    a.dispose()
     gen += 1
 }
 
