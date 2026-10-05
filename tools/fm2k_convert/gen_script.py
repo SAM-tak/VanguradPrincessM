@@ -101,7 +101,9 @@ def block(b):
         return ["GP", b["playerLifeGauge"], b["playerSpecialGauge"], b["enemyLifeGauge"], b["enemySpecialGauge"]]
     if t == "EB":
         c = b["rgba"]
+        x, y = b["shakeBgX"], b["shakeBgY"]
         return ["EB", b["fadingType"], c["r"], c["g"], c["b"], c["a"], b["duration"],
+                x["type"], x["shake"], x["duration"], y["type"], y["shake"], y["duration"],
                 flags(b, ["player", "enemy", "bg", "system"])]
     if t == "AI":
         c = b["rgba"]

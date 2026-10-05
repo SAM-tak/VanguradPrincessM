@@ -40,7 +40,8 @@
 - `{ "DS", 技, ブロック, イベント }`（技 −1 は解除）
 - `{ "O", 技, ブロック, x, y, 管理番号, 深さ, 出た時の技, ブロック, フラグ }`
 - `{ "C", から, まで, 技, 条件 }` / `{ "R", 6 つの反応番号 }` / `{ "PS", 自分, 相手 }` / `{ "GP", 4 つ }`
-- `{ "COLOR", 方法, r, g, b, a }` / `{ "EB", ... }` / `{ "AI", ... }` / `{ "RC", ... }` / `{ "RP", ... }`
+- `{ "COLOR", 方法, r, g, b, a }` / `{ "AI", ... }` / `{ "RC", ... }` / `{ "RP", ... }`
+- `{ "EB", fading, r, g, b, a, duration, xType, xAmplitude, xDuration, yType, yAmplitude, yDuration, フラグ }`（揺れ6項目は[0048](0048-combat-hit-guard-shake.md)で追加）
 - `{ "Nop" }`（読めなかったブロック、使わない DS）
 
 ## 解釈側（`src/script.lh`）

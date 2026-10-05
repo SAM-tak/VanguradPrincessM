@@ -48,7 +48,7 @@ public^let^Side = def^{
 
     # Which side's system variable 141 (set when a side confirms) the portraits
     # see: each sees its own side's state (FM2K has one for both players).
-    confirmFlag = p^self^, fighter:Fighter{
+    confirmFlag = p^self^, fighter:Fighter {
         fighter.setv(141, if^self^.confirmed: 1 el^: 0;)
     },
 }

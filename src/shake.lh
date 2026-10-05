@@ -1,0 +1,33 @@
+# EB camera displacement, in logical pixels. Rendering only; never move boxes.
+module^vp.shake
+import^love.math
+
+public^let^Axis = def^{
+    self^{ mode = 0, amplitude = 0, duration = 0, age = 0, offset = 0 },
+    start = p^self^, mode:number^, amplitude:number^, duration:number^{
+        # An unused axis must not cancel an effect started by another object.
+        if^mode <= 0 or^duration <= 0 { return^ }
+        self^.mode := mode
+        self^.amplitude := amplitude
+        self^.duration := duration
+        self^.age := 0
+        self^.sample()
+    },
+    reset = p^self^{ self^.mode := 0 self^.offset := 0 },
+    sample = p^self^{
+        var^size = self^.amplitude
+        let^progress = if^self^.duration > 1: self^.age / (self^.duration - 1) el^self^.mode = 2: 1 el^: 0;
+        if^self^.mode = 1 { size *= 1 - progress }
+        if^self^.mode = 2 { size *= progress }
+        if^self^.mode = 4 { size *= love.math.random() }
+        self^.offset := if^self^.age % 2 = 0: size el^: -size;
+    },
+    step = p^self^{
+        if^self^.mode = 0 { return^ }
+        self^.age += 1
+        if^self^.age >= self^.duration { self^.reset() else^: self^.sample() }
+    },
+}
+
+public^let^horizontal = Axis.new()
+public^let^vertical = Axis.new()

@@ -45,7 +45,7 @@ public^let^fallbacks = f^{ fallbackLoads }
 # The scene's generation: a cache filled in another one is stale.
 public^let^generation = f^{ gen }
 
-let^top = f^-> Arena{ stack[stack.length^ - 1] ?? resident }
+let^top = f^-> Arena { stack[stack.length^ - 1] ?? resident }
 
 # A new arena on top: what is loaded from now on goes there.
 public^let^push = p^name:string^{

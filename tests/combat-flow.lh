@@ -1,0 +1,314 @@
+# Actual FA sequences plus guard reactions and EB execution.
+module^vp.combatflowtest
+import^love.event
+import^love.timer
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/script.lh"
+require^"../src/scriptdata.lh"
+require^"../src/fighter.lh"
+require^"../src/shake.lh"
+require^"../src/cpu.lh"
+
+let^Fighter = vp.fighter.Fighter
+let^loadout = vp.preload.Load.new("combat-test")
+var^began = 0
+var^done = false^
+
+public^let^load = p^{
+    began := love.timer.getTime()
+    loadout.add("assets/characters/カテジナ", false^)
+    loadout.add("assets/characters/ゆい", false^)
+    loadout.add("assets/characters/はるか", false^)
+}
+
+# Isolate FA lifetime from movement, hitstop, invincibility and effect objects.
+# The real script still advances its images, branches, FA updates and clears.
+let^attack = p^dir:string^, name:string^, expected:number^, damage:number^{
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing attack script" }
+    var^number = -1
+    for^n:number^, sk:vp.scriptdata.Skill in^sc.byId { if^sk.name = name { number := n } }
+    if^number < 0 { panic^$"Missing skill {name}" }
+    let^p = Fighter.new(dir, 100, 0)
+    let^def = Fighter.new(dir, 100, 0)
+    sc.install(p)
+    p.begin(number)
+    var^hits = 0
+    for^frame from^0 to^180 {
+        p.step()
+        let^box = p.hits[0]
+        if^box != nil^ and^p.canHit(box, def) {
+            p.struck(box, def, 100, false^)
+            hits += 1
+        }
+    }
+    if^hits != expected or^1000 - def.life != damage {
+        panic^$"{name}: hits={hits} damage={1000 - def.life}; expected {expected}/{damage}"
+    }
+    # A fresh use must regain its hit allowance.
+    p.begin(number)
+    for^frame from^0 to^80 {
+        p.step()
+        let^box = p.hits[0]
+        if^box != nil^ and^p.canHit(box, def) {
+            p.struck(box, def, 100, false^)
+            hits += 1
+            break^
+        }
+    }
+    if^hits != expected + 1 { panic^"New move did not reset its hit allowance" }
+    print($"PASS: {name}: {expected} hits, {damage} damage; fresh use can hit")
+}
+
+let^guard = p^{
+    let^dir = "assets/characters/ゆい"
+    let^p = Fighter.new(dir, 100, 0)
+    let^def = Fighter.new(dir, 110, 0)
+    def.skills[9001] := p^f:Fighter, at:number^{ yield^ }
+    def.reactHit[1] := 9001
+    def.reactHit[2] := 9001
+    def.updateGuard(true^, false^, true^)
+    p.reactions(1, 1, 1, 2, 2, 2)
+    for^hit from^0 to^2 {
+        p.fa(0, 0, 0, 10, 10, 100, "combo")
+        let^box = p.hits[0]
+        if^box is^nil^ or^!p.canHit(box, def) { panic^"Explicit next hit was suppressed" }
+        let^blocked, spark = p.struck(box, def, 100, false^)
+        if^!blocked or^def.life != 1000 { panic^"Held guard failed during blockstun" }
+        if^p.canHit(box, def) { panic^"Persistent multi-hit box connected twice" }
+        def.updateGuard(true^, false^, false^)
+    }
+    # CPU direction must survive hitstop and blockstun too.
+    let^brain = vp.cpu.Brain.new("ゆい", 100)
+    def.record(1, 0)
+    def.stop := 8
+    let^input = brain.step(def, p)
+    if^input.dir != 1 or^!input.guard { panic^"CPU released guard during hitstop" }
+    def.stop := 0
+    if^!brain.step(def, p).guard { panic^"CPU released guard during blockstun" }
+    # A low must still break a standing guard, and block when down-back is held.
+    p.reactions(1, 1, 1, 1, 2, 2)
+    def.updateGuard(true^, true^, false^)
+    p.fa(0, 0, 0, 10, 10, 100, "combo")
+    let^low = p.hits[0]
+    if^low is^nil^ { panic^"Missing low" }
+    let^lowGuarded, spark = p.struck(low, def, 100, false^)
+    if^!lowGuarded { panic^"Crouch guard posture was lost in blockstun" }
+    def.updateGuard(true^, false^, false^)
+    p.fa(0, 0, 0, 10, 10, 100, "combo")
+    let^next = p.hits[0]
+    if^next is^nil^ { panic^"Missing low" }
+    let^standing, spark2 = p.struck(next, def, 100, false^)
+    if^standing or^def.blocking or^def.life != 900 { panic^"Low did not break standing guard" }
+    def.updateGuard(true^, false^, false^)
+    if^def.guarding { panic^"Hitstun incorrectly allows guard" }
+    def.blocking := true^
+    def.updateGuard(false^, true^, false^)
+    if^def.guarding { panic^"Released guard remains active" }
+    def.begin(9001)
+    if^def.blocking { panic^"New action retained blockstun" }
+    # Two simultaneous boxes form one hit, even with Cont.Hits on both.
+    p.fa(0, 0, 0, 10, 10, 10, "combo")
+    p.fa(1, 0, 0, 10, 10, 10, "combo")
+    let^a = p.hits[0]
+    let^b = p.hits[1]
+    if^a is^nil^ or^b is^nil^ { panic^"Missing grouped boxes" }
+    p.struck(a, def, 100, false^)
+    if^p.canHit(b, def) { panic^"Overlapping group hit twice" }
+    p.hit(0, 0, 0, 20, 10, 10)
+    let^updated = p.hits[0]
+    if^updated is^nil^ or^p.canHit(updated, def) { panic^"Geometry update rearmed a normal attack" }
+    p.noHit(0)
+    p.hit(0, 0, 0, 30, 10, 10)
+    let^restored = p.hits[0]
+    if^restored is^nil^ or^p.canHit(restored, def) { panic^"FA clear erased the attack hit history" }
+    p.noHit(0)
+    p.noHit(1)
+    p.hit(0, 0, 0, 30, 10, 10)
+    let^newGroup = p.hits[0]
+    if^newGroup is^nil^ or^!p.canHit(newGroup, def) { panic^"Empty FA group did not release its hit allowance" }
+    if^!p.hitConfirmed { panic^"Ending FA group erased C hit-confirm" }
+    p.on("attacking", 9001, 0)
+    p.struck(newGroup, def, 100, false^)
+    if^p.jumpSkill != 9001 { panic^"Late DS handler did not fire" }
+    p.jumpSkill := -1
+    p.landed(newGroup)
+    if^p.jumpSkill != -1 { panic^"Consumed DS handler fired twice" }
+    print("PASS: continuous guard, low/standing guard, release, CPU hold, hitstun, grouped boxes")
+}
+
+# Melt Shot's late FA groups allow new contact, but exclude existing hitstun.
+let^melt = p^{
+    let^sc = vp.script.load("assets/characters/はるか/script.lton")
+    let^victimScript = vp.script.load("assets/characters/ゆい/script.lton")
+    if^sc is^nil^ or^victimScript is^nil^ { panic^"Missing Melt Shot scripts" }
+    let^owner = Fighter.new("assets/characters/はるか", 100, 0)
+    let^def = Fighter.new("assets/characters/ゆい", 350, 0)
+    sc.install(owner)
+    victimScript.install(def)
+    owner.enemy := def
+    def.enemy := owner
+    let^beam = owner.makeObject(227, 0, 193, -200, 127)
+    var^hits = 0
+    var^excluded = 0
+    var^damage = 0
+    for^frame from^0 to^90 {
+        beam.step()
+        def.step()
+        if^def.finished() { def.begin(1) }
+        let^box = beam.hits[0]
+        if^box != nil^ {
+            if^beam.canHit(box, def) {
+                let^before = def.life
+                beam.struck(box, def, 100, false^)
+                damage += before - def.life
+                hits += 1
+            elseif^!box.connected and^box.flags.find("duringReceipt") != nil^ and^def.receiving:
+                excluded += 1
+            }
+        }
+    }
+    if^hits != 1 or^damage != 231 or^excluded = 0 {
+        panic^$"Melt Shot: hits={hits}, life={def.life}, excluded={excluded}"
+    }
+    # A late part can still catch an opponent who missed the initial blast.
+    let^late = owner.makeObject(227, 34, 193, -200, 127)
+    late.advance()
+    let^box = late.hits[0]
+    if^box is^nil^ { panic^"Missing late beam box" }
+    if^late.canHit(box, def) { panic^"Late beam hit a stunned target" }
+    def.start(138, 0)
+    if^!def.receiving { panic^"Script jump discarded hitstun" }
+    def.begin(1)
+    if^def.receiving or^!late.canHit(box, def) { panic^"Late beam cannot hit a recovered target" }
+    late.reactions(47, 47, 47, 96, 97, 98)
+    let^before = def.life
+    late.struck(box, def, 100, false^)
+    if^before - def.life != 131 { panic^"Late beam lost its own damage" }
+    # State filters are independent of the attack's consumed-hit history.
+    let^probe = vp.fighter.Box.new(0, 0, 10, 10)
+    probe.flags := "combo noSkyDetection"
+    def.receiving := false^
+    def.blocking := true^
+    if^late.canHit(probe, def) { panic^"No-blockstun FA hit a blocking target" }
+    def.blocking := false^
+    if^!late.canHit(probe, def) { panic^"No-blockstun FA rejected a free target" }
+    probe.flags := "combo noDetection"
+    def.y := def.ground
+    if^late.canHit(probe, def) { panic^"Air-only FA hit a grounded target" }
+    def.y -= 10
+    if^!late.canHit(probe, def) { panic^"Air-only FA rejected an airborne target" }
+    probe.flags := "combo duringGuard"
+    if^late.canHit(probe, def) { panic^"Ground-only FA hit an airborne target" }
+    def.y := def.ground
+    if^!late.canHit(probe, def) { panic^"Ground-only FA rejected a grounded target" }
+    print("PASS: Melt Shot projectile: one hit / 231 damage; late contact and FA target filters")
+}
+
+# Run the whole super, including its SG continuation and late DS hit branch.
+# Contact is forced to isolate event/group lifetime from spacing and pushboxes.
+let^yuiSuper = p^{
+    let^dir = "assets/characters/ゆい"
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing Yui super" }
+    let^p = Fighter.new(dir, 100, 0)
+    let^def = Fighter.new(dir, 200, 0)
+    sc.install(p)
+    sc.install(def)
+    p.enemy := def
+    def.enemy := p
+    p.special := 1500
+    def.life := 100000
+    def.begin(1)
+    p.begin(292)
+    var^hits = 0
+    var^finisher = false^
+    for^frame from^0 to^650 {
+        p.step()
+        def.step()
+        if^def.finished() { def.begin(1) }
+        let^box = p.hits[0]
+        if^box != nil^ and^p.canHit(box, def) {
+            p.struck(box, def, 100, false^)
+            hits += 1
+            print($"super contact {hits}: skill={p.skillNo} power={box.power}")
+            if^p.skillNo = 236 and^box.power = 255 { finisher := true^ }
+        }
+    }
+    if^hits != 10 or^!finisher { panic^$"Yui super: hits={hits}, finisher={finisher}" }
+    print("PASS: Yui super: eight rush hits, late DS trigger, tenth-hit finisher")
+}
+
+let^shake = p^{
+    let^axis = vp.shake.Axis.new()
+    axis.start(3, 6, 3)
+    if^axis.offset != 6 { panic^"Fixed shake did not start" }
+    axis.step()
+    if^axis.offset != -6 { panic^"Shake did not alternate" }
+    axis.start(0, 0, 0)
+    if^axis.offset != -6 { panic^"Unused axis interrupted shake" }
+    axis.step()
+    axis.step()
+    if^axis.offset != 0 { panic^"Shake did not expire" }
+    axis.start(1, 8, 3)
+    if^axis.offset != 8 { panic^"Fade-out shake start" }
+    axis.step()
+    if^axis.offset != -4 { panic^"Fade-out shake envelope" }
+    axis.start(2, 8, 3)
+    if^axis.offset != 0 { panic^"Fade-in shake start" }
+    axis.step()
+    if^axis.offset != -4 { panic^"Fade-in shake envelope" }
+    axis.start(4, 8, 20)
+    for^i from^0 to^19 {
+        if^axis.offset.abs() > 8 { panic^"Random shake exceeded amplitude" }
+        axis.step()
+    }
+    axis.start(1, 5, 1)
+    if^axis.offset != 5 { panic^"One-frame shake was invisible" }
+    axis.step()
+    if^axis.offset != 0 { panic^"One-frame shake did not expire" }
+    let^source = Fighter.new("assets/characters/カテジナ", 0, 0)
+    source.screen(0, 0, 0, 0, 0, 0, "", 3, 4, 2, 3, 7, 4)
+    if^vp.shake.horizontal.offset != 4 or^vp.shake.vertical.offset != 7 { panic^"EB axes were mixed" }
+    for^i from^0 to^1 { vp.shake.horizontal.step() vp.shake.vertical.step() }
+    if^vp.shake.horizontal.offset != 0 or^vp.shake.vertical.offset != 7 { panic^"Axis durations are not independent" }
+    let^sc = vp.script.load("assets/characters/カテジナ/script.lton")
+    if^sc is^nil^ { panic^"Missing shake script" }
+    # Invoke an actual restored EB through Script.run, not directly through Axis.
+    var^tested = false^
+    for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
+        for^at, b in^sk.blocks {
+            if^b.op = "EB" and^(b.n[6] ?? 0) > 0 and^(b.n[8] ?? 0) > 0 and^!tested {
+                vp.shake.horizontal.reset()
+                let^p = Fighter.new("assets/characters/カテジナ", 123, 456)
+                sc.install(p)
+                p.start(n, at)
+                p.advance()
+                if^vp.shake.horizontal.mode = 0 { panic^"EB shake operands did not execute" }
+                if^p.x != 123 or^p.y != 456 { panic^"Shake moved world coordinates" }
+                tested := true^
+            }
+        }
+    }
+    if^!tested { panic^"No restored EB available" }
+    print("PASS: shake envelopes, duration, independent axes, original EB execution")
+}
+
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^!done and^loadout.ready() {
+        done := true^
+        attack("assets/characters/カテジナ", "足払い", 1, 120)
+        attack("assets/characters/カテジナ", "けつ昇竜", 2, 131)
+        guard()
+        melt()
+        yuiSuper()
+        shake()
+        print("PASS: combat regressions")
+        love.event.quit()
+    }
+    if^love.timer.getTime() - began > 120 { panic^"Combat test timeout" }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

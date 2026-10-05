@@ -61,3 +61,6 @@
 - [0045-support-skill-namespaces.md](0045-support-skill-namespaces.md) — サポート技を専用skillsへ移し、キャラ側の参照スロットを撤去。独立番号・くるみの差分・配布対象
 - [0046-versioned-game-data.md](0046-versioned-game-data.md) — 素材はassets、ゲーム用LTONはGit管理するdataへ分離。変換・非同期ロード・配布の対応
 - [0047-instance-methods.md](0047-instance-methods.md) — インスタンス操作をdef内のメソッドへ整理する方針、Arenaのattach/releaseから適用
+- [0048-combat-hit-guard-shake.md](0048-combat-hit-guard-shake.md) — 持続判定の重複ヒット抑止、連続ガード、EB揺れ指定の復元と描画への適用
+- [0049-melt-shot-target-filters.md](0049-melt-shot-target-filters.md) — メルトショットの過剰追撃、FAのやられ／ガード反応・地上／空中の対象除外
+- [0050-yui-super-finisher.md](0050-yui-super-finisher.md) — ゆい超必殺技の最終段、後付けDSの命中通知と全FA削除時の判定群終了

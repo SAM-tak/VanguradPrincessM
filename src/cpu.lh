@@ -26,7 +26,11 @@ public^let^Brain = def^{
     step = p^self^, me:vp.fighter.Fighter, enemy:vp.fighter.Fighter-> Input {
         let^distance = (me.x - enemy.x).abs()
         var^out : Input = {dir = 5, skill = 0, guard = false^}
-        if^me.stop > 0 { return^out }
+        if^me.stop > 0 or^me.blocking {
+            out.dir := me.inputDirection()
+            out.guard := out.dir % 3 = 1
+            return^out
+        }
         if^self^.remaining <= 0 {
             if^self^.at < self^.steps.length^ { self^.at += 1 }
             if^self^.at >= self^.steps.length^ {

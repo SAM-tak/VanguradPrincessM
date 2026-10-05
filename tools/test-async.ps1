@@ -1,5 +1,5 @@
 param([string]$Engine = "C:/Users/Owner/source/repos/lhat-love/build/love/Release/lovec.exe",
-      [ValidateSet('async-flow', 'story-flow', 'story-navigation', 'story-continue', 'support-flow', 'selective-preload', 'victory-preload', 'attract-flow')][string]$Test = 'async-flow')
+      [ValidateSet('async-flow', 'story-flow', 'story-navigation', 'story-continue', 'support-flow', 'selective-preload', 'victory-preload', 'attract-flow', 'combat-flow')][string]$Test = 'async-flow')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $entry = Join-Path $root '.async-flow-test.lh'

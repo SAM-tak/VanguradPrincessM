@@ -27,9 +27,10 @@ import^std.math
 
 require^"arena.lh"
 require^"sprite.lh"
+require^"shake.lh"
 
 public^let^Box = def^{
-    self^{ x = 0, y = 0, w = 0, h = 0, power = 0, body = false^, rate = 100, flags = "" },
+    self^{ x = 0, y = 0, w = 0, h = 0, power = 0, body = false^, rate = 100, flags = "", connected = false^ },
     override^new = f^x:number^, y:number^, w:number^, h:number^{
         self^{ x = x, y = y, w = w, h = h }
     },
@@ -105,6 +106,10 @@ public^let^Fighter = def^{
         special = 0, specialPer = 300, stockMax = 5,
         enemy : Fighter|nil^= nil^, # the opponent (GP adds to its gauges too)
         guarding = false^,          # set by the controller: holding back where a guard is allowed
+        blocking = false^,          # guard reaction; unlike hitstun, another guard is allowed
+        receiving = false^,         # hit reaction; FA While Receiving excludes this target
+        guardCrouched = false^,
+        attackConnected = false^,   # shared by the currently active group of FA slots
         combo = 0,                  # hits taken since it was last free to move
         stop = 0,                   # hitstop frames left: the fighter is frozen
         # Objects (O blocks): effects, voices, sparks, projectiles. They run the
@@ -148,6 +153,9 @@ public^let^Fighter = def^{
         self^.skillNo := -1
         self^.skill := co
         self^.hits := {}
+        self^.attackConnected := false^
+        self^.blocking := false^
+        self^.receiving := false^
         self^.onSkill := {}
         self^.onBlock := {}
         self^.cancelWhen := ""
@@ -370,6 +378,7 @@ public^let^Fighter = def^{
     skillLevel = p^self^, n:number^-> number^{
         return^self^.levels[n] ?? 0
     },
+    inputDirection = f^self^-> number^{ self^.inDirs[self^.inputFrame % HISTORY] ?? 5 },
     # Remembers this frame's input: a numpad direction relative to the way the
     # fighter faces (6 = forward) and the buttons newly pressed.
     record = p^self^, dir:number^, pressed:number^{
@@ -466,10 +475,10 @@ public^let^Fighter = def^{
     # An attack box of this fighter's connected.
     landed = p^self^, box:Box{
         if^box.flags.find("cancel") != nil^ { self^.cancelByHit := true^ }
-        if^!self^.hitConfirmed {
-            self^.hitConfirmed := true^
-            self^.fire("attacking")
-        }
+        self^.hitConfirmed := true^
+        # Hit-confirm is sticky for C, but DS must observe each new contact.
+        # fire() consumes its handler, so a sustained box cannot retrigger it.
+        self^.fire("attacking")
     },
     # One row of the .player's hit-junction table.
     reactsWith = p^self^, reaction:number^, hit:number^, spark:number^{
@@ -480,6 +489,22 @@ public^let^Fighter = def^{
     posture = p^self^, crouched:bool^-> number^{
         if^self^.airborne() { return^2 }
         return^if^crouched: 1 el^: 0;
+    },
+    updateGuard = p^self^, held:bool^, crouched:bool^, free:bool^{
+        self^.guarding := held and^(free or^self^.blocking)
+        self^.guardCrouched := crouched
+    },
+    # A normal FA update changes geometry, not the attack's hit allowance.
+    # Cont.Hits explicitly permits another group. Every active box in a group
+    # is spent together, so multiple overlapping boxes cannot hit each frame.
+    canHit = p^self^, box:Box, target:Fighter-> bool^{
+        if^box.connected or^(self^.attackConnected and^box.flags.find("combo") is^nil^) { return^false^ }
+        # These FA flags exclude target states; they do not grant extra hits.
+        if^target.receiving and^box.flags.find("duringReceipt") != nil^ { return^false^ }
+        if^target.blocking and^box.flags.find("noSkyDetection") != nil^ { return^false^ }
+        if^!target.airborne() and^box.flags.find("noDetection") != nil^ { return^false^ }
+        if^target.airborne() and^box.flags.find("duringGuard") != nil^ { return^false^ }
+        return^true^
     },
     # `atk`'s attack box `box` has reached `def`. `crouched` says whether the
     # defender is in a crouching skill. The defender goes to the hit (or guard)
@@ -495,7 +520,7 @@ public^let^Fighter = def^{
     # hit slot, the attack cannot be guarded in that posture: a low kick has the
     # hit reaction in its standing-guard slot, an air attack in its crouching one.
     struck = p^self^, box:Box, def:Fighter, rate:number^, crouched:bool^-> bool^, number^{
-        let^pose = def.posture(crouched)
+        let^pose = def.posture(if^def.guarding: def.guardCrouched el^: crouched;)
         let^onHit = self^.onHit[pose] ?? 0
         let^onGuard = self^.onGuard[pose] ?? 0
         let^guardable = box.flags.find("guardFail") is^nil^ and^onGuard > 0 and^onGuard != onHit
@@ -504,10 +529,15 @@ public^let^Fighter = def^{
         let^skill = def.reactHit[reaction] ?? 0
         def.facing := if^self^.x < def.x: -1 el^: 1;
         if^skill > 0 { def.begin(skill) }
+        def.blocking := guarded
+        def.receiving := !guarded and^skill > 0
         if^!guarded {
             def.life := std.math.max(def.life - box.power * rate / 100, 0)
         }
-        self^.hits := {}                 # one box connects once
+        self^.attackConnected := true^
+        for^slot, active in^self^.hits {
+            if^active != nil^ { active.connected := true^ }
+        }
         if^guarded {
             self^.fire("defending")
         else^:
@@ -655,6 +685,12 @@ public^let^Fighter = def^{
     },
     noHit = p^self^, slot:number^{
         self^.hits[slot] := nil^
+        # Replacing one FA preserves the group. Removing its last box ends it:
+        # a later attack (including a non-Cont.Hits finisher) is a new group.
+        for^n, active in^self^.hits {
+            if^active != nil^ { return^ }
+        }
+        self^.attackConnected := false^
     },
     # M in full. Flags: "add" adds to the current values; "keepVX" / "keepVY" /
     # "keepAX" / "keepAY" leave that one as it is.
@@ -855,7 +891,9 @@ public^let^Fighter = def^{
         if^e != nil^ { e.addGauges(enemyLife, enemySpecial) }
     },
     # EB — screen / background effect.
-    screen = p^self^, fading:number^, r:number^, g:number^, b:number^, a:number^, duration:number^, flags:string^{
+    screen = p^self^, fading:number^, r:number^, g:number^, b:number^, a:number^, duration:number^, flags:string^, xt:number^, xa:number^, xd:number^, yt:number^, ya:number^, yd:number^{
+        vp.shake.horizontal.start(xt, xa, xd)
+        vp.shake.vertical.start(yt, ya, yd)
     },
     # AI — afterimages.
     afterimage = p^self^, count:number^, time:number^, option:number^, fading:number^, r:number^, g:number^, b:number^, a:number^{
@@ -904,6 +942,7 @@ public^let^Fighter = def^{
         target.y := self^.y + y
         target.facing := if^flags.find("turnX") != nil^: self^.facing el^: -self^.facing;
         target.begin(skill)
+        target.receiving := true^
     },
 }
 

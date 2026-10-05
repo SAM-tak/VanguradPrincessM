@@ -100,7 +100,7 @@ public^let^Script = def^{
                 }
             elseif^op = "FA":
                 # number, x, y, w, h, power
-                if^a3 = 0 and^a4 = 0 {
+                if^a3 = 0 or^a4 = 0 {
                     me.noHit(a0)
                 elseif^b.s = "":
                     me.hit(a0, a1, a2, a3, a4, a5)
@@ -161,7 +161,7 @@ public^let^Script = def^{
             elseif^op = "Layer":
                 me.layer(a0, a1, b.s)
             elseif^op = "EB":
-                me.screen(a0, a1, a2, a3, a4, a5, b.s)
+                me.screen(a0, a1, a2, a3, a4, a5, b.s, a6, a7, a[8] ?? 0, a[9] ?? 0, a[10] ?? 0, a[11] ?? 0)
             elseif^op = "AI":
                 me.afterimage(a0, a1, a2, a3, a4, a5, a6, a7)
             elseif^op = "RC":

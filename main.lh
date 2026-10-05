@@ -28,6 +28,7 @@ import^std.math
 
 require^"src/arena.lh"
 require^"src/fighter.lh"
+require^"src/shake.lh"
 require^"src/sprite.lh"
 require^"src/script.lh"
 require^"src/stage.lh"
@@ -193,6 +194,8 @@ let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, butt
 
     if^p.finished() {
         if^air {
+            p.blocking := false^
+            p.receiving := false^
             p.start(FALL, 0)           # the jump's motion and landing handler carry on
             return^
         }
@@ -266,7 +269,7 @@ let^strike = p^a:Fighter, b:Fighter{
             for^s2, hurt in^b.hurts {
                 if^hurt fits^vp.fighter.Box {
                     if^!hurt.body or^hurt.flags.find("damaged") != nil^ {
-                        if^overlaps(a, atk, b, hurt) {
+                        if^a.canHit(atk, b) and^overlaps(a, atk, b, hurt) {
                             # the spark goes where the two boxes meet
                             let^al, at, aw, ah = a.rect(atk)
                             let^bl, bt, bw, bh = b.rect(hurt)
@@ -339,6 +342,8 @@ let^characterCode = p^p:Fighter-> number^{
 }
 
 let^startRound = p^{
+    vp.shake.horizontal.reset()
+    vp.shake.vertical.reset()
     # The demo bypasses portrait #25, which normally initializes variable 129.
     # Set both identities before any HUD layer can choose its name image.
     me.setv(129, characterCode(me))
@@ -819,11 +824,11 @@ let^tick = p^{
     }
     clear2()
 
-    # Guarding: holding back while free to move (on the ground or in the air).
+    # Holding back works both while free and throughout a guard reaction.
     # The dummy guards while `dummyGuard` is on (G), crouching for 2.
     let^free = f^p:Fighter-> bool^{ return^groundIdle(p.skillNo) or^airIdle(p.skillNo) }
-    me.guarding := live and^(if^firstCPU != nil^: firstInput.guard el^: back;) and^free(me)
-    foe.guarding := live and^(if^cpu != nil^: cpuInput.guard el^: back2 or^dummyGuard > 0;) and^free(foe)
+    me.updateGuard(live and^(if^firstCPU != nil^: firstInput.guard el^: back;), me.inputDirection() <= 3, free(me))
+    foe.updateGuard(live and^(if^cpu != nil^: cpuInput.guard el^: back2 or^dummyGuard > 0;), foe.inputDirection() <= 3, free(foe))
 
     # The clock runs while they fight and the timer shows (system variable
     # 128, which FIGHT clears a couple of frames after its show time).
@@ -832,6 +837,8 @@ let^tick = p^{
     vp.fighter.setRound(roundFrames, flow.number)
     flow.step(me, foe, roundFrames <= 0, startRound, toSelect)
     if^scene != nil^ { return^ }
+    vp.shake.horizontal.step()
+    vp.shake.vertical.step()
     stage.step()
     if^timing and^!wasTiming { hud.fightBegins() }
     wasTiming := timing
@@ -851,7 +858,11 @@ let^tick = p^{
     foe.stepObjects()
     # a combo is over once its target is free to move again
     for^p in^{ me, foe } {
-        if^groundIdle(p.skillNo) or^airIdle(p.skillNo) { p.combo := 0 }
+        if^groundIdle(p.skillNo) or^airIdle(p.skillNo) {
+            p.combo := 0
+            p.receiving := false^
+            p.blocking := false^
+        }
     }
     strike(me, foe)
     strike(foe, me)
@@ -1037,7 +1048,7 @@ public^let^draw = p^{
     }
     love.graphics.push()
     love.graphics.scale(SCALE)
-    love.graphics.translate(-camX, -camY)
+    love.graphics.translate(-camX + vp.shake.horizontal.offset, -camY + vp.shake.vertical.offset)
     love.graphics.setColor(1, 1, 1, 1)
     vp.fighter.setView(camX, camY)
     stage.draw(camX, camY, 0, stage.players)
@@ -1048,7 +1059,7 @@ public^let^draw = p^{
     vp.round.byDepth(roundItems)
     let^roundBetween = p^from:number^, to:number^{
         love.graphics.push()
-        love.graphics.translate(camX, camY)
+        love.graphics.translate(camX - vp.shake.horizontal.offset, camY - vp.shake.vertical.offset)
         for^i in^roundItems {
             if^i.depth >= from and^i.depth < to { i.draw() }
         }
@@ -1100,11 +1111,15 @@ public^let^draw = p^{
             hud.draw(me, foe)
         elseif^i.world:
             love.graphics.push()
-            love.graphics.translate(-camX, -camY)
+            love.graphics.translate(-camX + vp.shake.horizontal.offset, -camY + vp.shake.vertical.offset)
             i.draw()
             love.graphics.pop()
         else^:
+            love.graphics.push()
+            let^object = i.f
+            if^!object.system { love.graphics.translate(vp.shake.horizontal.offset, vp.shake.vertical.offset) }
             i.draw()
+            love.graphics.pop()
         }
     }
     vp.fighter.setView(camX, camY)

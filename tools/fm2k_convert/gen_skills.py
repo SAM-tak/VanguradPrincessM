@@ -224,8 +224,11 @@ class SkillWriter:
                                                    b["enemyLifeGauge"], b["enemySpecialGauge"])], False
         if t == "EB":
             c = b["rgba"]
-            return ["me.screen(%d, %d, %d, %d, %d, %d, %s)" % (b["fadingType"], c["r"], c["g"], c["b"], c["a"], b["duration"],
-                                                              q(flags(b, ["player", "enemy", "bg", "system"])))], False
+            x, y = b["shakeBgX"], b["shakeBgY"]
+            return ["me.screen(%d, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %d, %d)" % (
+                b["fadingType"], c["r"], c["g"], c["b"], c["a"], b["duration"],
+                q(flags(b, ["player", "enemy", "bg", "system"])),
+                x["type"], x["shake"], x["duration"], y["type"], y["shake"], y["duration"])], False
         if t == "AI":
             c = b["rgba"]
             return ["me.afterimage(%d, %d, %d, %d, %d, %d, %d, %d)" % (b["num"], b["time"], b["option"], b["fadingType"],
