@@ -124,7 +124,7 @@ class SupportActionsTest(unittest.TestCase):
             return result
 
         for path in sorted((root / "characters").glob("*/script.lton")):
-            if path.parent.name == "だみー":
+            if path.parent.name in ("だみー", "ヒルダ"):
                 continue
             skills = supports.read_skills(path, cache)
             report = supports.identify(skills)

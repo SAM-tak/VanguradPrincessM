@@ -216,6 +216,12 @@ original IDs; support compatibility slots are removed. Support IDs use separate
 time. Kurumi alone keeps compact patches for her collaboration entry points and
 their adjusted block offsets. Shared library bodies remain immutable at runtime.
 
+Boss Hilda is excluded from that normalization: her fixed support has different
+bodies and attacks despite reusing the same skill names. Her runtime keeps the
+806 original definitions with `fixedSupport = true^`, using her own media and
+references. The conversion input is preserved alongside the other owners, and
+re-running `share_supports.py` leaves it intact. See TechnicalDocuments/0053.
+
 `data/_conversion/characters/*/support-source.lton` and
 `data/_conversion/supports/*/support-source.lton` preserve normalized
 conversion inputs for repeatable extraction. They are not runtime packages and

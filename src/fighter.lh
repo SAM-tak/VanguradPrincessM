@@ -146,6 +146,42 @@ public^let^Fighter = def^{
 
     airborne = f^self^{ self^.y < self^.ground },
 
+    # FD collide boxes participate at any height, including air hit reactions.
+    # Jumping over works when their vertical intervals no longer overlap.
+    pushAgainst = p^self^, other:Fighter{
+        let^dir = if^self^.x < other.x: -1 el^self^.x > other.x: 1 el^: -self^.facing;
+        var^distance = 0
+        for^slot, a in^self^.hurts {
+            if^a != nil^ and^a.body and^a.w > 0 and^a.h > 0 {
+                for^otherSlot, b in^other.hurts {
+                    if^b != nil^ and^b.body and^b.w > 0 and^b.h > 0 {
+                        let^al, at, aw, ah = self^.rect(a)
+                        let^bl, bt, bw, bh = other.rect(b)
+                        if^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah {
+                            let^amount = if^dir < 0: al + aw - bl el^: bl + bw - al;
+                            distance := std.math.max(distance, amount)
+                        }
+                    }
+                }
+            }
+        }
+        if^distance <= 0 { return^ }
+        let^lo = if^self^.airborne(): self^.minXAir el^: self^.minX;
+        let^hi = if^self^.airborne(): self^.maxXAir el^: self^.maxX;
+        let^otherLo = if^other.airborne(): other.minXAir el^: other.minX;
+        let^otherHi = if^other.airborne(): other.maxXAir el^: other.maxX;
+        let^room = std.math.max(0, if^dir < 0: self^.x - lo el^: hi - self^.x;)
+        let^otherRoom = std.math.max(0, if^dir < 0: otherHi - other.x el^: other.x - otherLo;)
+        # When only one side is airborne, move that side first. A rising or
+        # falling body must not drag the grounded fighter backwards.
+        let^share = if^self^.airborne() = other.airborne(): distance / 2 el^self^.airborne(): distance el^: 0;
+        var^mine = std.math.min(share, room)
+        let^theirs = std.math.min(distance - mine, otherRoom)
+        mine := std.math.min(distance - theirs, room)
+        self^.x += dir * mine
+        other.x -= dir * theirs
+    },
+
     # Replaces the running skill, as the engine does when it picks one: attack
     # boxes, event handlers and task variables go, and on the ground so does motion.
     play = p^self^, name:string^, co:Skill {
@@ -265,7 +301,7 @@ public^let^Fighter = def^{
         }
         # FM2K lands whenever the feet are at or below the ground while moving
         # down, whatever the previous frame was (so nothing can sink through).
-        if^self^.y >= self^.ground and^self^.vy > 0 {
+        if^self^.y >= self^.ground and^self^.vy > 0 and^(self^.owner is^nil^ or^self^.onSkill["landing"] != nil^) {
             # It stops everything on landing, sideways motion included
             # (otherwise a knockback's friction goes on pushing the other way)
             self^.y := self^.ground
@@ -274,6 +310,15 @@ public^let^Fighter = def^{
             self^.vy := 0
             self^.ay := 0
             self^.fire("landing")
+        }
+        # World objects only stop at the floor when a DS landing handler exists.
+        # Otherwise they keep falling; FM2K removes them outside these map bounds.
+        # Screen objects and the engine's attached shadow are not world effects.
+        if^self^.owner != nil^ and^!self^.onScreen and^!self^.system and^!self^.shadowOf {
+            if^self^.x < -50 or^self^.x > 1330 or^self^.y < -500 or^self^.y > 980 {
+                self^.alive := false^
+                return^
+            }
         }
 
         self^.spins := 0
@@ -816,6 +861,16 @@ public^let^Fighter = def^{
     stepObjects = p^self^{
         var^live : t^{Fighter[]} = {}
         for^o in^self^.objects {
+            # The original stage-face script maintained variable 75 by comparing
+            # the two players. Our HUD does not run that script. Keep its support
+            # branch input relative to the actor's spawn orientation instead;
+            # movement and attack scripts retain their explicit turnX branches.
+            let^support = self^.slots[5]
+            let^enemy = self^.enemy
+            if^support fits^Fighter and^enemy fits^Fighter and^support.alive {
+                let^delta = (enemy.x - self^.x) * support.facing
+                if^delta.abs() > 1 { self^.setv(75, if^delta < 0: 1 el^: 0;) }
+            }
             let^par = o.parent ?? self^
             if^o.shadowOf {
                 o.x := self^.x

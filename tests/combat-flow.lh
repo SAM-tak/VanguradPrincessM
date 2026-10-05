@@ -240,6 +240,111 @@ let^yuiSuper = p^{
     print("PASS: Yui super: eight rush hits, late DS trigger, tenth-hit finisher")
 }
 
+let^landingAndPush = p^{
+    let^dir = "assets/characters/ゆい"
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing landing data" }
+    var^cases = 0
+    for^face in^{-1, 1} {
+        for^delay from^0 to^65 {
+            for^stop in^{0, 3} {
+                let^p = Fighter.new(dir, 500, 0)
+                sc.install(p)
+                p.facing := face
+                p.begin(5)
+                for^frame from^0 to^delay { p.step() }
+                if^p.airborne() {
+                    p.begin(216)
+                    p.stop := stop
+                    var^landed = false^
+                    for^frame from^0 to^250 {
+                        p.step()
+                        if^p.y > p.ground + 0.001 { panic^"Air A sank below the floor" }
+                        if^!p.airborne() and^(p.skillNo = 8 or^p.skillNo = 9 or^p.skillNo = 10) { landed := true^ }
+                        if^p.finished() and^p.airborne() { p.start(7, 0) }
+                    }
+                    if^!landed { panic^$"Air A failed landing: face={face} delay={delay} stop={stop} y={p.y} skill={p.skillNo}" }
+                    cases += 1
+                }
+            }
+        }
+    }
+    let^a = Fighter.new(dir, 100, 0)
+    let^b = Fighter.new(dir, 130, -30)
+    b.ground := 0
+    a.body(0, 0, -50, 25, 50)
+    b.body(0, 0, -50, 25, 50)
+    b.receiving := true^
+    a.pushAgainst(b)
+    if^a.x != 100 or^b.x != 150 { panic^"Air hitstun target passed through pushbox" }
+    a.x := 100 b.x := 130 b.y := -200
+    a.pushAgainst(b)
+    if^a.x != 100 or^b.x != 130 { panic^"High jump cannot clear pushbox" }
+    b.y := -30 b.x := 140 b.maxXAir := 140 a.x := 110
+    a.pushAgainst(b)
+    if^a.x != 90 or^b.x != 140 { panic^"Wall-bound air target still overlaps" }
+    b.noHurt(0) a.x := 130
+    a.pushAgainst(b)
+    if^a.x != 130 { panic^"Missing pushbox still blocks movement" }
+    b.hurt(0, 0, -50, 25, 50)
+    a.pushAgainst(b)
+    if^a.x != 130 { panic^"Hurt-only box incorrectly pushes" }
+    b.body(0, 0, -50, 0, 50)
+    a.pushAgainst(b)
+    if^a.x != 130 { panic^"Zero-width pushbox still blocks movement" }
+    b.body(0, 0, -50, 25, 50)
+    a.x := 100 b.x := 130 b.maxXAir := 1000000
+    b.pushAgainst(a)
+    if^a.x != 100 or^b.x != 150 { panic^"Push depends on player update order" }
+    print($"PASS: {cases} diagonal jump A landing cases; low-air push, high jump, wall, no-box")
+}
+
+let^sweepSuper = p^{
+    let^dir = "assets/characters/ゆい"
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing sweep data" }
+    let^p = Fighter.new(dir, 370, 920)
+    let^def = Fighter.new(dir, 480, 920)
+    sc.install(p) sc.install(def)
+    p.enemy := def def.enemy := p
+    def.facing := -1
+    p.special := 1500 def.life := 100000
+    for^f in^{p, def} { f.minX := 50 f.maxX := 1230 f.minXAir := 64 f.maxXAir := 1216 }
+    p.begin(239) def.begin(1)
+    var^startSuper = false^
+    var^hits = 0
+    var^finisher = false^
+    for^frame from^0 to^750 {
+        p.step() def.step()
+        if^startSuper { p.begin(292) startSuper := false^ }
+        p.stepObjects() def.stepObjects()
+        if^def.finished() { if^def.airborne() { def.start(7, 0) else^: def.begin(1) } }
+        var^contact = false^
+        for^slot, box in^p.hits {
+            if^box != nil^ and^!contact and^p.canHit(box, def) {
+                for^hurtSlot, hurt in^def.hurts {
+                    if^hurt != nil^ and^!contact and^(!hurt.body or^hurt.flags.find("damaged") != nil^) {
+                        let^al, at, aw, ah = p.rect(box)
+                        let^bl, bt, bw, bh = def.rect(hurt)
+                        if^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah {
+                            contact := true^
+                            let^skill = p.skillNo
+                            p.struck(box, def, hurt.rate, false^)
+                            hits += 1
+                            print($"sweep-super {hits}: skill={skill} power={box.power} x={p.x:%.0f}/{def.x:%.0f} y={def.y:%.0f}")
+                            if^skill = 236 and^box.power = 255 { finisher := true^ }
+                            if^skill = 239 { startSuper := true^ }
+                        }
+                    }
+                }
+            }
+        }
+        p.pushAgainst(def)
+    }
+    if^hits != 11 or^!finisher { panic^$"Sweep -> super: hits={hits}, finisher={finisher}" }
+    print("PASS: real box overlap / motion: sweep -> all ten super hits")
+}
+
 let^shake = p^{
     let^axis = vp.shake.Axis.new()
     axis.start(3, 6, 3)
@@ -304,6 +409,8 @@ public^let^update = p^dt:number^{
         guard()
         melt()
         yuiSuper()
+        landingAndPush()
+        sweepSuper()
         shake()
         print("PASS: combat regressions")
         love.event.quit()

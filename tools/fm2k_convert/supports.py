@@ -29,7 +29,7 @@ def source_script(path):
     """Runtime namespace exports keep the numbered conversion input separately."""
     path = metadata_path(path)
     text = path.read_text(encoding='utf-8')
-    if 'supportNamespaces = true^' in text or re.search(r'^namespaceBase = ', text, re.M):
+    if 'supportNamespaces = true^' in text or 'fixedSupport = true^' in text or re.search(r'^namespaceBase = ', text, re.M):
         return conversion_path(path.with_name('support-source.lton'))
     return path
 

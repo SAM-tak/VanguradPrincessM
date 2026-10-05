@@ -64,3 +64,6 @@
 - [0048-combat-hit-guard-shake.md](0048-combat-hit-guard-shake.md) — 持続判定の重複ヒット抑止、連続ガード、EB揺れ指定の復元と描画への適用
 - [0049-melt-shot-target-filters.md](0049-melt-shot-target-filters.md) — メルトショットの過剰追撃、FAのやられ／ガード反応・地上／空中の対象除外
 - [0050-yui-super-finisher.md](0050-yui-super-finisher.md) — ゆい超必殺技の最終段、後付けDSの命中通知と全FA削除時の判定群終了
+- [0051-air-push-and-landing-audit.md](0051-air-push-and-landing-audit.md) — FDに従った空中との押し合い、2C→超必殺技の実判定テスト、斜めジャンプAの着地236ケース
+- [0052-support-facing-and-shell-lifetime.md](0052-support-facing-and-shell-lifetime.md) — サポート待機方向の変数更新、薬莢の着地ハンドラと範囲外破棄
+- [0053-boss-support-and-cpu-input.md](0053-boss-support-and-cpu-input.md) — ボスヒルダの固定サポートを共通化対象から除外、CPUのD入力を既存COMへ接続

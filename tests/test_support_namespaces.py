@@ -53,7 +53,13 @@ class SupportNamespacesTest(unittest.TestCase):
             own = runtime_skills(path, self.libraries)
             ordinary = {n for n in own if n < 10000}
             self.assertGreaterEqual(len(ordinary), 495)
-            self.assertLessEqual(len(ordinary), 499)
+            if path.parent.name == 'ヒルダ':
+                self.assertEqual(len(ordinary), 806)
+                self.assertIn('fixedSupport = true^', path.read_text(encoding='utf-8'))
+                self.assertEqual(own[451]['blocks'][2], ['SG', 688, 0])
+                self.assertIn(['I', 1543, 5, -18, 1000, ''], own[710]['blocks'])
+            else:
+                self.assertLessEqual(len(ordinary), 499)
             if path.parent.name != 'くるみ':
                 self.assertEqual(len(ordinary), len(own))
             graph = self.libraries | own

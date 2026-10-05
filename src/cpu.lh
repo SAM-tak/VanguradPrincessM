@@ -8,13 +8,14 @@ require^"resource.lh"
 let^Step = t^{skills:t^{number^[]}, amount:number^, direction:number^, repeatInput:bool^}
 let^Pattern = t^{weight:number^, near:number^, far:number^, air:bool^, enemyAir:bool^, steps:t^{Step[]}}
 
-public^let^Input = t^{dir:number^, skill:number^, guard:bool^}
+public^let^Input = t^{dir:number^, skill:number^, guard:bool^, buttons:number^}
 
 public^let^Brain = def^{
     self^{
         patterns : t^{Pattern[]} = {},
         steps : t^{Step[]} = {},
         at = 0, remaining = 0, cooldown = 0, level = 20, actions = 0,
+        supportCooldown = 100,
     },
     override^new = p^name:string^, level:number^{
         let^raw = vp.resource.data($"assets/characters/{name}/cpu.lton")
@@ -22,10 +23,10 @@ public^let^Brain = def^{
         self^{patterns = raw.patterns, level = level}
     },
 
-    reset = p^self^{ self^.steps := {} self^.at := 0 self^.remaining := 0 self^.cooldown := 20 },
+    reset = p^self^{ self^.steps := {} self^.at := 0 self^.remaining := 0 self^.cooldown := 20 self^.supportCooldown := 100 },
     step = p^self^, me:vp.fighter.Fighter, enemy:vp.fighter.Fighter-> Input {
         let^distance = (me.x - enemy.x).abs()
-        var^out : Input = {dir = 5, skill = 0, guard = false^}
+        var^out : Input = {dir = 5, skill = 0, guard = false^, buttons = 0}
         if^me.stop > 0 or^me.blocking {
             out.dir := me.inputDirection()
             out.guard := out.dir % 3 = 1
@@ -75,6 +76,22 @@ public^let^Brain = def^{
             }
         }
         if^out.dir % 3 = 1 { out.guard := true^ }
+        self^.supportCooldown -= 1
+        # Body command patterns do not supply D. Feed a real D press through
+        # the support HUD's COM checks: its gauge costs and lockouts stay intact.
+        let^support = me.slots[5]
+        if^self^.supportCooldown <= 0 and^support != nil^ and^support.alive and^me.life > 0 and^me.v(71) >= 10 and^me.v(76) < 99 and^!me.receiving {
+            var^dir = 5
+            if^distance < 220 and^enemy.hits.length^ > 0 { dir := 4
+            elseif^enemy.airborne(): dir := 2
+            elseif^distance > 280: dir := 6
+            elseif^love.math.random(0, 1) = 1: dir := 3
+            }
+            out.dir := dir
+            out.buttons := 8
+            out.guard := dir = 4
+            self^.supportCooldown := (280 - self^.level * 2).clamp(80, 280)
+        }
         return^out
     },
 }

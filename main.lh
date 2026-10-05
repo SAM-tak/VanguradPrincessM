@@ -229,32 +229,6 @@ let^face = p^p:Fighter, other:Fighter{
     if^other.x < p.x - 1 { p.facing := -1 }
 }
 
-# Pushing: on the ground, body boxes (FD "collide") may not overlap; each
-# fighter gives way by half. In the air they pass, so a jump can cross over.
-let^bodyOf = f^p:Fighter-> vp.fighter.Box|nil^{
-    for^slot, b in^p.hurts {
-        if^b fits^vp.fighter.Box {
-            if^b.body { return^b }
-        }
-    }
-    return^nil^
-}
-
-let^push = p^a:Fighter, b:Fighter{
-    if^a.airborne() or^b.airborne() { return^}
-    let^ba = bodyOf(a)
-    let^bb = bodyOf(b)
-    if^!(ba fits^vp.fighter.Box and^bb fits^vp.fighter.Box) { return^}
-    let^al, at, aw, ah = a.rect(ba)
-    let^bl, bt, bw, bh = b.rect(bb)
-    let^overlapX = std.math.min(al + aw, bl + bw) - std.math.max(al, bl)
-    let^overlapY = std.math.min(at + ah, bt + bh) - std.math.max(at, bt)
-    if^overlapX <= 0 or^overlapY <= 0 { return^}
-    let^dir = if^a.x < b.x: -1 el^a.x > b.x: 1 el^: -a.facing;
-    a.x += dir * overlapX / 2
-    b.x -= dir * overlapX / 2
-}
-
 # Hits: an attack box of a over a hurt box (not a push-only one) of b.
 # vp.fighter.struck plays it out on both sides.
 let^overlaps = p^a:Fighter, ba:vp.fighter.Box, b:Fighter, bb:vp.fighter.Box-> bool^{
@@ -505,7 +479,7 @@ let^queueStory = p^st:vp.story.State{
     st.loadImage := if^love.math.random(1, 10) = 1: 2 el^: 1;
     let^l = vp.preload.Load.new(if^e.kind = "fight": "match" el^: "story-event";)
     if^e.kind = "fight" {
-        st.enemySupport := love.math.random(101, 104)
+        st.enemySupport := if^e.name = "ヒルダ": 100 el^: love.math.random(101, 104);
         l.character($"assets/characters/{st.name}", st.support)
         l.character($"assets/characters/{e.name}", st.enemySupport)
         l.batch.request($"assets/characters/{e.name}/cpu.lton", "lton", false^)
@@ -789,11 +763,11 @@ let^tick = p^{
     # Only while they fight does input count.
     let^live = flow.fighting()
     let^firstCPU = demoBrain
-    var^firstInput : vp.cpu.Input = {dir = 5, skill = 0, guard = false^}
+    var^firstInput : vp.cpu.Input = {dir = 5, skill = 0, guard = false^, buttons = 0}
     if^firstCPU != nil^ {
         if^live { firstInput := firstCPU.step(me, foe) }
         let^d = firstInput.dir
-        control(me, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, 0)
+        control(me, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, firstInput.buttons)
         if^live and^firstInput.skill > 0 and^(me.skillNo != firstInput.skill or^me.finished()) and^me.mayStart(firstInput.skill) {
             me.begin(firstInput.skill)
             firstCPU.actions += 1
@@ -808,13 +782,13 @@ let^tick = p^{
     rightPressed := false^
     pressed := 0
     let^cpu = brain
-    var^cpuInput : vp.cpu.Input = {dir = 5, skill = 0, guard = false^}
+    var^cpuInput : vp.cpu.Input = {dir = 5, skill = 0, guard = false^, buttons = 0}
     let^forward2 = if^foe.facing > 0: vp.input.isDown(Key.k) el^: vp.input.isDown(Key.h);
     let^back2 = if^foe.facing > 0: vp.input.isDown(Key.h) el^: vp.input.isDown(Key.k);
     if^cpu != nil^ and^live { cpuInput := cpu.step(foe, me) }
     if^cpu != nil^ {
         let^d = cpuInput.dir
-        control(foe, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, 0)
+        control(foe, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, cpuInput.buttons)
         if^live and^cpuInput.skill > 0 and^(foe.skillNo != cpuInput.skill or^foe.finished()) and^foe.mayStart(cpuInput.skill) {
             foe.begin(cpuInput.skill)
             cpu.actions += 1
@@ -868,8 +842,8 @@ let^tick = p^{
     strike(foe, me)
     for^o in^me.objects { strike(o, foe) }
     for^o in^foe.objects { strike(o, me) }
-    push(me, foe)
-    # Pushing may put them past the walls again.
+    me.pushAgainst(foe)
+    # Keep both fighters inside the current world and camera bounds.
     for^p in^{ me, foe } {
         if^p.airborne() { p.x := p.x.clamp(p.minXAir, p.maxXAir) else^: p.x := p.x.clamp(p.minX, p.maxX) }
     }

@@ -7,8 +7,9 @@ require^"../src/script.lh"
 require^"../src/scriptdata.lh"
 require^"../src/fighter.lh"
 require^"../src/resource.lh"
+require^"../src/cpu.lh"
 
-let^NAMES = {"ゆい", "はるか", "リリス", "ルナ", "くるみ", "サキ", "かえで", "カテジナ", "えり", "あやね", "ヒルダ"}
+let^NAMES = {"ゆい", "はるか", "リリス", "ルナ", "くるみ", "サキ", "かえで", "カテジナ", "えり", "あやね"}
 let^HUDS = {"さぽーとふぇいす2ｐ", "しえらコマンド", "ぱーとなーふぇいす", "ヨメふぇいす", "おまけふぇいす"}
 let^DISPATCHERS = {"攻撃分岐", "攻撃ヴんき", "パートナー分岐", "ヨメ攻撃分岐", "オマケ分岐"}
 let^ENTRIES = {
@@ -28,6 +29,8 @@ public^let^load = p^{
     began := love.timer.getTime()
     loadout.add("assets/characters/ゆい", false^)
     loadout.add("assets/characters/くるみ", false^)
+    loadout.character("assets/characters/ヒルダ", 100)
+    loadout.batch.request("assets/characters/ゆい/cpu.lton", "lton", false^)
     for^name in^NAMES {
         loadout.batch.request($"assets/characters/{name}/script.lton", "script", false^)
     }
@@ -89,6 +92,105 @@ let^check = p^name:string^{
     print($"PASS: {name}: 25 support inputs and attack dispatches")
 }
 
+let^effects = p^{
+    let^dir = "assets/characters/ゆい"
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing support effect script" }
+    for^base in^{1, -1} {
+        for^travel in^{1, -1} {
+            let^p = vp.fighter.Fighter.new(dir, if^travel = 1: 680 el^: 520;, 920)
+            sc.install(p)
+            p.facing := base
+            p.enemy := vp.fighter.Fighter.new(dir, if^travel = 1: 300 el^: 900;, 920)
+            p.setv(70, if^base = 1: 100 el^: 200;)
+            p.setv(78, 5600)
+            let^actor = p.makeObject(if^travel = 1: 20017 el^: 20018;, 0, 600, 920, 69)
+            p.slots[5] := actor
+            p.stepObjects()
+            let^drawFace = (if^actor.fixed: 1 el^: actor.facing;) * (if^actor.turnX: -1 el^: 1;)
+            if^actor.vx * travel <= 0 or^drawFace != travel { panic^"Support did not face its movement" }
+            for^i from^0 to^80 { p.stepObjects() }
+            let^idleFace = actor.facing * (if^actor.turnX: -1 el^: 1;)
+            if^actor.vx != 0 or^idleFace != -travel { panic^$"Support idle facing: base={base} travel={travel} face={idleFace}" }
+            let^enemy = p.enemy
+            if^enemy != nil^ { enemy.x := if^travel = 1: 900 el^: 300; }
+            for^i from^0 to^100 { p.stepObjects() }
+            if^actor.facing * (if^actor.turnX: -1 el^: 1;) != travel { panic^"Support did not turn after sides swapped" }
+        }
+        for^skill in^{20025, 20026} {
+            let^p = vp.fighter.Fighter.new(dir, 640, 920)
+            sc.install(p)
+            p.facing := base
+            let^shell = p.makeObject(skill, 0, 640, 800, 80)
+            var^bounced = false^
+            var^fell = false^
+            for^i from^0 to^250 {
+                p.stepObjects()
+                if^shell.skillNo = 20027 { bounced := true^ }
+                if^shell.y > shell.ground { fell := true^ }
+            }
+            if^!bounced or^!fell or^shell.alive { panic^"Shell must bounce, fall below floor, then expire" }
+            if^p.objects[0] != nil^ { panic^"Expired shell remained in object list" }
+        }
+    }
+    print("PASS: support movement / idle / side swap in both orientations; shell bounce and cleanup")
+}
+
+let^cpuAndBoss = p^{
+    let^sc = vp.script.load("assets/characters/ゆい/script.lton")
+    let^boss = vp.script.load("assets/characters/ヒルダ/script.lton")
+    if^sc is^nil^ or^boss is^nil^ { panic^"Missing support test scripts" }
+    for^hi, hud in^HUDS {
+        for^side in^{1, -1} {
+            let^p = vp.fighter.Fighter.new("assets/characters/ゆい", 600, 920)
+            let^enemy = vp.fighter.Fighter.new("assets/characters/ゆい", 1000, 920)
+            sc.install(p)
+            p.facing := side
+            p.enemy := enemy
+            p.setv(71, 100)
+            p.slots[5] := p.makeObject((hi + 1) * 10000, 0, 600, 920, 69)
+            var^controller : vp.fighter.Fighter|nil^= nil^
+            for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
+                if^sk.name = hud {
+                    for^i, b in^sk.blocks {
+                        if^b.op = "COM" and^controller is^nil^ { controller := p.makeObject(n, i, 0, 0, 100) }
+                    }
+                }
+            }
+            if^controller is^nil^ { panic^"Missing support controller" }
+            let^cpu = vp.cpu.Brain.new("ゆい", 100)
+            cpu.supportCooldown := 0
+            let^input = cpu.step(p, enemy)
+            if^input.buttons != 8 or^input.dir != 6 { panic^"CPU did not issue distant support input" }
+            p.record(input.dir, input.buttons)
+            controller.step()
+            # Kanae's HUD delegates resource handling to the spawned attack.
+            if^p.v(76) != 110 or^(hi != 3 and^p.v(71) >= 100) { panic^$"CPU D: {hud} side={side} request={p.v(76)} gauge={p.v(71)}" }
+            if^cpu.step(p, enemy).buttons != 0 { panic^"CPU repeated support every frame" }
+            cpu.supportCooldown := 0
+            p.setv(76, 0)
+            p.setv(71, 0)
+            if^cpu.step(p, enemy).buttons != 0 { panic^"CPU requested support with empty gauge" }
+        }
+    }
+    for^selected from^101 to^105 {
+        let^p = vp.fighter.Fighter.new("assets/characters/ヒルダ", 600, 920)
+        boss.install(p)
+        p.setv(73, selected)
+        let^actor = p.makeObject(451, 0, 600, 920, 69)
+        for^i from^0 to^5 { actor.step() }
+        if^actor.skillNo < 688 or^actor.skillNo > 709 { panic^"Boss did not use fixed original support" }
+        p.setv(76, 110)
+        actor.start(709, 0)
+        for^i from^0 to^20 { actor.step() }
+        if^actor.skillNo != 710 { panic^"Boss lost its dedicated attack" }
+        for^o in^p.objects {
+            if^o.skillNo >= 10000 { panic^"Boss spawned selectable shared support" }
+        }
+    }
+    print("PASS: both CPU sides use all five support HUDs with gauge costs; boss ignores selectable support")
+}
+
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
     if^loadout.ready() {
@@ -97,8 +199,10 @@ public^let^update = p^dt:number^{
             check(name)
             owner += 1
         else^:
+            effects()
+            cpuAndBoss()
             if^vp.resource.fallbackReads() != 0 { panic^"Synchronous script fallback" }
-            print("PASS: 275 support inputs; shared media and async dependencies; no synchronous metadata reads")
+            print("PASS: 250 regular support inputs, fixed boss, CPU support; no synchronous metadata reads")
             love.event.quit()
         }
     }
