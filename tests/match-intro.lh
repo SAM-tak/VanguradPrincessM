@@ -1,0 +1,79 @@
+module^vp.matchintrotest
+import^love.event
+import^love.timer
+require^"../src/preload.lh"
+require^"../src/round.lh"
+require^"../src/resource.lh"
+require^"../src/fighter.lh"
+require^"../src/arena.lh"
+let^SYSTEM = "assets/system/ヴァンガードプリンセス"
+let^loadout = vp.preload.Load.new("intro-test")
+let^NAMES = {"ゆい", "はるか", "くるみ", "ヒルダ", "あやね", "えり", "かえで", "カテジナ", "サキ", "リリス", "ルナ"}
+var^done = false^
+public^let^load = p^{
+    loadout.add(SYSTEM, false^)
+    for^name in^NAMES { loadout.add($"assets/characters/{name}", true^) }
+}
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^done or^!loadout.ready() { return^ }
+    done := true^
+    loadout.batch.arena.attach()
+    for^name in^NAMES {
+        for^delayed in^{true^, false^} {
+            vp.fighter.setRound(6000, 1)
+            let^r = vp.round.load(SYSTEM)
+            let^p = vp.fighter.Fighter.new(SYSTEM, 0, 0)
+            r.portrait(name, 0, 0)
+            r.portrait(name, 1, 1)
+            r.preparing := delayed
+            r.externalPresentation := true^
+            for^i from^0 to^999 {
+                r.step(p, p, false^, p^{ panic^"Unexpected round reset" }, p^{ panic^"Unexpected match end" })
+                if^r.presentationFrames < 220 and^!r.backgroundOnly() { panic^"Battle revealed before black transition" }
+                if^r.presentationFrames > 250 and^r.backgroundOnly() { panic^"Black transition did not reveal battle" }
+            }
+            if^delayed {
+                if^r.phase != "call" or^!r.waitingForAssets() { panic^"Slow load did not hold VS before reveal" }
+                if^r.presentationFrames <= 153 { panic^"VS still stops in the middle of its entrance" }
+                let^heldLeft = r.left
+                let^heldFrame = r.presentationFrames
+                let^face = r.portraits[0]
+                if^face is^nil^ { panic^"Missing waiting portrait" }
+                let^firstImage = face.image
+                let^faceY = face.y
+                var^animated = false^
+                if^!r.backgroundOnly() { panic^"Waiting VS exposed fighters" }
+                if^r.portraits.length^ != 2 { panic^"Held portraits disappeared" }
+                for^face in^r.portraits {
+                    if^face.image < 1959 or^face.image > 1971 { panic^"Held VS has no visible face" }
+                    face.draw()
+                }
+                let^layer = r.layers[0]
+                if^layer is^nil^ { panic^"VS presentation vanished during slow load" }
+                let^image = layer.image
+                for^i from^0 to^499 {
+                    r.step(p, p, false^, p^{}, p^{})
+                    if^face.image != firstImage { animated := true^ }
+                    if^face.y != faceY { panic^"Waiting portrait drifted off screen" }
+                }
+                if^!animated { panic^"Portrait animation froze during loading" }
+                if^r.presentationFrames != heldFrame { panic^"Waiting advanced the battle timeline" }
+                if^layer.image != image or^r.left != heldLeft { panic^"VS advanced while waiting for assets" }
+                r.preparing := false^
+                for^i from^0 to^heldLeft - 1 { r.step(p, p, false^, p^{}, p^{}) }
+                if^r.phase != "call" or^r.left != 0 { panic^"Resume restarted or skipped presentation" }
+                r.step(p, p, false^, p^{}, p^{})
+                if^r.phase != "ready" { panic^"Load completion did not permit READY" }
+                for^i from^0 to^230 { r.step(p, p, false^, p^{}, p^{}) }
+            }
+            if^r.portraits.length^ != 0 { panic^"Portraits remained after presentation" }
+            if^r.phase != "fight" { panic^"First round did not begin" }
+        }
+    }
+    if^vp.arena.fallbacks() != 0 { panic^"Presentation used unloaded media" }
+    print("PASS: all 11 preloaded VS portraits; fast load, arbitrarily slow load, animated waiting portraits, held reveal and resume without replay")
+    love.event.quit()
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

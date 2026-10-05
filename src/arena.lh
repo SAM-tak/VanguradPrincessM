@@ -4,8 +4,8 @@
 #
 # Arenas form a stack, one per scene that is still on screen or about to be:
 # the title's, the select screen's, and a match's on top of the select
-# screen's (its screen stays up while the match's assets load, and the match
-# goes back to it). What is loaded goes into the top arena; what is looked up
+# screen's (its arena stays alive while the VS presentation covers loading,
+# and the match goes back to it). What is loaded goes into the top arena; what is looked up
 # is found in any. pop() disposes the top arena's all at once. Loaded while no
 # arena is pushed, a thing is resident: kept until the program ends.
 #
@@ -27,6 +27,19 @@ public^let^Arena = def^{
     override^new = f^name:string^{ self^{ name = name } },
     # A prepared scene joins the stack when it becomes visible.
     attach = p^self^{ stack.push^(self^) },
+    # Transfer a completed batch into an already visible scene. The stage's
+    # cached textures stay valid; the donor no longer owns any resources.
+    absorb = p^self^, other:Arena{
+        for^path:string^, texture:love.graphics.Texture in^other.textures {
+            if^self^.textures[path] != nil^ { texture.dispose()
+            else^: self^.textures[path] := texture }
+        }
+        for^path:string^, sound:love.audio.Source in^other.sounds { self^.sounds[path] := sound }
+        for^source in^other.sources { self^.sources.push^(source) }
+        other.textures := {}
+        other.sounds := {}
+        other.sources := {}
+    },
     dispose = p^self^{
         for^path:string^, t:love.graphics.Texture in^self^.textures { t.dispose() }
         for^s in^self^.sources { s.dispose() }

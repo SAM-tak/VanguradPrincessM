@@ -1,6 +1,7 @@
 # Scene preparation loads metadata, shared script dependencies, then media.
 # The old scene keeps running until this arena is complete.
 module^vp.preload
+import^love.timer
 require^"resource.lh"
 require^"script.lh"
 require^"sprite.lh"
@@ -14,12 +15,14 @@ public^let^Load = def^{
         directories : t^{Directory[]} = {},
         dependenciesQueued = false^,
         assetsQueued = false^,
+        assetWork : c^{p^-> nil^}|nil^= nil^,
+        deadline = 0,
     },
     override^new = f^name:string^{ self^{batch = vp.resource.Batch.new(name)} },
 
     add = p^self^, dir:string^, portrait:bool^{
-        self^.directories.push^({path = dir, portrait = portrait, support = -1, winner = -1})
         let^file = if^portrait: "portrait.lton" el^: "script.lton";
+        self^.directories.push^({path = dir, portrait = portrait, support = -1, winner = -1})
         self^.batch.request($"{dir}/{file}", "script", false^)
         self^.batch.request($"{dir}/images.lton", "lton", false^)
         self^.batch.request($"{dir}/sounds.lton", "lton", false^)
@@ -77,10 +80,12 @@ public^let^Load = def^{
         if^(d.support >= 0 or^independent) and^sc? {
             let^selected = SUPPORTS[d.support - 101] ?? ""
             for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
+                if^love.timer.getTime() >= self^.deadline { yield^ }
                 let^wanted = d.support < 0 or^sk.space = "" or^sk.space = selected or^sk.space = "common"
                 if^wanted {
                     let^source = if^sk.media = "": dir el^: sk.media;
                     for^b in^sk.blocks {
+                        if^index^ % 32 = 0 and^love.timer.getTime() >= self^.deadline { yield^ }
                         if^b.op = "I" or^b.op = "S" { self^.media(source, b.op, b.n[0] ?? 0) }
                     }
                 }
@@ -91,11 +96,16 @@ public^let^Load = def^{
         let^sounds = vp.resource.data($"{dir}/sounds.lton")
         if^images? {
             var^wanted : t^{number^[]} = {}
-            if^d.portrait and^sc? { wanted := sc.imagesFrom(25)
+            if^d.portrait and^sc? {
+                wanted := sc.imagesFrom(25)
+                if^sc.raw fits^t^{versus:t^{entry:number^}} {
+                    for^n in^sc.imagesFrom(sc.raw.versus.entry) { wanted.push^(n) }
+                }
             else^:
                 for^e:any^ in^images { if^e? { wanted.push^(index^) } }
             }
             for^n in^wanted {
+                if^index^ % 32 = 0 and^love.timer.getTime() >= self^.deadline { yield^ }
                 let^e = images[n]
                 if^e fits^t^{format:string^} and^e.format = "indexed" {
                     self^.batch.request($"{dir}/palettes.png", "image", false^)
@@ -107,11 +117,13 @@ public^let^Load = def^{
         var^used : t^{[number^]:bool^|nil^} = {}
         if^d.portrait and^sc? {
             for^sk in^sc.skills {
+                if^love.timer.getTime() >= self^.deadline { yield^ }
                 for^b in^sk.blocks { if^b.op = "S" { used[b.n[0] ?? 0] := true^ } }
             }
         }
         if^sounds? {
             for^n:number^, e:any^ in^sounds {
+                if^n % 32 = 0 and^love.timer.getTime() >= self^.deadline { yield^ }
                 if^!d.portrait or^used[n]? {
                     let^path = vp.sprite.assetPath(dir, e)
                     let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
@@ -120,9 +132,18 @@ public^let^Load = def^{
             }
         }
     },
+    # Media enumeration has its own budget; resource.pump only bounds
+    # completed job adoption. Keep enumerating while queued IO is running.
+    queueAssets = p^self^{
+        for^d in^self^.directories {
+            await^self^.assets(d)
+            if^love.timer.getTime() >= self^.deadline { yield^ }
+        }
+    },
     ready = p^self^-> bool^{
+        if^self^.batch.cancelled { self^.assetWork := nil^ return^false^ }
         if^self^.batch.error != "" { panic^$"Asset loading failed: {self^.batch.error}" }
-        if^!self^.batch.ready() { return^false^ }
+        if^!self^.batch.ready() and^self^.assetWork is^nil^ { return^false^ }
         if^!self^.dependenciesQueued {
             self^.dependenciesQueued := true^
             var^supportMedia = false^
@@ -158,8 +179,15 @@ public^let^Load = def^{
             if^!self^.batch.ready() { return^false^ }
         }
         if^!self^.assetsQueued {
+            if^self^.assetWork is^nil^ { self^.assetWork := self^.queueAssets() }
+            let^work = self^.assetWork
+            if^work != nil^ {
+                self^.deadline := love.timer.getTime() + 0.002
+                if^work.started() { work.resume() else^: work.start() }
+                if^!work.done() { return^false^ }
+            }
+            self^.assetWork := nil^
             self^.assetsQueued := true^
-            for^d in^self^.directories { self^.assets(d) }
         }
         return^self^.batch.ready()
     },

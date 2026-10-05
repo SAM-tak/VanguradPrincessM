@@ -214,9 +214,26 @@ def main():
     # the select screen need not read the whole script (TechnicalDocuments/0023).
     if "settings" in d:
         keep = reachable(skills, PORTRAIT)
-        portrait = head + skill_lines(skills, keep)
+        intro = intro_portrait([block(b) for b in skills[31]["blocks"]])
+        intro_header = []
+        if intro:
+            entry, header = intro
+            keep.update(reachable(skills, entry))
+            intro_header.append(header)
+        portrait = head + intro_header + skill_lines(skills, keep)
         (args.out / "portrait.lton").write_text("\n".join(portrait) + "\n", encoding="utf-8", newline="\n")
         print("%d skills -> %s" % (len(keep), args.out / "portrait.lton"))
+
+
+def intro_portrait(blocks):
+    """The #31 portrait entry and placement belong in resident portrait.lton."""
+    spawns = [b for b in blocks if b[0] == "O" and b[6] == 117 and "picXY" in b[-1]]
+    if not spawns:
+        return None
+    assert len(spawns) == 2 and spawns[0][1] == spawns[1][1]
+    entry = spawns[0][1]
+    return entry, (f"versus = {{ entry = {entry}, leftX = {spawns[0][3]}, "
+                   f"rightX = {spawns[1][3]}, y = {spawns[0][4]} }},")
 
 
 PORTRAIT = 25      # a character's built-in "select screen face"

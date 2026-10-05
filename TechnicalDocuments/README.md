@@ -67,3 +67,6 @@
 - [0051-air-push-and-landing-audit.md](0051-air-push-and-landing-audit.md) — FDに従った空中との押し合い、2C→超必殺技の実判定テスト、斜めジャンプAの着地236ケース
 - [0052-support-facing-and-shell-lifetime.md](0052-support-facing-and-shell-lifetime.md) — サポート待機方向の変数更新、薬莢の着地ハンドラと範囲外破棄
 - [0053-boss-support-and-cpu-input.md](0053-boss-support-and-cpu-input.md) — ボスヒルダの固定サポートを共通化対象から除外、CPUのD入力を既存COMへ接続
+- [0054-vs-presentation-preload.md](0054-vs-presentation-preload.md) — ステージを先読みし、顔グラ・BGM付きVS演出の裏でキャラとサポートをロード。VS／ストーリー共通経路、常駐portrait、暗転での戦闘画面公開
+- [0055-loading-main-thread-budget.md](0055-loading-main-thread-budget.md) — 素材列挙のコルーチン分割と型付きTaskによる再帰型検査の撤去、停止時間の実測
+- [0056-vs-loading-animation-wait.md](0056-vs-loading-animation-wait.md) — VSでの約3秒の静止は演出時計の停止。顔グラの待機ループと退出直前のロード待ちに変更

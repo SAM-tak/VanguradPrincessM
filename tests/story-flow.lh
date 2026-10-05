@@ -14,6 +14,7 @@ var^frames = 0
 var^wait = 0
 var^began = 0
 var^actions = 0
+var^stageLoadingSeen = false^
 
 let^press = p^key:love.keyboard.Key{ vp.main.keypressed(key, love.keyboard.Scancode.unknown, false^) }
 
@@ -27,6 +28,7 @@ public^let^update = p^dt:number^{
     frames += 1
     let^where = vp.arena.names()
     let^s = vp.main.status()
+    if^s.phase = "loading" and^s.loadingKind = "story-stage" { stageLoadingSeen := true^ }
     if^phase = 0 and^where = "system / opening" { press(love.keyboard.Key.z) phase := 1
     elseif^phase = 1: press(love.keyboard.Key.z) phase := 2
     elseif^phase = 2 and^where = "system / title": press(love.keyboard.Key.z) phase := 3
@@ -51,10 +53,12 @@ public^let^update = p^dt:number^{
     elseif^phase = 9 and^s.phase = "intro":
         wait += 1
         if^wait > 20 { press(love.keyboard.Key.z) phase := 10 }
-    elseif^phase = 10 and^s.phase = "loading":
-        print("intro -> loading") phase := 11
+    elseif^phase = 10 and^s.phase = "match-intro":
+        if^!stageLoadingSeen or^!s.stagePrepared { panic^"Story skipped stage preparation" }
+        if^!s.introMusicPlaying or^s.introPortraits != 2 { panic^"Story VS assets are not ready" }
+        print("intro -> stage loading -> VS with portraits and BGM") phase := 11
     elseif^phase = 11 and^s.phase = "battle":
-        print("loading -> CPU battle") phase := 12 wait := 0
+        print("VS -> CPU battle") phase := 12 wait := 0
     elseif^phase = 12:
         wait += 1
         if^s.cpuActions > actions { actions := s.cpuActions }
@@ -62,6 +66,7 @@ public^let^update = p^dt:number^{
         press(love.keyboard.Key.f2)
         if^wait % 5 = 0 { press(love.keyboard.Key.z) }
         if^s.phase = "event" {
+            if^where != "system / select / story / story-event" { panic^$"Story transition discarded persistent arenas: {where}" }
             print($"victory -> story event; CPU actions={actions}")
             if^actions = 0 { panic^"CPU never executed an action" }
             phase := 13 wait := 0

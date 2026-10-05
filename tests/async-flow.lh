@@ -18,6 +18,9 @@ var^pauseX = 0
 var^pauseLife = 0
 var^failure : vp.resource.Batch|nil^= nil^
 var^fadeChecked = false^
+var^introSeen = false^
+var^revealed = false^
+var^introLeft = 425
 
 let^press = p^key:love.keyboard.Key {
     vp.main.keypressed(key, love.keyboard.Scancode.unknown, false^)
@@ -35,6 +38,20 @@ public^let^update = p^dt:number^{
     if^spent > worst { worst := spent }
     frames += 1
     let^where = vp.arena.names()
+    let^state = vp.main.status()
+    if^phase = 14 and^!revealed and^!state.backgroundOnly {
+        if^state.introCatchup != 0 or^state.presentationFrames < 220 { panic^"Battle revealed before entrants and transition were ready" }
+        print($"VS reveal frame={state.presentationFrames} opponentX={state.enemyX}")
+        revealed := true^
+    }
+    if^vp.main.status().duplicatePortraits != 0 { panic^"Character replayed the VS portrait" }
+    if^vp.main.status().phase = "match-intro" {
+        if^!vp.main.status().stagePrepared { panic^"VS started before stage preparation" }
+        if^!vp.main.status().introMusicPlaying or^vp.main.status().introPortraits != 2 { panic^"VS portraits or music missing during load" }
+        introSeen := true^
+        if^vp.main.status().roundFrames != 6000 { panic^"Timer advanced during VS loading" }
+        if^vp.main.status().roundPhase = "call" { introLeft := vp.main.status().presentationLeft }
+    }
     if^phase = 3 and^where = "system / title" {
         let^fade = vp.main.status().modeExitFrames
         if^fade >= 0 and^fade < 50 {
@@ -55,7 +72,7 @@ public^let^update = p^dt:number^{
     elseif^phase = 3 and^where = "system / select": print($"select frames={frames}") press(love.keyboard.Key.z) phase := 4
     elseif^phase = 4: press(love.keyboard.Key.j) phase := 5
     elseif^phase = 5: press(love.keyboard.Key.l) phase := 6
-    elseif^phase = 6 and^vp.resource.outstanding() > 0:
+    elseif^phase = 6 and^vp.main.status().phase = "match-intro" and^vp.resource.outstanding() > 0:
         wait += 1
         if^wait >= 5 { print("cancel in-flight match") press(love.keyboard.Key.escape) phase := 7 }
     elseif^phase = 7 and^where = "system / title": press(love.keyboard.Key.escape) phase := 8
@@ -63,8 +80,11 @@ public^let^update = p^dt:number^{
     elseif^phase = 9 and^where = "system / title": press(love.keyboard.Key.down) press(love.keyboard.Key.z) phase := 10
     elseif^phase = 10 and^where = "system / select": press(love.keyboard.Key.z) phase := 11
     elseif^phase = 11: press(love.keyboard.Key.j) phase := 12
-    elseif^phase = 12: press(love.keyboard.Key.l) phase := 13
-    elseif^phase = 13 and^where = "system / select / match":
+    elseif^phase = 12: introSeen := false^ introLeft := 425 press(love.keyboard.Key.l) phase := 13
+    elseif^phase = 13 and^where = "system / select / match" and^vp.main.status().phase = "battle":
+        if^!vp.main.status().matchMusicPlaying { panic^"BGM stopped at match adoption" }
+        if^!introSeen { panic^"Match loaded without showing VS presentation" }
+        if^vp.main.status().roundPhase = "call" and^vp.main.status().presentationLeft > introLeft { panic^"VS presentation restarted after load" }
         print($"match frames={frames} elapsed={love.timer.getTime() - began} worst={worst}")
         wait := 0
         phase := 14
@@ -97,6 +117,7 @@ public^let^update = p^dt:number^{
         if^wait = 300 { press(love.keyboard.Key.k) }
         if^wait = 301 and^vp.main.status().enemyLife <= 1 { panic^"2P right key still changes life" }
         if^wait > 600 {
+            if^!revealed { panic^"Battle never became visible" }
             if^!attacked { panic^"2P attack input was not executed" }
             if^!supportAttacked { panic^"D did not start a support attack during live battle" }
             if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^$"synchronous fallback: lton={vp.resource.fallbackReads()} assets={vp.arena.fallbacks()}" }
@@ -105,13 +126,30 @@ public^let^update = p^dt:number^{
             b.request("assets/does-not-exist.png", "image", false^)
             phase := 15
         }
-    elseif^phase = 15:
+    elseif^phase >= 15 and^phase <= 18:
         let^b = failure
         if^b != nil^ and^b.error != "" {
             b.cancel()
             if^vp.resource.outstanding() = 0 {
-                print($"PASS: cancel, retry, two fighters, D support attack, pause/freeze/resume, battle drawing, missing asset; frames={frames}; synchronous fallback reads=0")
-                love.event.quit()
+                if^phase = 15 {
+                    let^missing = vp.resource.Batch.new("missing-script-test")
+                    missing.request("assets/does-not-exist.lton", "script", false^)
+                    failure := missing
+                    phase := 16
+                elseif^phase = 16:
+                    let^missing = vp.resource.Batch.new("missing-table-test")
+                    missing.request("assets/does-not-exist.lton", "lton", false^)
+                    failure := missing
+                    phase := 17
+                elseif^phase = 17:
+                    let^missing = vp.resource.Batch.new("missing-sound-test")
+                    missing.request("assets/does-not-exist.wav", "sound", false^)
+                    failure := missing
+                    phase := 18
+                else^:
+                    print($"PASS: cancel, retry, two fighters, D support attack, pause/freeze/resume, battle drawing, missing image, sound, typed table and script; frames={frames}; synchronous fallback reads=0")
+                    love.event.quit()
+                }
             }
         }
     }

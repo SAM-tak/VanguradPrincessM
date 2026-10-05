@@ -139,7 +139,10 @@ var^aimY = camY
 # the start: the system's layout 5 checks for it to show "60", else "∞").
 var^roundFrames = ROUND_SECONDS * 100
 var^frame = 0
-var^matchLoading = false^    # the chosen two are loading behind the select screen
+var^matchLoading = false^
+var^introCatchup = 0
+var^matchArena : vp.arena.Arena|nil^= nil^
+var^matchIntro = false^      # shared VS presentation during asynchronous loading
 let^LOAD_SLICE = 0.004        # main-thread adoption / GPU upload budget per update
 var^pending : vp.preload.Load|nil^= nil^
 var^pendingKind = ""
@@ -315,6 +318,55 @@ let^characterCode = p^p:Fighter-> number^{
     panic^$"Unknown match character: {p.dir}"
 }
 
+# Follow the fighters with the original integer half-step camera lag.
+let^halfway = f^from:number^, to:number^-> number^{
+    let^d = (to - from) / 2
+    return^from + if^d < 0: d.ceil() el^: d.floor();
+}
+
+# It lags a frame: it heads for where the fighters were the frame before.
+let^followCamera = p^{
+    camX := halfway(camX, aimX).clamp(0, WORLD_W - VIEW_W)
+    camY := halfway(camY, aimY).clamp(0, WORLD_H - VIEW_H)
+    aimX := (me.x + foe.x) / 2 - VIEW_W / 2
+    aimY := std.math.min(me.y, foe.y) - 320
+}
+
+# Shared fixed-step simulation also catches up newly loaded entrants, hidden.
+let^stepFighters = p^{
+    # The stage's walls, and the camera's: nobody leaves the view.
+    for^p in^{ me, foe } {
+        p.minX := std.math.max(WALL_GROUND, camX + VIEW_EDGE)
+        p.maxX := std.math.min(WORLD_W - WALL_GROUND, camX + VIEW_W - VIEW_EDGE)
+        p.minXAir := std.math.max(WALL_AIR, camX + VIEW_EDGE)
+        p.maxXAir := std.math.min(WORLD_W - WALL_AIR, camX + VIEW_W - VIEW_EDGE)
+    }
+    me.step()
+    foe.step()
+    me.stepObjects()
+    foe.stepObjects()
+    # a combo is over once its target is free to move again
+    for^p in^{ me, foe } {
+        if^groundIdle(p.skillNo) or^airIdle(p.skillNo) {
+            p.combo := 0
+            p.receiving := false^
+            p.blocking := false^
+        }
+    }
+    strike(me, foe)
+    strike(foe, me)
+    for^o in^me.objects { strike(o, foe) }
+    for^o in^foe.objects { strike(o, me) }
+    me.pushAgainst(foe)
+    # Keep both fighters inside the current world and camera bounds.
+    for^p in^{ me, foe } {
+        if^p.airborne() { p.x := p.x.clamp(p.minXAir, p.maxXAir) else^: p.x := p.x.clamp(p.minX, p.maxX) }
+    }
+    followCamera()
+    face(me, foe)
+    face(foe, me)
+}
+
 let^startRound = p^{
     vp.shake.horizontal.reset()
     vp.shake.vertical.reset()
@@ -366,6 +418,7 @@ let^toSelect = p^{
     if^attract { endAttract(true^) return^ }
     love.audio.stop()              # the match's music and sounds end with it
     vp.arena.pop()
+    matchArena := nil^
     matchLoading := false^
     let^st = campaign
     if^st != nil^ {
@@ -376,8 +429,34 @@ let^toSelect = p^{
     selecting := vp.select.load(SYSTEM, storyMode)
 }
 
-# Both have chosen: prepare the match while the select screen keeps running.
-# Its arena joins the stack only after all worker results have arrived.
+# Select owns the small portrait scripts. The stage is ready before this
+# shared presentation; character and support resources load underneath it.
+let^beginPresentation = p^name1:string^, colour1:number^, name2:string^, colour2:number^, stageName:string^, seconds:number^{
+    matchIntro := true^
+    love.audio.stop()
+    roundFrames := if^seconds = 0: 100000000 el^: seconds * 100;
+    vp.fighter.setRound(roundFrames, 1)
+    flow := vp.round.load(SYSTEM)
+    flow.preparing := true^
+    flow.externalPresentation := true^
+    flow.portrait(name1, colour1, 0)
+    flow.portrait(name2, if^name1 = name2 and^colour1 = colour2: (colour2 + 1) % 8 el^: colour2;, 1)
+    for^side from^0 to^1 {
+        let^name = if^side = 0: name1 el^: name2;
+        var^code = 1100
+        for^i, candidate in^vp.select.CHARACTERS { if^candidate = name { code := (i + 1) * 100 } }
+        me.setv(129 + side, code)
+    }
+    stage := vp.stage.load($"assets/stages/{stageName}")
+    for^layer in^stage.layers { layer.mutedSounds[1] := true^ }
+    camX := (WORLD_W - VIEW_W) / 2
+    camY := WORLD_H - VIEW_H
+    stage.step()
+    let^music = vp.arena.sound($"assets/stages/{stageName}/sounds/0001.wav", true^)
+    flow.music := music
+    if^music != nil^ { music.play() }
+}
+
 let^loadMatch = p^s:vp.select.Select{
     if^s.story {
         let^name, colour = s.chosen(0)
@@ -393,13 +472,9 @@ let^loadMatch = p^s:vp.select.Select{
     matchLoading := true^
     matchStage := if^stageChoice > 0: stageChoice - 1 el^: love.math.random(0, STAGES.length^ - 1);
     let^l = vp.preload.Load.new("match")
-    for^k from^0 to^1 {
-        let^name, colour = s.chosen(k)
-        l.character($"assets/characters/{name}", me.v(142 + k))
-    }
     l.add($"assets/stages/{STAGES[matchStage] ?? "スクール"}", false^)
     pending := l
-    pendingKind := "match"
+    pendingKind := "match-stage"
 }
 
 # The chosen characters, their colours and a stage at random; the supports
@@ -409,7 +484,7 @@ let^startBattle = p^s:vp.select.Select{
     matchSeconds := ROUND_SECONDS
     let^name1, colour1 = s.chosen(0)
     let^name2, colour2 = s.chosen(1)
-    love.audio.stop()              # the select screen's music
+    if^!matchIntro { love.audio.stop() }
     me := Fighter.new($"assets/characters/{name1}", WORLD_W / 2 - START_X, GROUND)
     foe := Fighter.new($"assets/characters/{name2}", WORLD_W / 2 + START_X, GROUND)
     (vp.select.scriptOf(name1)).install(me)
@@ -418,10 +493,13 @@ let^startBattle = p^s:vp.select.Select{
     foe.palette := if^name1 = name2 and^colour1 = colour2: (colour2 + 1) % 8 el^: colour2;
     me.enemy := foe
     foe.enemy := me
-    stage := vp.stage.load($"assets/stages/{STAGES[matchStage] ?? "スクール"}")
-    flow := vp.round.load(SYSTEM)
+    me.externalIntroPortrait := true^
+    foe.externalIntroPortrait := true^
+    flow.preparing := false^
+    matchIntro := false^
     selecting := nil^
     startRound()
+    introCatchup := flow.presentationFrames
 }
 
 let^queueAttract = p^{
@@ -480,11 +558,8 @@ let^queueStory = p^st:vp.story.State{
     let^l = vp.preload.Load.new(if^e.kind = "fight": "match" el^: "story-event";)
     if^e.kind = "fight" {
         st.enemySupport := if^e.name = "ヒルダ": 100 el^: love.math.random(101, 104);
-        l.character($"assets/characters/{st.name}", st.support)
-        l.character($"assets/characters/{e.name}", st.enemySupport)
-        l.batch.request($"assets/characters/{e.name}/cpu.lton", "lton", false^)
         l.add($"assets/stages/{e.stage}", false^)
-        pendingKind := "story-match"
+        pendingKind := "story-stage"
     else^:
         if^e.name = "ゆい勝ち" {
             l.victory($"assets/demos/{e.name}", me.v(129))
@@ -498,12 +573,6 @@ let^queueStory = p^st:vp.story.State{
 }
 
 let^startStoryBattle = p^st:vp.story.State, e:vp.story.Event{
-    me.setv(139, 0)
-    me.setv(140, (st.difficulty + 1) * 1000)
-    me.setv(134, 0)
-    me.setv(141, 0)
-    me.setv(142, st.support)
-    me.setv(143, st.enemySupport)
     me := Fighter.new($"assets/characters/{st.name}", WORLD_W / 2 - START_X, GROUND)
     foe := Fighter.new($"assets/characters/{e.name}", WORLD_W / 2 + START_X, GROUND)
     (vp.select.scriptOf(st.name)).install(me)
@@ -514,12 +583,14 @@ let^startStoryBattle = p^st:vp.story.State, e:vp.story.Event{
     foe.enemy := me
     brain := vp.cpu.Brain.new(e.name, e.level)
     matchSeconds := e.seconds
-    stage := vp.stage.load($"assets/stages/{e.stage}")
-    flow := vp.round.load(SYSTEM)
-    flow.toWin := e.rounds
+    me.externalIntroPortrait := true^
+    foe.externalIntroPortrait := true^
+    flow.preparing := false^
+    matchIntro := false^
     wasTiming := false^
     st.enter("battle")
     startRound()
+    introCatchup := flow.presentationFrames
 }
 
 # Load metadata and decode assets without pausing the scene being left.
@@ -547,6 +618,7 @@ let^prepare = p^kind:string^{
             l.add($"assets/characters/{name}", true^)
             l.batch.request($"assets/characters/{name}/story.lton", "lton", false^)
         }
+        l.add("assets/characters/ヒルダ", true^)
     }
     pending := l
     pendingKind := kind
@@ -567,9 +639,9 @@ let^completeLoad = p^{
     let^kind = pendingKind
     let^st = campaign
     let^s = selecting
-    if^kind = "match" and^(s is^nil^ or^!s.done) { return^ }
+    if^(kind = "match" or^kind = "match-stage") and^(s is^nil^ or^!s.done) { return^ }
     if^kind = "briefing" and^(s is^nil^ or^!s.done) { return^ }
-    if^(kind = "story-match" or^kind = "story-demo") and^st != nil^ and^st.age < 0.3 { return^ }
+    if^(kind = "story-demo" or^kind = "story-stage") and^st != nil^ and^st.age < 0.3 { return^ }
     pending := nil^
     clear2()
     upPressed := false^
@@ -578,7 +650,7 @@ let^completeLoad = p^{
     rightPressed := false^
     pressed := 0
     clock := 0
-    love.audio.stop()
+    if^!matchIntro { love.audio.stop() }
     if^kind = "boot" {
         l.batch.arena.attach() # persistent system and opening assets
         hud := vp.hud.load(SYSTEM)
@@ -594,8 +666,41 @@ let^completeLoad = p^{
         l.batch.arena.attach()
         selecting := nil^
         if^st != nil^ { st.enter("difficulty") }
-    elseif^kind = "story-match" or^kind = "story-demo":
+    elseif^kind = "match-stage" or^kind = "story-stage":
         l.batch.arena.attach()
+        matchArena := l.batch.arena
+        let^fighters = vp.preload.Load.new("match-characters")
+        if^kind = "match-stage" and^s != nil^ {
+            let^name1, colour1 = s.chosen(0)
+            let^name2, colour2 = s.chosen(1)
+            beginPresentation(name1, colour1, name2, colour2, STAGES[matchStage] ?? "スクール", ROUND_SECONDS)
+            fighters.character($"assets/characters/{name1}", me.v(142))
+            fighters.character($"assets/characters/{name2}", me.v(143))
+            pendingKind := "match"
+        elseif^st != nil^:
+            let^e = st.current()
+            if^e is^nil^ { panic^"Missing story match" }
+            me.setv(139, 0)
+            me.setv(140, (st.difficulty + 1) * 1000)
+            me.setv(134, 0)
+            me.setv(141, 0)
+            me.setv(142, st.support)
+            me.setv(143, st.enemySupport)
+            beginPresentation(st.name, st.colour, e.name, 0, e.stage, e.seconds)
+            flow.toWin := e.rounds
+            fighters.character($"assets/characters/{st.name}", st.support)
+            fighters.character($"assets/characters/{e.name}", st.enemySupport)
+            fighters.batch.request($"assets/characters/{e.name}/cpu.lton", "lton", false^)
+            pendingKind := "story-match"
+            st.enter("match-intro")
+        }
+        pending := fighters
+    elseif^kind = "story-match" or^kind = "story-demo":
+        if^kind = "story-match" {
+            let^arena = matchArena
+            if^arena is^nil^ { panic^"Missing prepared stage arena" }
+            arena.absorb(l.batch.arena)
+        else^: l.batch.arena.attach() }
         if^st != nil^ {
             let^running : vp.story.State = st
             let^e = running.current()
@@ -608,7 +713,9 @@ let^completeLoad = p^{
             }
         }
     elseif^kind = "match":
-        l.batch.arena.attach()
+        let^arena = matchArena
+        if^arena is^nil^ { panic^"Missing prepared stage arena" }
+        arena.absorb(l.batch.arena)
         if^s != nil^ { startBattle(s) }
     else^:
         vp.arena.pop()
@@ -638,11 +745,15 @@ let^goBack = p^{
         let^l = pending
         if^l != nil^ { l.batch.cancel() pending := nil^ }
         love.audio.stop()
+        if^matchArena != nil^ { vp.arena.pop() matchArena := nil^ }
         if^st.phase = "event" { vp.arena.pop() }
         vp.arena.pop()
         campaign := nil^
         brain := nil^
         matchLoading := false^
+        matchIntro := false^
+        flow.preparing := false^
+        flow.externalPresentation := false^
         selecting := vp.select.load(SYSTEM, true^)
         pressed := 0
         leftPressed := false^
@@ -655,12 +766,16 @@ let^goBack = p^{
     if^sc is^nil^ and^selecting is^nil^{ return^ }
     let^l = pending
     if^l != nil^ { l.batch.cancel() pending := nil^ }
+    if^matchArena != nil^ { love.audio.stop() vp.arena.pop() matchArena := nil^ }
     campaign := nil^
     upPressed := false^
     downPressed := false^
     pressed := 0
     clock := 0
     matchLoading := false^
+    matchIntro := false^
+    flow.preparing := false^
+    flow.externalPresentation := false^
     if^selecting != nil^ {
         prepare("title")
     else^:
@@ -697,7 +812,19 @@ public^let^status = f^{
             if^layer.sounds[2] != nil^ or^layer.sounds[3] != nil^ { selectCue := true^ }
         }
     }
-    return^{ phase = if^selecting != nil^: "select" el^st != nil^: st.phase el^scene != nil^: "title" el^: "battle";,
+    var^duplicatePortraits = 0
+    for^p in^{me, foe} {
+        if^p.externalIntroPortrait {
+            for^o in^p.objects { if^o.onScreen and^o.depth = 117 { duplicatePortraits += 1 } }
+        }
+    }
+    return^{ duplicatePortraits = duplicatePortraits, introPortraits = flow.portraits.length^, introMusicPlaying = matchIntro and^flow.music != nil^ and^flow.music.isPlaying(),
+        phase = if^matchIntro: "match-intro" el^selecting != nil^: "select" el^st != nil^: st.phase el^scene != nil^: "title" el^: "battle";,
+        backgroundOnly = flow.backgroundOnly(), presentationFrames = flow.presentationFrames, introCatchup = introCatchup,
+        waitingFrames = flow.waitingFrames,
+        roundPhase = flow.phase, presentationLeft = flow.left,
+        matchMusicPlaying = matchArena != nil^ and^flow.music != nil^ and^flow.music.isPlaying(),
+        loadingKind = pendingKind, stagePrepared = matchArena != nil^ and^stage.layers.length^ > 0,
         story = storyMode, cpuActions = if^cpu != nil^: cpu.actions el^: 0;,
         enemyX = foe.x, enemyLife = foe.life, playerLife = me.life, enemySkill = foe.skillNo,
         paused = paused, roundFrames = roundFrames,
@@ -715,22 +842,7 @@ public^let^status = f^{
         event = if^st != nil^: st.at el^: -1; }
 }
 
-# The camera (the view's top-left) moves half the way to its target each
-# frame, dropping the fraction: x to centre the two, y to keep the higher one
-# 320 px below the top, never lower than the bottom of the stage (measured).
-let^halfway = f^from:number^, to:number^-> number^{
-    let^d = (to - from) / 2
-    return^from + if^d < 0: d.ceil() el^: d.floor();
-}
-
-# It lags a frame: it heads for where the fighters were the frame before.
-let^followCamera = p^{
-    camX := halfway(camX, aimX).clamp(0, WORLD_W - VIEW_W)
-    camY := halfway(camY, aimY).clamp(0, WORLD_H - VIEW_H)
-    aimX := (me.x + foe.x) / 2 - VIEW_W / 2
-    aimY := std.math.min(me.y, foe.y) - 320
-}
-
+# One fixed simulation tick for the current scene.
 let^tick = p^{
     let^sc = scene
     if^sc != nil^ {
@@ -739,6 +851,13 @@ let^tick = p^{
         downPressed := false^
         pressed := 0
         if^sc.done { sceneDone() }
+        return^
+    }
+    if^matchIntro {
+        let^before = flow.presentationFrames
+        flow.step(me, foe, false^, p^{}, p^{})
+        if^flow.presentationFrames != before { stage.step() }
+        clear2()
         return^
     }
     let^s = selecting
@@ -752,10 +871,13 @@ let^tick = p^{
         upPressed := false^
         downPressed := false^
         pressed := 0
-        if^s.bothChosen() and^s.wait >= LOAD_DELAY and^!matchLoading and^pending is^nil^ { loadMatch(s) }
-        # completeLoad starts the match once both the wait and loading finish.
+        let^canLoad = if^s.story: s.bothChosen() and^s.wait >= LOAD_DELAY el^: s.done;
+        if^canLoad and^!matchLoading and^pending is^nil^ { loadMatch(s) }
+        # The completed match continues the already-running VS presentation.
         return^
     }
+    let^story = campaign
+    if^story != nil^ and^story.phase != "battle" { return^ }
     let^right = vp.input.isDown(Key.right)
     let^left = vp.input.isDown(Key.left)
     let^forward = if^me.facing > 0: right el^: left;
@@ -810,7 +932,7 @@ let^tick = p^{
     if^timing and^roundFrames > 0 and^matchSeconds > 0 { roundFrames -= 1 }
     vp.fighter.setRound(roundFrames, flow.number)
     flow.step(me, foe, roundFrames <= 0, startRound, toSelect)
-    if^scene != nil^ { return^ }
+    if^scene != nil^ or^selecting != nil^ or^(story != nil^ and^story.phase != "battle") { return^ }
     vp.shake.horizontal.step()
     vp.shake.vertical.step()
     stage.step()
@@ -819,37 +941,7 @@ let^tick = p^{
     # The digits follow the round time the scripts read (59 through the
     # start, hidden then; layout 5 shows "60").
     hud.step(me, foe, if^matchSeconds = 0: -1 el^: (std.math.max(roundFrames - 1, 0) / 100).floor();)
-    # The stage's walls, and the camera's: nobody leaves the view.
-    for^p in^{ me, foe } {
-        p.minX := std.math.max(WALL_GROUND, camX + VIEW_EDGE)
-        p.maxX := std.math.min(WORLD_W - WALL_GROUND, camX + VIEW_W - VIEW_EDGE)
-        p.minXAir := std.math.max(WALL_AIR, camX + VIEW_EDGE)
-        p.maxXAir := std.math.min(WORLD_W - WALL_AIR, camX + VIEW_W - VIEW_EDGE)
-    }
-    me.step()
-    foe.step()
-    me.stepObjects()
-    foe.stepObjects()
-    # a combo is over once its target is free to move again
-    for^p in^{ me, foe } {
-        if^groundIdle(p.skillNo) or^airIdle(p.skillNo) {
-            p.combo := 0
-            p.receiving := false^
-            p.blocking := false^
-        }
-    }
-    strike(me, foe)
-    strike(foe, me)
-    for^o in^me.objects { strike(o, foe) }
-    for^o in^foe.objects { strike(o, me) }
-    me.pushAgainst(foe)
-    # Keep both fighters inside the current world and camera bounds.
-    for^p in^{ me, foe } {
-        if^p.airborne() { p.x := p.x.clamp(p.minXAir, p.maxXAir) else^: p.x := p.x.clamp(p.minX, p.maxX) }
-    }
-    followCamera()
-    face(me, foe)
-    face(foe, me)
+    stepFighters()
 
     frame += 1
     if^me.skillName != lastSkill {
@@ -865,12 +957,28 @@ public^let^update = p^dt:number^{
     completeLoad()
     if^pending != nil^ or^scene != nil^ or^(campaign != nil^ and^selecting is^nil^) { clear2() }
     if^!initialized { return^ }
+    if^introCatchup > 0 {
+        clock += dt
+        if^clock > 2 * FRAME { clock := 2 * FRAME }
+        repeat^while^clock >= FRAME {
+            clock -= FRAME
+            flow.animateWaitingPortraits()
+        }
+        # Bound catch-up work to keep rendering responsive after a slow load.
+        let^until = love.timer.getTime() + 0.002
+        repeat^while^introCatchup > 0 and^love.timer.getTime() < until {
+            stepFighters()
+            hud.step(me, foe, if^matchSeconds = 0: -1 el^: matchSeconds;)
+            introCatchup -= 1
+        }
+        return^
+    }
     if^attractLoaded {
         attractSeconds += dt
         if^attractSeconds >= 60 { endAttract(true^) return^ }
     }
     let^st = campaign
-    if^st != nil^ and^selecting is^nil^ and^st.phase != "battle" {
+    if^st != nil^ and^selecting is^nil^ and^st.phase != "battle" and^!matchIntro {
         let^running : vp.story.State = st
         running.step(dt, leftPressed or^(running.phase = "continue" and^upPressed), rightPressed or^(running.phase = "continue" and^downPressed), pressed)
         if^running.phase = "event" {
@@ -993,7 +1101,7 @@ public^let^draw = p^{
         return^
     }
     let^st = campaign
-    if^st != nil^ and^selecting is^nil^ and^st.phase != "battle" {
+    if^st != nil^ and^selecting is^nil^ and^st.phase != "battle" and^!matchIntro {
         love.graphics.push()
         love.graphics.scale(SCALE)
         let^demo = st.demo
@@ -1007,6 +1115,19 @@ public^let^draw = p^{
         love.graphics.push()
         love.graphics.scale(SCALE)
         sc.draw()
+        love.graphics.pop()
+        return^
+    }
+    if^matchIntro or^flow.backgroundOnly() {
+        love.graphics.push()
+        love.graphics.scale(SCALE)
+        love.graphics.translate(-camX, -camY)
+        stage.draw(camX, camY, 0, stage.layers.length^)
+        love.graphics.translate(camX, camY)
+        vp.fighter.setView(0, 0)
+        let^items = flow.items()
+        vp.round.byDepth(items)
+        for^i in^items { i.draw() }
         love.graphics.pop()
         return^
     }

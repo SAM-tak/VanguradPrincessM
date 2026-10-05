@@ -11,6 +11,7 @@
 #   win     #30 / #31 "1P / 2P WIN" or #32 draw; the winner's #22 "win"
 #   end     #14 round end (150), then the next round or a new match
 module^vp.round
+import^love.audio
 
 require^"fighter.lh"
 require^"script.lh"
@@ -48,11 +49,45 @@ let^DIGIT_STEP = 30
 let^VICTORY = 22
 let^LOSS = 23
 
+# Replay only the opaque portrait frames while the VS exit waits for assets.
+# Keep the suspended entrance coroutine and its position intact for resume.
+let^PortraitLoop = def^{
+    self^{
+        abstract^portrait : Fighter,
+        frames : t^{t^{image:number^, time:number^}[]} = {},
+        at = 0, left = 0, saved = -1,
+    },
+    override^new = f^portrait:Fighter{ self^{portrait = portrait} },
+    step = p^self^{
+        if^self^.frames.length^ = 0 { return^ }
+        if^self^.saved < 0 { self^.saved := self^.portrait.image }
+        if^self^.left <= 0 {
+            let^frame = self^.frames[self^.at]
+            if^frame != nil^ {
+                self^.portrait.image := frame.image
+                self^.left := frame.time
+            }
+            self^.at := (self^.at + 1) % self^.frames.length^
+        }
+        self^.left -= 1
+    },
+    resume = p^self^{
+        if^self^.saved >= 0 { self^.portrait.image := self^.saved self^.saved := -1 }
+    },
+}
+
 public^let^Round = def^{
     self^{
         dir = "",
         script : vp.script.Script|nil^= nil^,
         phase = "start",
+        music : love.audio.Source|nil^= nil^,
+        presentationFrames = 0,
+        waitingFrames = 0,
+        portraitLoops : t^{PortraitLoop[]} = {},
+        externalPresentation = false^,
+        battleRevealed = false^,
+        preparing = false^,         # VS presentation may run before fighter assets arrive
         left = 0,                   # frames left of this stage
         number = 1,                 # the round
         toWin = 2,                  # rounds a side needs to win the match
@@ -60,10 +95,39 @@ public^let^Round = def^{
         winner = 0,                 # 1, 2, or 0 for a draw
         perfect = false^,           # the winner took no damage
         layers : t^{Fighter[]} = {},    # the system skills running now
+        portraits : t^{Fighter[]} = {},
         marks : t^{Fighter[]} = {},
         combos : t^{Fighter[]} = {},    # hit counts, in world coordinates
     },
 
+    portrait = p^self^, name:string^, colour:number^, side:number^{
+        let^dir = $"assets/characters/{name}"
+        let^sc = vp.script.load($"{dir}/portrait.lton")
+        if^sc is^nil^ { panic^$"Missing VS portrait: {name}" }
+        let^raw = sc.raw
+        if^raw fits^t^{versus:t^{entry:number^, leftX:number^, rightX:number^, y:number^}} {
+            let^intro = raw.versus
+            let^p = Fighter.new(dir, if^side = 0: intro.leftX el^: intro.rightX;, intro.y)
+            sc.install(p)
+            p.palette := colour
+            p.facing := if^side = 0: 1 el^: -1;
+            p.ground := 1000000
+            p.begin(intro.entry)
+            self^.portraits.push^(p)
+            let^loop = PortraitLoop.new(p)
+            let^skill = sc.byId[intro.entry]
+            var^opaque = false^
+            if^skill != nil^ {
+                for^b in^skill.blocks {
+                    if^b.op = "COLOR" { opaque := (b.n[0] ?? -1) = 0 }
+                    if^opaque and^b.op = "I" {
+                        loop.frames.push^({image = b.n[0] ?? -1, time = if^(b.n[1] ?? 0) > 0: b.n[1] ?? 1 el^: 1;})
+                    }
+                }
+            }
+            self^.portraitLoops.push^(loop)
+        }
+    },
     runAt = p^self^, n:number^, x:number^, y:number^-> Fighter {
         let^l = Fighter.new(self^.dir, x, y)
         let^sc = self^.script
@@ -98,16 +162,49 @@ public^let^Round = def^{
         let^x = if^side = 0: MARK_1P_X - MARK_STEP * k el^: MARK_2P_X + MARK_STEP * k;
         self^.marks[2 * k + side] := self^.runAt(MARK_ON, x, MARK_Y)
     },
+    backgroundOnly = f^self^-> bool^{ self^.externalPresentation and^!self^.battleRevealed },
     fighting = f^self^-> bool^{
         return^self^.phase = "fight"
+    },
+    # #111 holds image 207 before spawning the closing wipe. Let its entrance
+    # finish, then defer that exit only; portrait bitmap animation stays live.
+    waitingForAssets = p^self^-> bool^{
+        if^!self^.preparing or^self^.phase != "call" or^self^.presentationFrames < 100 { return^false^ }
+        for^l in^self^.layers {
+            for^o in^l.objects {
+                if^o.skillNo = 111 and^o.depth = 105 and^o.image = 207 and^o.waitTimer <= 0 { return^true^ }
+            }
+        }
+        return^false^
+    },
+    animateWaitingPortraits = p^self^{
+        self^.waitingFrames += 1
+        for^loop in^self^.portraitLoops { loop.step() }
     },
     # One frame. `timeUp`: the clock has run out. `reset` puts the fighters back
     # for the next round; `over` is called when a side has won the match.
     step = p^self^, p1:Fighter, p2:Fighter, timeUp:bool^, reset:p^;, over:p^;{
+        if^self^.waitingForAssets() { self^.animateWaitingPortraits() return^ }
+        for^loop in^self^.portraitLoops { loop.resume() }
+        self^.presentationFrames += 1
+        var^portraits : t^{Fighter[]} = {}
+        for^p in^self^.portraits {
+            # The original #21 -> #31 spawns these after 28 frames.
+            if^self^.presentationFrames > 28 { p.step() }
+            if^!p.finished() { portraits.push^(p) }
+        }
+        self^.portraits := portraits
         var^running : t^{Fighter[]} = {}
         for^l in^self^.layers {
             l.step()
             l.stepObjects()
+            for^o in^l.objects {
+                # #111 at depth 105 is the VS exit. Its opaque image 62
+                # covers the entire viewport before the fade back to battle.
+                if^o.skillNo = 111 and^o.depth = 105 and^o.image = 62 {
+                    self^.battleRevealed := true^
+                }
+            }
             if^!(l.finished() and^l.objects.length^ = 0) { running.push^(l) }
         }
         self^.layers := running
@@ -220,6 +317,12 @@ public^let^Round = def^{
         for^l in^self^.layers {
             add(l, l.depth)
             for^o in^l.objects { add(o, o.depth) }
+        }
+        for^p in^self^.portraits {
+            let^i = Item.new()
+            i.depth := 117
+            i.f := p
+            out.push^(i)
         }
         return^out
     },

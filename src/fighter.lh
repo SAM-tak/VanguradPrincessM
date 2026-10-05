@@ -75,6 +75,7 @@ public^let^Fighter = def^{
         hurts : t^{[number^]:Box|nil^} = {},
         hits : t^{[number^]:Box|nil^} = {},
         sounds : t^{[number^]:love.audio.Source|nil^} = {},
+        externalIntroPortrait = false^,
         mutedSounds : t^{[number^]:bool^|nil^} = {},
         soundsGen = -1,             # the scene (vp.arena) its sounds were loaded in
         vars : t^{[number^]:number^|nil^} = {},
@@ -834,6 +835,8 @@ public^let^Fighter = def^{
         if^n <= 0 { return^}
         let^root = self^.owner ?? self^
         # "picXY" objects, and whatever they spawn, live in view coordinates.
+        # A preloaded round presentation owns the #31 face animation.
+        if^root.externalIntroPortrait and^self^.skillNo = 31 and^depth = 117 and^flags.find("picXY") != nil^ { return^ }
         let^atView = flags.find("picXY") != nil^ or^root.system
         let^wx = if^atView: x el^: self^.x + x * self^.facing;
         let^wy = if^atView: y el^: self^.y + y;

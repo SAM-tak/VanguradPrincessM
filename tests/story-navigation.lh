@@ -57,7 +57,7 @@ public^let^update = p^dt:number^{
     elseif^phase = 6 and^s.phase = "difficulty": press(love.keyboard.Key.escape) phase := 7
     elseif^phase = 7 and^s.phase = "select":
         row += 1 moved := 0 wait := 0 phase := 3
-    elseif^phase = 8 and^s.phase = "loading": press(love.keyboard.Key.escape) phase := 9
+    elseif^phase = 8 and^s.phase = "match-intro": press(love.keyboard.Key.escape) phase := 9
     elseif^phase = 9 and^s.phase = "select" and^vp.resource.outstanding() = 0:
         if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^"synchronous fallback" }
         print("PASS: all 10 introductions, 3 difficulties, ESC navigation, cancel and drain")

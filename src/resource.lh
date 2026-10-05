@@ -44,7 +44,9 @@ public^let^Batch = def^{
 let^Job = def^{
     self^{
         abstract^batch : Batch, path = "", kind = "", loop = false^,
-        task : std.task.Task|nil^= nil^,
+        tableTask : std.task.Task<t^{}|nil^>|nil^= nil^,
+        mediaTask : std.task.Task<string^|nil^>|nil^= nil^,
+        scriptTask : std.task.Task<vp.scriptdata.Data|nil^>|nil^= nil^,
         channel : std.channel.Channel|nil^= nil^,
     },
     override^new = f^batch:Batch{ self^{batch = batch} },
@@ -59,13 +61,25 @@ let^Job = def^{
         let^parse = vp.scriptdata.parse
         let^out = try^std.channel.new()
         self^.channel := out
-        self^.task := try^std.task.async(p^-> any^{
-            if^kind = "lton" or^kind = "script" {
-                let^raw = try^std.lton.load(definition)
-                if^!(raw fits^t^{}) { return^nil^ }
-                if^kind = "script" { return^parse(raw) }
-                return^raw
-            }
+        if^kind = "script" {
+            # Keep the worker's result type; erasing it forces a recursive
+            # fits Data scan of every block on the receiving thread.
+            self^.scriptTask := try^std.task.async(p^-> vp.scriptdata.Data|nil^{
+                let^raw = std.lton.load(definition) catch^nil^
+                if^raw fits^t^{} { return^parse(raw) }
+                return^nil^
+            })
+            return^
+        }
+        if^kind = "lton" {
+            self^.tableTask := try^std.task.async(p^-> t^{}|nil^{
+                let^raw = std.lton.load(definition) catch^nil^
+                if^raw fits^t^{} { return^raw }
+                return^nil^
+            })
+            return^
+        }
+        self^.mediaTask := try^std.task.async(p^-> string^|nil^{
             if^kind = "image" {
                 let^pixels = try^love.image.newImageData(path)
                 try^out.push(pixels)
@@ -74,28 +88,63 @@ let^Job = def^{
                 source.setLooping(loop)
                 try^out.push(source)
             }
-            return^true^
+            return^nil^
+        catch^:
+            return^it^.message
         })
     catch^:
         self^.batch.error := $"{self^.path}: {it^.message}"
         let^ch = self^.channel
         if^ch != nil^ { ch.dispose() self^.channel := nil^ }
     },
+    hasTask = f^self^-> bool^{
+        self^.scriptTask != nil^ or^self^.tableTask != nil^ or^self^.mediaTask != nil^
+    },
+    done = p^self^-> bool^{
+        let^scriptTask = self^.scriptTask
+        if^scriptTask != nil^ { return^scriptTask.done() }
+        let^tableTask = self^.tableTask
+        if^tableTask != nil^ { return^tableTask.done() }
+        let^mediaTask = self^.mediaTask
+        if^mediaTask != nil^ { return^mediaTask.done() }
+        return^false^
+    },
+    disposeTask = p^self^{
+        let^scriptTask = self^.scriptTask
+        if^scriptTask != nil^ { scriptTask.dispose() self^.scriptTask := nil^ }
+        let^tableTask = self^.tableTask
+        if^tableTask != nil^ { tableTask.dispose() self^.tableTask := nil^ }
+        let^mediaTask = self^.mediaTask
+        if^mediaTask != nil^ { mediaTask.dispose() self^.mediaTask := nil^ }
+    },
     finish = p^self^{
-        let^t = self^.task
-        if^t is^nil^{ return^ }
-        let^result = try^std.task.await(t)
-        if^!self^.batch.cancelled {
-            if^self^.kind = "script" {
-                if^result fits^vp.scriptdata.Data {
+        let^scriptTask = self^.scriptTask
+        if^scriptTask != nil^ {
+            let^result = try^std.task.await(scriptTask)
+            if^!self^.batch.cancelled {
+                if^result != nil^ {
                     scripts[self^.path] := result
                     tables[self^.path] := result.raw
                 else^: self^.batch.error := $"{self^.path}: invalid script result"
                 }
-            elseif^self^.kind = "lton":
-                if^result fits^t^{} { tables[self^.path] := result
+            }
+            return^
+        }
+        let^tableTask = self^.tableTask
+        if^tableTask != nil^ {
+            let^result = try^std.task.await(tableTask)
+            if^!self^.batch.cancelled {
+                if^result != nil^ { tables[self^.path] := result
                 else^: self^.batch.error := $"{self^.path}: invalid LTON result"
                 }
+            }
+            return^
+        }
+        let^mediaTask = self^.mediaTask
+        if^mediaTask != nil^ {
+            let^error = try^std.task.await(mediaTask)
+            if^!self^.batch.cancelled and^error != nil^ {
+                self^.batch.error := $"{self^.path}: {error}"
             }
         }
     catch^:
@@ -127,6 +176,7 @@ public^let^data = p^path:string^-> t^{}|nil^{
     if^raw fits^t^{} { tables[path] := raw return^raw }
     return^nil^
 }
+
 public^let^script = p^path:string^-> vp.scriptdata.Data|nil^{
     let^known = scripts[path]
     if^known != nil^ { return^known }
@@ -146,8 +196,7 @@ public^let^pump = p^seconds:number^{
     let^start = love.timer.getTime()
     var^kept : t^{Job[]} = {}
     for^j in^active {
-        let^t = j.task
-        if^t != nil^ and^t.done() and^love.timer.getTime() - start < seconds {
+        if^j.done() and^love.timer.getTime() - start < seconds {
             j.finish()
             let^ch = j.channel
             if^ch != nil^ {
@@ -160,7 +209,8 @@ public^let^pump = p^seconds:number^{
                     }
                     object.dispose()
                 elseif^object fits^love.audio.Source:
-                    if^j.batch.cancelled or^j.batch.error != "" { object.dispose()
+                    if^j.batch.cancelled or^j.batch.error != "" {
+                        object.dispose()
                     else^:
                         j.batch.arena.sounds[j.path] := object
                         j.batch.arena.sources.push^(object)
@@ -168,9 +218,10 @@ public^let^pump = p^seconds:number^{
                 }
                 ch.dispose()
             }
-            t.dispose()
+            j.disposeTask()
             j.batch.pending -= 1
-        else^: kept.push^(j)
+        else^:
+            kept.push^(j)
         }
     }
     active := kept
@@ -182,11 +233,18 @@ public^let^pump = p^seconds:number^{
             if^j.batch.cancelled or^j.batch.error != "" { j.batch.pending -= 1
             else^:
                 j.launch()
-                if^j.task != nil^ { active.push^(j) else^: j.batch.pending -= 1 }
+                if^j.hasTask() {
+                    active.push^(j)
+                else^:
+                    j.batch.pending -= 1
+                }
             }
         }
     }
-    if^next >= queue.length^ { queue := {} next := 0 }
+    if^next >= queue.length^ {
+        queue := {}
+        next := 0
+    }
 catch^:
     panic^$"Async loading: {it^.message}"
 }
@@ -201,8 +259,7 @@ public^let^stop = p^{
             if^object fits^love.audio.Source { object.dispose() }
             ch.dispose()
         }
-        let^t = j.task
-        if^t != nil^ { t.dispose() }
+        j.disposeTask()
     }
     active := {}
     queue := {}
