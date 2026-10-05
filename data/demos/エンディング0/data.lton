@@ -1,0 +1,7 @@
+# Converted from エンディング0.json by tools/fm2k_convert/convert.py
+kind = "demo",
+name = "エンディング0",
+skillCount = 22,
+skillsPerFile = 100,
+bgm = { name = "－－設定無し－－", number = 0 },
+time = 12000,

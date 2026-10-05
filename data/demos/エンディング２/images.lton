@@ -1,0 +1,14 @@
+# Converted from エンディング２.json by tools/fm2k_convert/convert.py
+# Position = original FM2K image number; nil^ = unused slot.
+{ file = "images/0000.png", width = 640, height = 480, format = "rgba" },
+{ file = "images/0001.png", width = 642, height = 127, format = "rgba" },
+{ file = "images/0002.png", width = 640, height = 111, format = "rgba" },
+{ file = "images/0003.png", width = 226, height = 46, format = "rgba" },
+{ file = "images/0004.png", width = 226, height = 43, format = "rgba" },
+{ file = "images/0005.png", width = 181, height = 46, format = "rgba" },
+{ file = "images/0006.png", width = 289, height = 46, format = "rgba" },
+{ file = "images/0007.png", width = 331, height = 74, format = "rgba" },
+{ file = "images/0008.png", width = 221, height = 73, format = "rgba" },
+{ file = "images/0009.png", width = 640, height = 480, format = "rgba" },
+{ file = "images/0010.png", width = 214, height = 46, format = "rgba" },
+{ file = "images/0011.png", width = 721, height = 726, format = "rgba" },

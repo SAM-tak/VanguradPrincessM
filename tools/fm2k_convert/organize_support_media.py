@@ -8,11 +8,12 @@ import argparse
 from collections import Counter, defaultdict
 import json
 from pathlib import Path
+from layout import metadata_path, media_path
 import re
 import shutil
 
 from share_assets import content_key
-from supports import SUPPORTS, read_skills
+from supports import SUPPORTS, read_skills, source_script
 
 REF = re.compile(r'\b(shared|file|asset) = "([^"]+)"')
 
@@ -34,7 +35,7 @@ def resolve(root, listing, line):
         if not value.startswith("assets/"):
             raise ValueError(f"Unsupported asset path: {value}")
         return (root / value.removeprefix("assets/")).resolve()
-    return (listing.parent / value).resolve()
+    return (media_path(listing.parent) / value).resolve()
 
 
 def plan(root):
@@ -42,13 +43,13 @@ def plan(root):
     libraries = {}
     moves = {}
     for kind, op in (("images", "I"), ("sounds", "S")):
-        listing = root / "supports/common" / f"{kind}.lton"
+        listing = metadata_path(root) / "supports/common" / f"{kind}.lton"
         media = [resolve(root, listing, line) for line in entries(listing)]
         owners, numbers = defaultdict(set), defaultdict(set)
         # Already-moved assets still identify their shared hash on regeneration.
         pool_sources = {}
         for name in SUPPORTS:
-            skills = read_skills(root / "supports" / name / "script.lton", libraries)
+            skills = read_skills(metadata_path(root) / "supports" / name / "script.lton", libraries)
             for skill in skills:
                 for block in skill["blocks"]:
                     if block[0] != op or not 0 <= block[1] < len(media):
@@ -70,15 +71,15 @@ def plan(root):
         # Mere presence in each fighter's manifest does not imply ownership.
         # Inspect the actual non-bound skills, including demos and stages.
         other_users = set()
-        for script in sorted(root.rglob("script.lton")):
-            if (root / "supports") in script.parents:
+        for script in sorted(metadata_path(root).rglob("script.lton")):
+            if (metadata_path(root) / "supports") in script.parents or "_conversion" in script.parts:
                 continue
             local_listing = script.parent / f"{kind}.lton"
             if not local_listing.exists():
                 continue
             local_media = [resolve(root, local_listing, line) for line in entries(local_listing)]
             skills = read_skills(script, libraries)
-            parts = re.split(r'(?m)^\{ name = ', script.read_text(encoding="utf-8"))[1:]
+            parts = re.split(r'(?m)^\{ name = ', source_script(script).read_text(encoding="utf-8"))[1:]
             for skill, part in zip(skills, parts):
                 if "support = " in part:
                     continue
@@ -100,7 +101,7 @@ def plan(root):
             moves[source] = target
     rewritten = {}
     for kind in ("images", "sounds"):
-        for listing in sorted(root.rglob(f"{kind}.lton")):
+        for listing in sorted(metadata_path(root).rglob(f"{kind}.lton")):
             lines = listing.read_text(encoding="utf-8").splitlines()
             changed = False
             for i, line in enumerate(lines):
@@ -134,7 +135,7 @@ def apply(root, moves, rewritten):
         listing.write_text(text, encoding="utf-8", newline="\n")
     remaining = set()
     for kind in ("images", "sounds"):
-        for listing in root.rglob(f"{kind}.lton"):
+        for listing in metadata_path(root).rglob(f"{kind}.lton"):
             remaining.update(resolve(root, listing, line) for line in entries(listing))
     for source in moves:
         if source in remaining:

@@ -17,6 +17,7 @@ usage: read_demos.py <game dir> <assets dir>
 import argparse
 import struct
 from pathlib import Path
+from layout import metadata_path
 
 DEMO_NAMES = 0x08028
 DEMO_CONFIG = 0x0E428
@@ -83,7 +84,7 @@ def main():
         lines.append("    { name = %s, skip = %s, time = %d }," % (lton_str(n), "true^" if skip else "false^", time))
     lines.append("},")
 
-    out = args.assets / "system" / kgt.stem / "demos.lton"
+    out = metadata_path(args.assets) / "system" / kgt.stem / "demos.lton"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print("->", out)
 

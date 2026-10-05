@@ -12,6 +12,7 @@ import json
 import re
 import struct
 from pathlib import Path
+from layout import metadata_path
 
 from PIL import Image
 
@@ -34,9 +35,11 @@ def frames_of(skill):
 
 def image_path(asset_dir, i):
     """Image i's file, from images.lton (its folder, or assets/shared)."""
-    entries = [ln for ln in (asset_dir / "images.lton").read_text(encoding="utf-8").splitlines()
+    entries = [ln for ln in (metadata_path(asset_dir) / "images.lton").read_text(encoding="utf-8").splitlines()
                if ln.startswith("{") or ln.startswith("nil^")]
-    m = re.search(r'(file|shared) = "([^"]+)"', entries[i])
+    m = re.search(r'(file|shared|asset) = "([^"]+)"', entries[i])
+    if m.group(1) == "asset":
+        return asset_dir.parents[2] / m.group(2)
     return asset_dir / m.group(2) if m.group(1) == "file" else asset_dir.parent.parent / "shared" / m.group(2)
 
 

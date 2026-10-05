@@ -1,0 +1,3 @@
+# Converted from コンテニュー.json by tools/fm2k_convert/convert.py
+# Position = original FM2K sound number; nil^ = unused slot.
+{ type = 0, name = "－－設定無し－－", endlessLoop = false^, cddaTrack = 0 },

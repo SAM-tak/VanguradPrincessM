@@ -34,6 +34,7 @@ import re
 import shutil
 import struct
 from pathlib import Path
+from layout import metadata_path, media_path
 
 KINDS = (("images", ("dds", "png")), ("sounds", ("wav",)))
 
@@ -159,7 +160,7 @@ def restore_owned_images(assets):
     pool = (assets / "shared/images").resolve()
     candidates = set()
     restored = dropped = 0
-    for listing in sorted((assets / "characters").glob("*/images.lton")):
+    for listing in sorted((metadata_path(assets) / "characters").glob("*/images.lton")):
         lines = listing.read_text(encoding="utf-8").splitlines()
         changed = False
         number = -1
@@ -176,7 +177,7 @@ def restore_owned_images(assets):
                 continue
             source = pool / name
             if listing.parent.name == owner:
-                target = listing.parent / "images" / ("%04d%s" % (number, source.suffix))
+                target = media_path(listing.parent) / "images" / ("%04d%s" % (number, source.suffix))
                 target.parent.mkdir(parents=True, exist_ok=True)
                 if target.exists() and content_key(target) != Path(name).stem:
                     raise ValueError("Refusing to overwrite different image: %s" % target)
@@ -191,7 +192,7 @@ def restore_owned_images(assets):
         if changed:
             listing.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     references = set()
-    for listing in assets.rglob("images.lton"):
+    for listing in metadata_path(assets).rglob("images.lton"):
         references.update(re.findall(r'shared = "images/([^"/]+)"', listing.read_text(encoding="utf-8")))
     for source in candidates:
         if source.name not in references and source.exists():
@@ -227,7 +228,7 @@ def apply_image_aliases(assets, found):
         if content_key(canonical) != target:
             raise ValueError("Canonical image content mismatch: " + str(canonical))
         for character, number, path in variants:
-            listing = assets / "characters" / character / "images.lton"
+            listing = metadata_path(assets) / "characters" / character / "images.lton"
             rewrite_listing(listing, "images", {number: canonical.name}, set())
             path.unlink()
             count += 1
@@ -263,7 +264,7 @@ def apply(assets, found):
                 shared[c][n] = dst.name
         files = {(c, n): f for v in found[kind].values() for c, n, f in v}
         for c in set(shared) | set(dropped):
-            rewrite_listing(assets / "characters" / c / ("%s.lton" % kind), kind, shared[c], dropped[c])
+            rewrite_listing(metadata_path(assets) / "characters" / c / ("%s.lton" % kind), kind, shared[c], dropped[c])
             for n in set(shared[c]) | dropped[c]:
                 files[(c, n)].unlink()
         lines.append("%s: %d contents in assets/shared, %d characters' copies removed, %d entries of another's image dropped"

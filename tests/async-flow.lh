@@ -72,7 +72,7 @@ public^let^update = p^dt:number^{
         wait += 1
         if^wait > 200 and^wait < 400 and^wait % 17 = 0 { press(love.keyboard.Key.a) }
         let^support = vp.main.status().supportSkill
-        if^support >= 476 and^support <= 506 { supportAttacked := true^ }
+        if^support >= 10024 and^support <= 10054 { supportAttacked := true^ }
         if^wait = 450 {
             press(love.keyboard.Key.escape)
             let^s = vp.main.status()

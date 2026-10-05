@@ -1,0 +1,5 @@
+# Converted from 瓦礫.json by tools/fm2k_convert/convert.py
+# Position = original FM2K sound number; nil^ = unused slot.
+{ type = 0, name = "－－設定無し－－", endlessLoop = false^, cddaTrack = 0 },
+{ type = 1, name = "370-15.wav", endlessLoop = true^, cddaTrack = 0, file = "sounds/0001.wav" },
+{ type = 1, name = "nosound.wav", endlessLoop = false^, cddaTrack = 0, file = "sounds/0002.wav" },

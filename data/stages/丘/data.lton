@@ -1,0 +1,7 @@
+# Converted from 丘.json by tools/fm2k_convert/convert.py
+kind = "stage",
+name = "丘",
+skillCount = 18,
+skillsPerFile = 100,
+bgm = { name = "nosound.wav", number = 2 },
+time = 0,

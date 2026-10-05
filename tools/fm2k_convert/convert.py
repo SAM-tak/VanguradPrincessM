@@ -32,6 +32,7 @@ import struct
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from layout import metadata_path
 
 from PIL import Image
 
@@ -243,6 +244,8 @@ def convert(src, out_root, kind, media=True):
         d["characters"] = [official(n) for n in d["characters"]]
     dst = out_root / KIND_DIRS[kind] / official(src.stem)
     (dst / "images").mkdir(parents=True, exist_ok=True)
+    definitions = metadata_path(dst)
+    definitions.mkdir(parents=True, exist_ok=True)
     header = ["Converted from %s by tools/fm2k_convert/convert.py" % src.name]
 
     images = []
@@ -278,8 +281,8 @@ def convert(src, out_root, kind, media=True):
             out[i] = x
         return out
 
-    write_lton(dst / "images.lton", {}, header + ["Position = original FM2K image number; nil^ = unused slot."], numbered(images))
-    write_lton(dst / "sounds.lton", {}, header + ["Position = original FM2K sound number; nil^ = unused slot."], numbered(sounds))
+    write_lton(definitions / "images.lton", {}, header + ["Position = original FM2K image number; nil^ = unused slot."], numbered(images))
+    write_lton(definitions / "sounds.lton", {}, header + ["Position = original FM2K sound number; nil^ = unused slot."], numbered(sounds))
 
     skills = d.pop("skills")
     skill_dir = dst / "skills"
@@ -294,7 +297,7 @@ def convert(src, out_root, kind, media=True):
     d.pop("type")
     table = {"kind": kind, "name": d.pop("name"), "skillCount": len(skills), "skillsPerFile": SKILLS_PER_FILE}
     table.update(strip(d))
-    write_lton(dst / "data.lton", table, header)
+    write_lton(definitions / "data.lton", table, header)
     images = [x for _, x in images]
     return "%s: %d images, %d sounds -> %s" % (src.name, len(images), len(sounds), dst)
 

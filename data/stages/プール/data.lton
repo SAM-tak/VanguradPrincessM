@@ -1,0 +1,7 @@
+# Converted from プール.json by tools/fm2k_convert/convert.py
+kind = "stage",
+name = "プール",
+skillCount = 16,
+skillsPerFile = 100,
+bgm = { name = "nosound.wav", number = 2 },
+time = 0,

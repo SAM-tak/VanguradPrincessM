@@ -26,13 +26,13 @@ def fixture():
 
 class SupportActionsTest(unittest.TestCase):
     def test_support_helpers_do_not_escape_to_owner_skills(self):
-        root = Path(__file__).resolve().parents[1] / "assets"
+        root = Path(__file__).resolve().parents[1] / "data"
         allowed_huds = {v[2] for v in list(supports.SUPPORTS.values())[:4]}
         for path in (root / "characters").glob("*/script.lton"):
             if path.parent.name == "だみー":
                 continue
             skills = supports.read_skills(path)
-            parts = re.split(r'(?m)^\{ name = ', path.read_text(encoding="utf-8"))[1:]
+            parts = re.split(r'(?m)^\{ name = ', supports.source_script(path).read_text(encoding="utf-8"))[1:]
             bound = {i for i, part in enumerate(parts) if "support = " in part}
             for i in bound:
                 for block in skills[i]["blocks"]:
@@ -45,7 +45,7 @@ class SupportActionsTest(unittest.TestCase):
                                     (path.parent.name, skills[i]["name"], block))
 
     def test_eri_support_movement_does_not_play_owner_voice(self):
-        root = Path(__file__).resolve().parents[1] / "assets"
+        root = Path(__file__).resolve().parents[1] / "data"
         skills = supports.read_skills(root / "characters/えり/script.lton")
         helper = supports.named(skills, "共通サポート補助_353_ダッシュエフェクト")
         self.assertEqual(skills[helper]["blocks"], [["Settings", 10, 0]])
@@ -100,7 +100,7 @@ class SupportActionsTest(unittest.TestCase):
         self.assertEqual(eko["additional_inputs"][0]["request"], 110)
 
     def test_converted_regular_definitions_match_yui(self):
-        root = Path(__file__).resolve().parents[1] / "assets"
+        root = Path(__file__).resolve().parents[1] / "data"
         if not (root / "supports" / "えこ" / "script.lton").exists():
             self.skipTest("converted assets unavailable")
         cache = {}

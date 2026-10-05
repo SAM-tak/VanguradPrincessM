@@ -4,6 +4,7 @@ module^vp.preload
 require^"resource.lh"
 require^"script.lh"
 require^"sprite.lh"
+require^"scriptdata.lh"
 
 let^Directory = t^{ path:string^, portrait:bool^, support:number^, winner:number^}
 let^SUPPORTS = {"えこ", "シエラ", "ジュリエット", "かなえ", "ヒルダ"}
@@ -73,15 +74,12 @@ let^assets = p^l:Load, d:Directory {
     }
     # Keep all owner skills (including Kurumi's collaboration attacks), but
     # only the selected support's bodies and the common helper definitions.
-    # Membership comes from raw bindings, which survive the linked-script cache.
-    if^d.support >= 0 and^sc? {
+    # The effective namespace map includes Kurumi's explicit adapters.
+    let^independent = sc != nil^ and^sc.raw fits^t^{supportNamespaces:bool^} and^sc.raw.supportNamespaces
+    if^(d.support >= 0 or^independent) and^sc? {
         let^selected = SUPPORTS[d.support - 101] ?? ""
-        for^n, sk in^sc.skills {
-            let^raw = sc.raw[n]
-            var^wanted = true^
-            if^raw fits^t^{support:string^} {
-                wanted := raw.support = selected or^raw.support = "common"
-            }
+        for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
+            let^wanted = d.support < 0 or^sk.space = "" or^sk.space = selected or^sk.space = "common"
             if^wanted {
                 let^source = if^sk.media = "": dir el^: sk.media;
                 for^b in^sk.blocks {
@@ -136,13 +134,22 @@ public^let^ready = p^l:Load -> bool^{
             let^file = if^d.portrait: "portrait.lton" el^: "script.lton";
             let^sc = vp.resource.script($"{d.path}/{file}")
             if^sc? {
-                for^sk in^sc.skills {
-                    let^ref = sk.binding
-                    if^ref != nil^ or^sk.media != "" {
-                        supportMedia := true^
-                        if^d.support < 0 { allSupports := true^ }
+                let^namespaced = sc.raw fits^t^{supportNamespaces:bool^} and^sc.raw.supportNamespaces
+                if^namespaced {
+                    supportMedia := true^
+                    for^name in^vp.script.SUPPORTS {
+                        vp.resource.request(l.batch, $"assets/supports/{name}/script.lton", "script", false^)
                     }
-                    if^ref != nil^ { vp.resource.request(l.batch, $"assets/supports/{ref.support}/script.lton", "script", false^) }
+                }
+                if^!namespaced {
+                    for^sk in^sc.skills {
+                        let^ref = sk.binding
+                        if^ref != nil^ or^sk.media != "" {
+                            supportMedia := true^
+                            if^d.support < 0 { allSupports := true^ }
+                        }
+                        if^ref != nil^ { vp.resource.request(l.batch, $"assets/supports/{ref.support}/support-source.lton", "script", false^) }
+                    }
                 }
             }
         }

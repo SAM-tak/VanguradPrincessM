@@ -20,10 +20,12 @@ require^"scriptdata.lh"
 require^"resource.lh"
 
 let^Skill = vp.scriptdata.Skill
+public^let^SUPPORTS = {"えこ", "シエラ", "ジュリエット", "かなえ", "ヒルダ", "common"}
 
 public^let^Script = def^{
     self^{
-        skills : t^{Skill[]} = {},     # position = skill number
+        skills : t^{Skill[]} = {},     # compact definitions owned by this package
+        byId : t^{[number^]:Skill|nil^} = {}, # independent namespace handles
         layers = false^,               # E hides the image (stage layers, the HUD)
         loops = false^,                # running off the end starts over (a stage's or demo's layers)
         raw : t^{} = {},               # the whole file: commands, reactions, settings
@@ -39,7 +41,9 @@ public^let^load = p^path:string^-> Script|nil^{
     for^n, sk in^d.skills {
         let^ref = sk.binding
         if^ref != nil^ {
-            let^library = vp.resource.script($"assets/supports/{ref.support}/script.lton")
+            let^namespaced = d.raw fits^t^{supportNamespaces:bool^} and^d.raw.supportNamespaces
+            let^file = if^namespaced: "script.lton" el^: "support-source.lton";
+            let^library = vp.resource.script($"assets/supports/{ref.support}/{file}")
             if^library is^nil^ { panic^$"Missing support library: {ref.support}" }
             let^base = library.skills[ref.base]
             if^base is^nil^ { panic^$"Missing support skill: {ref.support}/{ref.base}" }
@@ -50,12 +54,22 @@ public^let^load = p^path:string^-> Script|nil^{
     sc.raw := d.raw
     sc.layers := d.layers
     sc.skills := d.skills
+    if^d.raw fits^t^{supportNamespaces:bool^} and^d.raw.supportNamespaces {
+        for^name in^SUPPORTS {
+            let^library = vp.resource.script($"assets/supports/{name}/script.lton")
+            if^library is^nil^ { panic^$"Missing support namespace: {name}" }
+            for^sk in^library.skills { sc.byId[sk.id] := sk }
+        }
+    }
+    # Kurumi's explicit adapters override only their own namespace entries;
+    # the immutable shared libraries remain unchanged for the other fighter.
+    for^sk in^sc.skills { sc.byId[sk.id] := sk }
     return^sc
 }
 
 # Runs skill n from block `at`. The block cap per frame is FM2K's (spin).
 public^let^run = p^me:Fighter, sc:Script, n:number^, at:number^{
-    let^sk = sc.skills[n]
+    let^sk = sc.byId[n]
     if^sk is^nil^ { return^}
     let^bs = sk.blocks
     let^count = bs.length^
@@ -203,7 +217,7 @@ let^entry = p^sc:Script, n:number^-> (p^Fighter, number^ -> c^{p^-> nil^};){
 # (what C blocks cancel against); a character's script also brings its hit
 # reactions, gauges and command table.
 public^let^install = p^me:Fighter, sc:Script{
-    for^n, sk in^sc.skills {
+    for^n:number^, sk:Skill in^sc.byId {
         me.skills[n] := entry(sc, n)
         if^sk.level != 0 { me.levels[n] := sk.level }
     }
@@ -249,7 +263,7 @@ let^numbers = p^list:t^{}-> t^{number^[]}{
 # A system skill's show time (frames): how long the engine gives a round's
 # stage (the second number of its Settings block).
 public^let^showTime = p^sc:Script, n:number^-> number^{
-    let^sk = sc.skills[n]
+    let^sk = sc.byId[n]
     if^sk is^nil^ { return^0 }
     let^b = sk.blocks[0]
     if^b is^nil^ { return^0 }
@@ -263,14 +277,14 @@ public^let^showTime = p^sc:Script, n:number^-> number^{
 public^let^layers = p^sc:Script-> t^{number^[]}{
     var^out : t^{number^[]} = {}
     for^n, sk in^sc.skills {
-        if^n >= 1 and^sk.name != "" and^sk.blocks.length^ > 0 { out.push^(n) }
+        if^sk.id >= 1 and^sk.name != "" and^sk.blocks.length^ > 0 { out.push^(sk.id) }
     }
     return^out
 }
 
 public^let^playersLayer = p^sc:Script-> number^{
     for^n, sk in^sc.skills {
-        if^n >= 1 and^(sk.name = "プレーヤー位置" or^sk.name = "ｼｽﾃﾑｲﾒｰｼﾞ位置") and^sk.blocks.length^ > 0 { return^n }
+        if^sk.id >= 1 and^(sk.name = "プレーヤー位置" or^sk.name = "ｼｽﾃﾑｲﾒｰｼﾞ位置") and^sk.blocks.length^ > 0 { return^sk.id }
     }
     return^-1
 }
@@ -296,7 +310,7 @@ public^let^imagesFrom = p^sc:Script, n:number^-> t^{number^[]}{
         let^s = todo.pop^() ?? 0
         var^at = b
         repeat^while^true^ {
-            let^sk = sc.skills[s]
+            let^sk = sc.byId[s]
             if^sk is^nil^{ break^}
             let^blk = sk.blocks[at]
             if^blk is^nil^ or^seen[$"{s}:{at}"] != nil^ { break^}

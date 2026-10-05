@@ -17,6 +17,7 @@ import argparse
 import json
 import struct
 from pathlib import Path
+from layout import metadata_path
 
 from gen_skills import DS_EVENTS, flags, jump_refs, steps_of, target
 import patches
@@ -154,6 +155,7 @@ def main():
     ap.add_argument("--layers", action="store_true",
                     help="a script that ends with E hides its image (stages, the system file's HUD scripts)")
     args = ap.parse_args()
+    args.out = metadata_path(args.out)
 
     d = json.loads(args.json.read_text(encoding="utf-8-sig"))
     patches.apply(args.json, d)     # the port's deliberate changes (patches/)

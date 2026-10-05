@@ -1,0 +1,7 @@
+# Converted from イベントラスト.json by tools/fm2k_convert/convert.py
+kind = "demo",
+name = "イベントラスト",
+skillCount = 12,
+skillsPerFile = 100,
+bgm = { name = "－－設定無し－－", number = 0 },
+time = 2000,

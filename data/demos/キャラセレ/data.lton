@@ -1,0 +1,7 @@
+# Converted from キャラセレ.json by tools/fm2k_convert/convert.py
+kind = "demo",
+name = "キャラセレ",
+skillCount = 33,
+skillsPerFile = 100,
+bgm = { name = "－－設定無し－－", number = 0 },
+time = 0,

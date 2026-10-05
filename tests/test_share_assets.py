@@ -1,8 +1,11 @@
 import importlib.util
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools/fm2k_convert"))
 
 spec = importlib.util.spec_from_file_location(
     "share_assets", Path(__file__).resolve().parents[1] / "tools/fm2k_convert/share_assets.py")

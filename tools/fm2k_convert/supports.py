@@ -9,6 +9,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+from layout import metadata_path, conversion_path, runtime_path
 
 
 # Public inputs, request values (character variable 76), FM2K direction masks.
@@ -24,10 +25,20 @@ SUPPORTS = {
 }
 
 
+def source_script(path):
+    """Runtime namespace exports keep the numbered conversion input separately."""
+    path = metadata_path(path)
+    text = path.read_text(encoding='utf-8')
+    if 'supportNamespaces = true^' in text or re.search(r'^namespaceBase = ', text, re.M):
+        return conversion_path(path.with_name('support-source.lton'))
+    return path
+
+
 def read_skills(path, libraries=None):
     """Read the deliberately small format emitted by gen_script.skill_lines."""
     if libraries is None:
         libraries = {}
+    path = source_script(path)
     parts = re.split(r'(?m)^\{ name = ', path.read_text(encoding="utf-8"))[1:]
     skills = []
     for part in parts:
@@ -46,7 +57,7 @@ def read_skills(path, libraries=None):
             library = json.loads(reference[1])
             if library not in SUPPORTS and library != "common":
                 raise ValueError(f"{path}: unknown support {library!r}")
-            source = path.parents[2] / "supports" / library / "script.lton"
+            source = runtime_path(path).parents[2] / "supports" / library / "script.lton"
             if source not in libraries:
                 libraries[source] = read_skills(source, libraries)
             base = libraries[source][int(reference[2])]
@@ -160,6 +171,7 @@ def identify(skills):
 
 
 def audit(root):
+    root = metadata_path(root)
     characters = {}
     libraries = {}
     for path in sorted((root / "characters").glob("*/script.lton")):
@@ -188,6 +200,7 @@ def main():
     parser.add_argument("assets", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
+    args.assets = metadata_path(args.assets)
     report = audit(args.assets)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

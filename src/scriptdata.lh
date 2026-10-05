@@ -4,7 +4,7 @@ module^vp.scriptdata
 
 public^let^Block = t^{ op:string^, n:t^{number^[]}, s:string^, dirs:t^{number^[]}, buttons:t^{number^[]} }
 public^let^Binding = t^{ support:string^, base:number^, recipe:t^{number^[]}, changes:t^{Block[]} }
-public^let^Skill = t^{ name:string^, level:number^, blocks:t^{Block[]}, binding:Binding|nil^, media:string^ }
+public^let^Skill = t^{ id:number^, space:string^, name:string^, level:number^, blocks:t^{Block[]}, binding:Binding|nil^, media:string^ }
 public^let^Data = t^{ raw:t^{}, layers:bool^, skills:t^{Skill[]} }
 
 let^parseBlock = p^raw:t^{}-> Block{
@@ -33,8 +33,13 @@ public^let^parse = p^raw:t^{}-> Data{
     if^raw fits^t^{layers:bool^} { out.layers := raw.layers }
     var^media = ""
     if^raw fits^t^{supportMedia:string^} { media := raw.supportMedia }
+    var^base = 0
+    if^raw fits^t^{namespaceBase:number^} { base := raw.namespaceBase }
     for^e:any^ in^raw {
-        let^sk : Skill = { name = "", level = 0, blocks = {}, binding = nil^, media = media }
+        let^sk : Skill = { id = out.skills.length^, space = "", name = "", level = 0, blocks = {}, binding = nil^, media = media }
+        if^e fits^t^{id:number^} { sk.id := base + e.id }
+        if^e fits^t^{space:string^} { sk.space := e.space }
+        if^e fits^t^{media:string^} { sk.media := e.media }
         if^e fits^t^{name:string^, level:number^, blocks:t^{}} {
             sk.name := e.name
             sk.level := e.level
@@ -60,10 +65,9 @@ public^let^link = p^sk:Skill, base:Skill-> Skill{
     let^recipe = ref.recipe
     if^recipe.length^ % 2 != 0 { panic^"Invalid support recipe" }
     if^recipe.length^ = 2 and^recipe[0] = 0 and^recipe[1] = base.blocks.length^ and^ref.changes.length^ = 0 {
-        if^sk.name = base.name and^sk.level = base.level { return^base }
-        return^{name = sk.name, level = sk.level, blocks = base.blocks, binding = nil^, media = base.media}
+        return^{id = sk.id, space = ref.support, name = sk.name, level = sk.level, blocks = base.blocks, binding = nil^, media = base.media}
     }
-    let^out : Skill = {name = sk.name, level = sk.level, blocks = {}, binding = nil^, media = base.media}
+    let^out : Skill = {id = sk.id, space = ref.support, name = sk.name, level = sk.level, blocks = {}, binding = nil^, media = base.media}
     var^used = 0
     var^i = 0
     repeat^while^i < recipe.length^ {

@@ -1,0 +1,394 @@
+# Converted from だみー.json by tools/fm2k_convert/gen_script.py; run by src/script.lh.
+# Position = skill number. Block layouts: TechnicalDocuments/0012.
+layers = false^,
+settings = { lifeMax = 18, specialPer = 100, stockMax = 0, startStock = 0 },
+reactions = {
+    { 1, 25, 0 },
+    { 4, 26, 0 },
+    { 5, 27, 0 },
+    { 6, 28, 0 },
+    { 7, 29, 0 },
+    { 8, 30, 0 },
+    { 9, 31, 0 },
+    { 11, 32, 0 },
+    { 12, 33, 0 },
+    { 14, 34, 0 },
+    { 15, 35, 0 },
+    { 16, 36, 0 },
+    { 17, 37, 0 },
+    { 18, 38, 0 },
+    { 19, 39, 0 },
+    { 20, 40, 0 },
+    { 21, 41, 0 },
+    { 22, 42, 0 },
+    { 23, 43, 0 },
+    { 24, 44, 0 },
+    { 25, 45, 0 },
+    { 26, 46, 0 },
+    { 27, 47, 0 },
+    { 28, 48, 0 },
+    { 29, 49, 0 },
+    { 30, 50, 0 },
+    { 31, 51, 0 },
+    { 32, 52, 0 },
+    { 47, 53, 0 },
+    { 48, 54, 0 },
+    { 51, 55, 0 },
+    { 56, 56, 0 },
+    { 57, 57, 0 },
+    { 58, 58, 0 },
+    { 59, 59, 0 },
+    { 71, 60, 0 },
+    { 72, 61, 0 },
+    { 75, 62, 0 },
+    { 76, 63, 0 },
+    { 77, 64, 0 },
+    { 78, 65, 0 },
+    { 79, 66, 0 },
+    { 80, 67, 0 },
+    { 81, 68, 0 },
+    { 82, 69, 0 },
+    { 83, 70, 0 },
+    { 84, 71, 0 },
+    { 85, 72, 0 },
+    { 86, 73, 0 },
+    { 87, 74, 0 },
+    { 88, 75, 0 },
+    { 89, 76, 0 },
+    { 90, 77, 0 },
+    { 91, 78, 0 },
+    { 92, 79, 0 },
+    { 93, 80, 0 },
+    { 94, 81, 0 },
+    { 95, 82, 0 },
+    { 142, 83, 0 },
+},
+{ name = "－－設定無し－－", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "通常立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+    { "V", 139, 0, 0, 1, 0, 0, -1, 0 },
+    { "O", 84, 0, 320, 480, 0, 111, 0, 0, "point picXY" },
+    { "FD", 0, -13, -199, 358, 281, 100, "damaged" },
+    { "GP", 0, -1000, 0, -1000 },
+    { "I", 0, 2, 0, 0, "" },
+    { "GL", 1, 10, 1, 8 },
+    { "SG", 1, 5 },
+    { "O", 85, 0, 320, 480, 1, 112, 0, 0, "point picXY" },
+    { "FD", 0, -13, -199, 358, 281, 100, "damaged" },
+    { "I", 0, 2, 0, 0, "" },
+    { "SG", 1, 9 },
+} },
+{ name = "前歩き", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "後歩き", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ジャンプ垂直", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ジャンプ前", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ジャンプ後", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "空中落下", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "しゃがみ中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "しゃがみからの立上り", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "しゃがみ前歩き", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "しゃがみ後歩き", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "振り向き：立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "振り向き：しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ボタンガード立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ボタンガードしゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ボタンガード空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "開始時", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "勝ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "負け", level = 0, blocks = {
+    { "Settings", 0, 0 },
+    { "O", 83, 0, 320, 480, 1, 115, 0, 0, "point picXY" },
+    { "I", 0, 20, 0, 0, "" },
+    { "S", 0 },
+    { "I", 0, 195, 0, 0, "" },
+    { "V", 139, 1, 0, 0, 0, 0, -1, 0 },
+    { "I", 0, 40, 0, 0, "" },
+    { "I", 0, 240, 0, 0, "" },
+} },
+{ name = "引き分け", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "キャラセレフェイス", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ステージフェイス", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "影", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　弱パンチ　立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　弱パンチ　しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット 弱パンチ空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　弱パンチ　対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット弱パンチしゃがみ対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　強パンチ　立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　強パンチ　のけぞり", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　強パンチ　しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット強パンチしゃがみのけぞり", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　強パンチ　空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット強パンチ　対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット強パンチしゃがみ対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット 弱 立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット 弱 しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット 弱 空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　弱　対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット弱しゃがみ対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット 強 立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット 強 しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット 強 空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット　強　対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット強しゃがみ対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット飛び道具立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット飛び道具立ちR", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット飛び道具しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット飛び道具しゃがみR", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット飛び道具空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒット飛び道具空中R", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "吹き飛び横", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ヒットたたきつけ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "転倒", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "吹き飛び　ピンク中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "吹き飛びピンク長", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "超吹き飛び横", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "超多段", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "投げ始動", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "サクヤ通常1投げダウン", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード　弱パンチ　立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード　弱パンチ　しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード　弱パンチ　空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード　弱パンチ　対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード　強パンチ　立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード　強パンチ　しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード　強パンチ　空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード強パンチ　対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード 弱 立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード 弱 しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード 弱 空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード　弱　対空", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード 強 立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード 強 しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード 強 空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード飛び道具立ち", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード飛び道具立ちR", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード飛び道具しゃがみ", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード飛び道具しゃがみR", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード飛び道具空中", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "ガード飛び道具空中R", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "攻撃種類   1", level = 0, blocks = {
+    { "Settings", 0, 0 },
+    { "COLOR", 4, 224, 224, 224, 30 },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+    { "COLOR", 4, 224, 224, 224, 25 },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+    { "COLOR", 4, 224, 224, 224, 20 },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+    { "COLOR", 4, 224, 224, 224, 15 },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+    { "COLOR", 4, 224, 224, 224, 10 },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+    { "COLOR", 4, 224, 224, 224, 5 },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+    { "COLOR", 4, 224, 224, 224, 0 },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 0, 0, 0, 0 },
+    { "Rnd", 10, 17, 83, 18 },
+    { "I", 1, 10002, 0, 0, "ignoreDirection" },
+    { "Rnd", 10, 8, 83, 20 },
+    { "I", 2, 10002, 0, 0, "ignoreDirection" },
+    { "I", 3, 10002, 0, 0, "ignoreDirection" },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+    { "I", 0, 2, 0, 0, "ignoreDirection" },
+} },
+{ name = "技名1", level = 10, blocks = {
+    { "Settings", 10, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "SG", 84, 0 },
+} },
+{ name = "技名3", level = 10, blocks = {
+    { "Settings", 10, 0 },
+    { "COLOR", 0, 0, 0, 0, 0 },
+    { "I", 0, 10, 0, 0, "ignoreDirection" },
+    { "S", 1 },
+    { "COLOR", 0, 32, 32, 32, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 0, 0, 0, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 32, 32, 32, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 0, 0, 0, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 32, 32, 32, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 0, 0, 0, 0 },
+    { "I", 0, 255, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 251, 251, 251, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 244, 244, 244, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 234, 234, 234, 0 },
+    { "I", 0, 5, 0, 0, "ignoreDirection" },
+    { "COLOR", 0, 224, 224, 224, 0 },
+    { "I", 0, 275, 0, 0, "ignoreDirection" },
+    { "SG", 85, 23 },
+} },
+{ name = "技名2", level = 10, blocks = {
+    { "Settings", 10, 0 },
+} },
+{ name = "", level = 0, blocks = {
+} },

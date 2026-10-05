@@ -27,7 +27,7 @@ class VictoryMediaTests(unittest.TestCase):
                 collect([{'name': 'new', 'blocks': [block]}], 100)
 
     def test_real_demo_keeps_all_opponent_quotes(self):
-        skills = read_skills(ROOT / 'assets/demos/ゆい勝ち/script.lton')
+        skills = read_skills(ROOT / 'data/demos/ゆい勝ち/script.lton')
         all_images, all_sounds = collect(skills)
         for winner in range(100, 1001, 100):
             images, sounds = collect(skills, winner)

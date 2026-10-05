@@ -1,0 +1,632 @@
+# Converted from だみー.json by tools/fm2k_convert/convert.py
+kind = "character",
+name = "だみー",
+skillCount = 88,
+skillsPerFile = 100,
+commands = {},
+settings = {
+    age = 9999999,
+    gender = 2,
+    sideHPYPos = 0,
+    interval = 0,
+    hRatio = 0,
+    startPos = 0,
+    correct = 0,
+    combo = 0,
+    guardButton = 0,
+    lifeGaugeMax = 18,
+    specialGaugeMax = 100,
+    specialMaxStock = 0,
+    neutralGuard = false^,
+    skyGuard = false^,
+    guardWithButton = false^,
+    playerAttacks = 10,
+    enemyAttacks = 5,
+    startStock = 0,
+},
+storyMode = {
+    entries = {},
+},
+commonImages = {},
+cpu = {},
+hitJunctionsSkills = {
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　弱パンチ　立ち", number = 25 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　弱パンチ　しゃがみ", number = 26 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット 弱パンチ空中", number = 27 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　弱パンチ　対空", number = 28 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット弱パンチしゃがみ対空", number = 29 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　強パンチ　立ち", number = 30 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　強パンチ　のけぞり", number = 31 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　強パンチ　しゃがみ", number = 32 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット強パンチしゃがみのけぞり", number = 33 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　強パンチ　空中", number = 34 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット強パンチ　対空", number = 35 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット強パンチしゃがみ対空", number = 36 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット 弱 立ち", number = 37 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット 弱 しゃがみ", number = 38 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット 弱 空中", number = 39 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　弱　対空", number = 40 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット弱しゃがみ対空", number = 41 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット 強 立ち", number = 42 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット 強 しゃがみ", number = 43 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット 強 空中", number = 44 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット　強　対空", number = 45 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット強しゃがみ対空", number = 46 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット飛び道具立ち", number = 47 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット飛び道具立ちR", number = 48 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット飛び道具しゃがみ", number = 49 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット飛び道具しゃがみR", number = 50 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット飛び道具空中", number = 51 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒット飛び道具空中R", number = 52 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "吹き飛び横", number = 53 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ヒットたたきつけ", number = 54 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "転倒", number = 55 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "吹き飛び　ピンク中", number = 56 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "吹き飛びピンク長", number = 57 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "超吹き飛び横", number = 58 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "超多段", number = 59 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "投げ始動", number = 60 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "サクヤ通常1投げダウン", number = 61 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード　弱パンチ　立ち", number = 62 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード　弱パンチ　しゃがみ", number = 63 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード　弱パンチ　空中", number = 64 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード　弱パンチ　対空", number = 65 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード　強パンチ　立ち", number = 66 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード　強パンチ　しゃがみ", number = 67 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード　強パンチ　空中", number = 68 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード強パンチ　対空", number = 69 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード 弱 立ち", number = 70 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード 弱 しゃがみ", number = 71 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード 弱 空中", number = 72 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード　弱　対空", number = 73 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード 強 立ち", number = 74 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード 強 しゃがみ", number = 75 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード 強 空中", number = 76 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード飛び道具立ち", number = 77 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード飛び道具立ちR", number = 78 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード飛び道具しゃがみ", number = 79 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード飛び道具しゃがみR", number = 80 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード飛び道具空中", number = 81 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "ガード飛び道具空中R", number = 82 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "－－設定無し－－", number = 0 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+    {
+        hitJunction = { name = "攻撃種類   1", number = 83 },
+        spark = { name = "－－設定無し－－", number = 0 },
+    },
+},
+builtInSkills = {
+    standing = 1,
+    forward = 2,
+    backward = 3,
+    jumpUp = 4,
+    frontJump = 5,
+    backJump = 6,
+    falling = 7,
+    midCrouch = 8,
+    crouching = 9,
+    standFromCrouch = 10,
+    crouchAdvance = 11,
+    crouchRetreat = 12,
+    turnStanding = 13,
+    turnCrouching = 14,
+    buttonGuardStand = 15,
+    buttonGuardCrouch = 16,
+    buttonGuardAir = 17,
+    start = 18,
+    victory = 19,
+    loss = 20,
+    draw = 21,
+    charSelectPic = 22,
+    stageFacePic = 23,
+    ri = 24,
+},
+time = 0,

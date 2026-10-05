@@ -1,0 +1,25 @@
+# Converted from コンテニュー.json by tools/fm2k_convert/gen_script.py; run by src/script.lh.
+# Position = skill number. Block layouts: TechnicalDocuments/0012.
+layers = true^,
+{ name = "－－設定無し－－", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "基本背景", level = 0, blocks = {
+    { "Settings", 0, 0 },
+    { "V", 139, 1, 0, 0, 0, 0, -1, 0 },
+    { "V", 128, 1, 0, 1000, 0, 0, -1, 0 },
+    { "COLOR", 0, 224, 224, 224, 0 },
+    { "I", 0, 5, 0, 0, "" },
+    { "COLOR", 0, 236, 236, 236, 0 },
+    { "I", 0, 5, 0, 0, "" },
+    { "COLOR", 0, 246, 246, 246, 0 },
+    { "I", 0, 5, 0, 0, "" },
+    { "COLOR", 0, 0, 0, 0, 0 },
+    { "I", 0, 5, 0, 0, "" },
+    { "SG", 1, 10 },
+} },
+{ name = "ｼｽﾃﾑｲﾒｰｼﾞ位置", level = 0, blocks = {
+    { "Settings", 0, 0 },
+} },
+{ name = "", level = 0, blocks = {
+} },

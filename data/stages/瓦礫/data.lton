@@ -1,0 +1,7 @@
+# Converted from 瓦礫.json by tools/fm2k_convert/convert.py
+kind = "stage",
+name = "瓦礫",
+skillCount = 16,
+skillsPerFile = 100,
+bgm = { name = "nosound.wav", number = 2 },
+time = 0,

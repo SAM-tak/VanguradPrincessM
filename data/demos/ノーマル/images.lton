@@ -1,0 +1,3 @@
+# Converted from ノーマル.json by tools/fm2k_convert/convert.py
+# Position = original FM2K image number; nil^ = unused slot.
+{ file = "images/0000.png", width = 1, height = 1, format = "rgba" },

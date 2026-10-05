@@ -58,3 +58,5 @@
 - [0042-title-attract-mode.md](0042-title-attract-mode.md) — タイトル音楽終了／無音30秒から最高強度CPUデモ、60秒／2本先取でループ、ボタンでモードセレクト
 - [0043-demo-character-name.md](0043-demo-character-name.md) — キャラセレを通らないデモ対戦で1P番号が未設定になる問題、ラウンド開始時に両側を設定
 - [0044-support-helper-isolation.md](0044-support-helper-isolation.md) — サポート補助54技の共通側への抽出、えりの音声誤発火修正、参照スロットと中間データの位置付け
+- [0045-support-skill-namespaces.md](0045-support-skill-namespaces.md) — サポート技を専用skillsへ移し、キャラ側の参照スロットを撤去。独立番号・くるみの差分・配布対象
+- [0046-versioned-game-data.md](0046-versioned-game-data.md) — 素材はassets、ゲーム用LTONはGit管理するdataへ分離。変換・非同期ロード・配布の対応

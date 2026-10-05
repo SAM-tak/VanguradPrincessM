@@ -1,7 +1,14 @@
 # fm2k_convert
 
 Converts the original Vanguard Princess data (FM2K `.kgt/.player/.stage/.demo`) into the port's
-native assets: PNG, WAV and LTON. One-shot migration tool — the port never reads FM2K files.
+native media and definitions. The port never reads FM2K files.
+
+Current layout: `assets/` holds media and legacy numbered skill exports (ignored
+by Git); `data/` holds generated/edited LTON definitions (tracked by Git).
+`layout.py` maps an `assets` path to its sibling `data` for metadata IO. Existing
+commands below still take `assets`; generated definitions go to `data`.
+`data/_conversion/` holds the support extraction inputs and is not shipped.
+See [0046](../../TechnicalDocuments/0046-versioned-game-data.md).
 
 Background and decisions: `TechnicalDocuments/0003-asset-pipeline-decision.md`.
 
@@ -79,8 +86,9 @@ the support definitions with Yui as the canonical source:
 python tools/fm2k_convert/share_supports.py assets --apply
 ```
 
-This writes five support libraries and common helpers/media under `assets/supports/`.
-Character scripts retain library bindings and owner-specific references, with
+This writes five support libraries and common helper definitions under `data/supports/`;
+physical media stays under `assets/supports/`.
+Character scripts retain owner definitions and only Kurumi-specific library patches, with
 Kurumi's four collaboration hooks/HUD adapters preserved. Ordinary skill bodies,
 including the boss Hilda's inputs, use Yui's definitions. Re-run after regenerating
 any character script. Without `--apply`, only the proposed storage report is printed.
@@ -109,20 +117,30 @@ write to the official name's folder. See `TechnicalDocuments/0022`.
 
 Deliberate changes to the original data live in `patches/<json stem>.py` (`def patch(d)`, editing
 the parsed JSON). `convert.py` and `gen_script.py` apply them right after loading a JSON, so never
-edit `assets/` by hand: a conversion overwrites it. See `TechnicalDocuments/0019`.
+regenerate blindly: conversion overwrites definitions. Review Git diffs in `data/`
+and keep permanent conversion rules in the tools as well. See `TechnicalDocuments/0019`.
 
 ## Output
 
 ```text
 assets/<system|characters|stages|demos>/<name>/
-  data.lton           settings, commands, CPU, story, built-in skill table, ...
-  images.lton         position = FM2K image number, nil^ = unused slot
-  sounds.lton         position = FM2K sound number, nil^ = unused slot
-  skills/NNNN.lton    100 skills per file; skill number = first + position
-  images/NNNN.dds     indexed: uncompressed single-channel DDS (R8), value = palette index
-  images/NNNN.png     rgba:    sprites that carried their own palette
-  palettes.png        256 x 8, one row per colour variant (index 0 transparent)
-  sounds/NNNN.wav     original bytes
+  skills/NNNN.lton    legacy extraction output, not loaded by the game
+  images/NNNN.dds     palette-indexed sprites
+  images/NNNN.png     RGBA sprites
+  palettes.png       palette rows
+  sounds/NNNN.wav     sounds
+
+data/<system|characters|supports|stages|demos>/<name>/
+  data.lton          extracted settings for tools/investigation (not shipped)
+  images.lton        image references into assets/
+  sounds.lton        sound references into assets/
+  script.lton        executable definitions
+  portrait.lton      selection portrait definitions (characters)
+  cpu.lton           CPU patterns (characters)
+  story.lton         story flow (characters)
+
+data/_conversion/<characters|supports>/<name>/
+  support-source.lton  normalized inputs for repeatable support extraction
 ```
 
 ## Preview
@@ -137,7 +155,7 @@ tools/fm2k_convert/.venv/Scripts/python tools/fm2k_convert/preview_gif.py assets
 ## Skills as data
 
 `gen_script.py` writes the skills of a character, a stage or the system file as
-`script.lton` in the converted folder, which `src/script.lh` runs
+`script.lton` in the corresponding `data/` folder, which `src/script.lh` runs
 (`TechnicalDocuments/0012`). A character's command table, hit reactions and gauge
 settings go in the same file. For a character it also writes `portrait.lton`: only the
 skills its select-screen face (#25) reaches, the others empty, so the select screen need
@@ -188,9 +206,22 @@ from the filtered player-input command table must not be used here.
 Support extraction also copies the transitive Yui helper dependencies into
 `supports/common/script.lton`; ordinary support code no longer invokes an
 owner's unrelated helper with the same name/number. Original owner helpers and
-Kurumi's explicit collaboration adapters remain intact. Character scripts still
-retain compatibility binding slots; `skills/*.lton` are unused intermediate
-exports, not the shared runtime definitions.
+Kurumi's explicit collaboration adapters remain intact.
+
+`share_supports.py assets --apply` now also compiles independent runtime packages
+into `supports/{name}/script.lton` (the five supports and `common`).
+Character runtime scripts retain only 495–499 owner definitions with explicit
+original IDs; support compatibility slots are removed. Support IDs use separate
+10000-slot namespaces, and instruction references are relocated at conversion
+time. Kurumi alone keeps compact patches for her collaboration entry points and
+their adjusted block offsets. Shared library bodies remain immutable at runtime.
+
+`data/_conversion/characters/*/support-source.lton` and
+`data/_conversion/supports/*/support-source.lton` preserve normalized
+conversion inputs for repeatable extraction. They are not runtime packages and
+are excluded from distributions, along with the old character `skills/*.lton`
+exports. Support root `script.lton` packages ARE included in distributions.
+See `TechnicalDocuments/0045-support-skill-namespaces.md`.
 
 ## Victory demo preload lists
 

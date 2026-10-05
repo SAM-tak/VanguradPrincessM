@@ -1,0 +1,6 @@
+# Converted from ランダムみさき.json by tools/fm2k_convert/convert.py
+# Position = original FM2K image number; nil^ = unused slot.
+{ file = "images/0000.png", width = 640, height = 480, format = "rgba" },
+{ file = "images/0001.png", width = 142, height = 12, format = "rgba" },
+{ file = "images/0002.png", width = 313, height = 213, format = "rgba" },
+{ file = "images/0003.png", width = 640, height = 480, format = "rgba" },

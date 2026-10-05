@@ -4,6 +4,7 @@ import^love.event
 import^love.timer
 require^"../src/preload.lh"
 require^"../src/script.lh"
+require^"../src/scriptdata.lh"
 require^"../src/fighter.lh"
 require^"../src/resource.lh"
 
@@ -40,7 +41,7 @@ let^check = p^name:string^{
         var^skill = -1
         var^first = -1
         var^dispatch = -1
-        for^n, sk in^sc.skills {
+        for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
             if^sk.name = DISPATCHERS[hi] { dispatch := n }
             if^sk.name = hud {
                 skill := n
@@ -67,7 +68,7 @@ let^check = p^name:string^{
             if^actual != REQUESTS[i] { panic^$"{name}/{hud}/{direction}D: request={actual}" }
             let^actor = vp.fighter.makeObject(p, dispatch, 0, 0, 0, 80)
             actor.advance()
-            let^target = sc.skills[actor.jumpSkill]
+            let^target = sc.byId[actor.jumpSkill]
             if^target is^nil^ or^target.name != ENTRIES[hi * 5 + i] { panic^$"Wrong attack entry: {name}/{hud}/{direction}D" }
             vp.fighter.record(p, direction, 0)
             if^vp.fighter.command(object, 20, {0}, {8}) { panic^"Stale D press was reused" }
@@ -76,7 +77,7 @@ let^check = p^name:string^{
                 let^extra = vp.fighter.makeObject(p, dispatch, 0, 0, 0, 80)
                 extra.advance()
                 if^hi < 4 {
-                    let^target = sc.skills[extra.jumpSkill]
+                    let^target = sc.byId[extra.jumpSkill]
                     let^expected = if^hi = 3: "ソレトナクディフェンス立ち飛び" el^: "kyougiriえこ用";
                     if^target is^nil^ or^target.name != expected { panic^"Kurumi collaboration hook lost" }
                 elseif^extra.jumpSkill >= 0:

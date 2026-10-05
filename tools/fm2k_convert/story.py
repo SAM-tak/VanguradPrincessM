@@ -32,7 +32,7 @@ def export():
     for source in DONOR.glob('*.player'):
         name = official(source.stem)
         if name not in CHARACTERS[:11]: continue
-        folder = ROOT / 'assets/characters' / name
+        folder = ROOT / 'data/characters' / name
         data = folder.joinpath('data.lton').read_text(encoding='utf-8')
         patterns = []
         def entries(table):

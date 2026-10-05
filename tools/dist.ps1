@@ -38,14 +38,15 @@ foreach ($d in $stage, $game, $out) {
 New-Item -ItemType Directory -Force $stage, $out | Out-Null
 
 # Only what the game reads: leave out tools/, the donor and the docs, and the
-# converter's intermediate data in assets (skills/*.lton, data.lton), which
+# converter's intermediate data (old skills/, data/_conversion/, data.lton), which
 # the game never opens and which --compile-game would spend minutes on.
 Write-Host "staging"
 foreach ($item in "main.lh", "conf.lton") {
     Copy-Item (Join-Path $root $item) $stage
 }
-foreach ($item in "src", "assets") {
-    robocopy (Join-Path $root $item) (Join-Path $stage $item) /E /XD skills /XF data.lton /NFL /NDL /NJH /NJS /NP /MT:16 | Out-Null
+foreach ($item in "src", "assets", "data") {
+    # Numbered skill exports and normalized conversion inputs are not runtime assets.
+    robocopy (Join-Path $root $item) (Join-Path $stage $item) /E /XD skills _conversion /XF data.lton support-source.lton /NFL /NDL /NJH /NJS /NP /MT:16 | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "copying $item failed ($LASTEXITCODE)" }
 }
 

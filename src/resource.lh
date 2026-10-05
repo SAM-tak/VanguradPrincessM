@@ -32,11 +32,18 @@ var^scripts : t^{[string^]:vp.scriptdata.Data|nil^} = {}
 var^syncReads = 0
 public^let^fallbackReads = f^{ syncReads }
 
+# Callers use the media directory as a logical package key. Only metadata IO
+# maps to data/; texture/audio paths and cache keys remain under assets/.
+let^metadataPath = f^path:string^-> string^{
+    if^path.substring(0, 6) = "assets/" { return^$"data/{path.substring(7)}" }
+    return^path
+}
+
 public^let^data = p^path:string^-> t^{}|nil^{
     let^known = tables[path]
     if^known != nil^ { return^known }
     syncReads += 1
-    let^raw = std.lton.load(path) catch^nil^
+    let^raw = std.lton.load(metadataPath(path)) catch^nil^
     if^raw fits^t^{} { tables[path] := raw return^raw }
     return^nil^
 }
@@ -72,6 +79,7 @@ let^launch = p^j:Job{
     # Capture only immutable job arguments and this job's channel, never
     # the scene, arena, queues, or main-thread caches.
     let^path = j.path
+    let^definition = metadataPath(path)
     let^kind = j.kind
     let^loop = j.loop
     let^parse = vp.scriptdata.parse
@@ -79,7 +87,7 @@ let^launch = p^j:Job{
     j.channel := out
     j.task := try^std.task.async(p^-> any^{
         if^kind = "lton" or^kind = "script" {
-            let^raw = try^std.lton.load(path)
+            let^raw = try^std.lton.load(definition)
             if^!(raw fits^t^{}) { return^nil^ }
             if^kind = "script" { return^parse(raw) }
             return^raw
