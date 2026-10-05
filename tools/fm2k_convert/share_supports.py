@@ -232,6 +232,35 @@ def plan(root):
                 if k and block[k] == 771:
                     block[k] = guard
     groups["common"].append(guard)
+    # Support code must never call an owner's unrelated helper just because
+    # its number/name matches Yui's. Copy the complete dependency closure into
+    # support media space, preserving the owner's original helpers untouched.
+    # Reuse generated names on subsequent runs so the transformation is stable.
+    core = {n for indices in groups.values() for n in indices}
+    helper_prefix = "共通サポート補助_"
+    generated = {i for i, sk in enumerate(reference) if sk["name"].startswith(helper_prefix)}
+    core.update(generated)
+    groups["common"].extend(sorted(generated))
+    seen, todo = set(core), list(core)
+    while todo:
+        n = todo.pop()
+        for block in reference[n]["blocks"]:
+            k = target_index(block)
+            if k and block[k] not in seen:
+                seen.add(block[k])
+                todo.append(block[k])
+    helpers = {}
+    for n in sorted(seen - core):
+        clone = len(reference)
+        helpers[n] = clone
+        reference.append({**deepcopy(reference[n]), "name": f"{helper_prefix}{n}_{reference[n]['name']}"})
+        groups["common"].append(clone)
+    for indices in groups.values():
+        for n in indices:
+            for block in reference[n]["blocks"]:
+                k = target_index(block)
+                if k and block[k] in helpers:
+                    block[k] = helpers[block[k]]
     mappings, normalized = {}, {}
     for character, original in scripts.items():
         original = deepcopy(original)
@@ -239,7 +268,7 @@ def plan(root):
         for indices in groups.values():
             for n in indices:
                 name = ALIASES.get((character, reference[n]["name"]), reference[n]["name"])
-                if not any(sk["name"] == name for sk in original) and ((character, name) in ABSENT or name in (recovery_name, guard_name)):
+                if not any(sk["name"] == name for sk in original) and ((character, name) in ABSENT or name in (recovery_name, guard_name) or name.startswith(helper_prefix)):
                     original.append(deepcopy(reference[n]))
                 mapping[n] = named(original, name)
         mappings[character] = mapping

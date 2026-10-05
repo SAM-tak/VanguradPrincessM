@@ -1,5 +1,6 @@
 import sys
 import unittest
+import re
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "fm2k_convert"))
@@ -24,6 +25,36 @@ def fixture():
 
 
 class SupportActionsTest(unittest.TestCase):
+    def test_support_helpers_do_not_escape_to_owner_skills(self):
+        root = Path(__file__).resolve().parents[1] / "assets"
+        allowed_huds = {v[2] for v in list(supports.SUPPORTS.values())[:4]}
+        for path in (root / "characters").glob("*/script.lton"):
+            if path.parent.name == "だみー":
+                continue
+            skills = supports.read_skills(path)
+            parts = re.split(r'(?m)^\{ name = ', path.read_text(encoding="utf-8"))[1:]
+            bound = {i for i, part in enumerate(parts) if "support = " in part}
+            for i in bound:
+                for block in skills[i]["blocks"]:
+                    k = share_supports.target_index(block)
+                    if not k or block[k] in bound:
+                        continue
+                    collaboration = (skills[i]["name"] in allowed_huds or
+                                     block[0] == "V" and block[1] == 76 and block[5:7] == [1, 93])
+                    self.assertTrue(path.parent.name == "くるみ" and collaboration,
+                                    (path.parent.name, skills[i]["name"], block))
+
+    def test_eri_support_movement_does_not_play_owner_voice(self):
+        root = Path(__file__).resolve().parents[1] / "assets"
+        skills = supports.read_skills(root / "characters/えり/script.lton")
+        helper = supports.named(skills, "共通サポート補助_353_ダッシュエフェクト")
+        self.assertEqual(skills[helper]["blocks"], [["Settings", 10, 0]])
+        for name in ["サポート移動前", "サポート移動後ろｒ", "りふれくたー", "おまけ移動前", "おまけ移動前2ｐ"]:
+            blocks = skills[supports.named(skills, name)]["blocks"]
+            self.assertTrue(any(b[0] == "O" and b[1:3] == [helper, 0] for b in blocks), name)
+            self.assertFalse(any(b[0] == "O" and b[1] == 353 for b in blocks), name)
+        self.assertEqual(skills[353]["blocks"][1], ["S", 29])  # Owner voice remains available.
+
     def test_recipe_insert_delete_and_reordered_blocks(self):
         base = [["I", 1], ["V", 2], ["I", 3], ["E"]]
         target = [["V", 2], ["I", 4], ["I", 1], ["E"]]

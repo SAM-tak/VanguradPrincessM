@@ -183,6 +183,15 @@ CPU command references use the original command table, which includes empty
 entries. The export resolves them into skill numbers before runtime; indices
 from the filtered player-input command table must not be used here.
 
+## Support helper isolation
+
+Support extraction also copies the transitive Yui helper dependencies into
+`supports/common/script.lton`; ordinary support code no longer invokes an
+owner's unrelated helper with the same name/number. Original owner helpers and
+Kurumi's explicit collaboration adapters remain intact. Character scripts still
+retain compatibility binding slots; `skills/*.lton` are unused intermediate
+exports, not the shared runtime definitions.
+
 ## Victory demo preload lists
 
 `gen_script.py` also generates `preload.lton` when its output directory is

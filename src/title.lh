@@ -73,8 +73,12 @@ public^let^Scene = def^{
         skip = false^,              # a button ends it
         item = 0,                   # the title menu's choice (0 story, 1 VS)
         done = false^,
+        exitFrames = -1,
+        confirmSound : love.audio.Source|nil^= nil^,
         customOpening = false^,
         elapsed = 0,
+        idleSeconds = 0,
+        attractReady = false^,
         titleShown = false^,
         flash = 0,
         images : t^{[number^]:love.graphics.Texture|nil^} = {},
@@ -132,6 +136,9 @@ let^revealTitle = p^s:Scene{
 # A press that skips the scroll is consumed here, never by the mode menu.
 public^let^updateOpening = p^s:Scene, dt:number^, pressed:number^{
     s.elapsed += dt
+    if^pressed != 0 { s.idleSeconds := 0 else^: s.idleSeconds += dt }
+    let^music = s.music
+    s.attractReady := pressed = 0 and^(if^music != nil^: !music.isPlaying() el^: s.idleSeconds >= 30;)
     if^s.titleShown {
         s.flash := (s.flash - dt).clamp(0, FLASH_SECONDS)
         if^pressed != 0 { s.done := true^ }
@@ -221,6 +228,11 @@ public^let^titleScreen = p^demos:Demos, systemDir:string^, system:vp.script.Scri
 
 # One frame. up / down: pressed this frame; pressed: buttons pressed.
 public^let^step = p^s:Scene, up:bool^, down:bool^, pressed:number^{
+    if^s.exitFrames >= 0 {
+        if^s.exitFrames < 50 { s.exitFrames += 1 }
+        if^s.exitFrames >= 50 { s.done := true^ }
+        return^
+    }
     let^st = s.layers
     if^st != nil^ { vp.stage.step(st) }
     s.frames += 1
@@ -230,7 +242,12 @@ public^let^step = p^s:Scene, up:bool^, down:bool^, pressed:number^{
             s.item := (s.item + 1) % 2    # two items: story, VS
             cursor.y := ITEM_Y[s.item] ?? 92
         }
-        if^pressed != 0 { s.done := true^ }
+        if^pressed != 0 {
+            let^cue = vp.arena.sound($"assets/demos/{s.name}/sounds/0002.wav", false^)
+            s.confirmSound := cue
+            if^cue != nil^ { cue.stop() cue.play() }
+            s.exitFrames := 0
+        }
     else^:
         if^(s.skip and^pressed != 0) or^(s.time > 0 and^s.frames >= s.time) { s.done := true^ }
     }
@@ -279,5 +296,10 @@ public^let^draw = p^s:Scene{
     # covers the cursor (101) and its caption (127), keeping its own timing.
     if^s.curtainLayer >= 0 {
         vp.stage.draw(st, 0, 0, s.curtainLayer, s.curtainLayer + 1)
+    }
+    if^s.exitFrames >= 0 {
+        love.graphics.setColor(0, 0, 0, s.exitFrames / 50)
+        love.graphics.rectangle(love.graphics.DrawMode.fill, 0, 0, 640, 480)
+        love.graphics.setColor(1, 1, 1, 1)
     }
 }

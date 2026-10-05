@@ -17,6 +17,7 @@ var^pauseTime = 0
 var^pauseX = 0
 var^pauseLife = 0
 var^failure : vp.resource.Batch|nil^= nil^
+var^fadeChecked = false^
 
 let^press = p^key:love.keyboard.Key {
     vp.main.keypressed(key, love.keyboard.Scancode.unknown, false^)
@@ -34,6 +35,20 @@ public^let^update = p^dt:number^{
     if^spent > worst { worst := spent }
     frames += 1
     let^where = vp.arena.names()
+    if^phase = 3 and^where = "system / title" {
+        let^fade = vp.main.status().modeExitFrames
+        if^fade >= 0 and^fade < 50 {
+            if^vp.resource.outstanding() != 0 { panic^"Select loading began before mode fade completed" }
+            if^!fadeChecked {
+                if^!vp.main.status().modeCuePlaying { panic^"Mode confirmation sound did not play" }
+                fadeChecked := true^
+            }
+        }
+    }
+    if^phase = 3 and^where = "system / select" {
+        if^!fadeChecked { panic^"Mode fade was skipped" }
+    }
+    if^where = "system / select" and^vp.main.status().selectCuePlayed { panic^"Select opening coin cue still plays" }
     if^phase = 0 and^where = "system / opening" { print($"boot frames={frames}") press(love.keyboard.Key.z) phase := 1
     elseif^phase = 1: press(love.keyboard.Key.z) phase := 2
     elseif^phase = 2 and^where = "system / title": press(love.keyboard.Key.down) press(love.keyboard.Key.z) phase := 3

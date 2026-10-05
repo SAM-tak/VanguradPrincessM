@@ -74,6 +74,7 @@ public^let^Fighter = def^{
         hurts : t^{[number^]:Box|nil^} = {},
         hits : t^{[number^]:Box|nil^} = {},
         sounds : t^{[number^]:love.audio.Source|nil^} = {},
+        mutedSounds : t^{[number^]:bool^|nil^} = {},
         soundsGen = -1,             # the scene (vp.arena) its sounds were loaded in
         vars : t^{[number^]:number^|nil^} = {},
         onSkill : t^{[string^]:number^|nil^} = {},
@@ -818,6 +819,7 @@ let^soundEntry = p^dir:string^, n:number^-> any^{
 
 # S — a sound by its FM2K number.
 public^let^sound = p^me:Fighter, n:number^{
+    if^(me.owner ?? me).mutedSounds[n] = true^ { return^ }
     if^logSounds {
         let^who = if^me.owner?: "object" el^: "fighter";
         print($"sound {n} by {who} {me.skillName}")

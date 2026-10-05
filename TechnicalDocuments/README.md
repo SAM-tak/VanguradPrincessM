@@ -54,3 +54,7 @@
 - [0038-support-media-folders.md](0038-support-media-folders.md) — サポート専用画像572点・音声14点の各サポート配下への移動、全素材一覧の参照更新
 - [0039-selected-support-preload.md](0039-selected-support-preload.md) — 選択サポートの画像・音声だけを先読み、CPUサポートの事前確定、勝利デモの一括読み込み調査
 - [0040-victory-demo-preload.md](0040-victory-demo-preload.md) — 勝者別に事前生成した素材一覧で勝利デモを先読み、相手別台詞と乱数候補は保持
+- [0041-mode-confirm-transition.md](0041-mode-confirm-transition.md) — モード決定時に決定音と暗転、その後キャラセレをロード。キャラセレ冒頭音は抑止
+- [0042-title-attract-mode.md](0042-title-attract-mode.md) — タイトル音楽終了／無音30秒から最高強度CPUデモ、60秒／2本先取でループ、ボタンでモードセレクト
+- [0043-demo-character-name.md](0043-demo-character-name.md) — キャラセレを通らないデモ対戦で1P番号が未設定になる問題、ラウンド開始時に両側を設定
+- [0044-support-helper-isolation.md](0044-support-helper-isolation.md) — サポート補助54技の共通側への抽出、えりの音声誤発火修正、参照スロットと中間データの位置付け

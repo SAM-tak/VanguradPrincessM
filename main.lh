@@ -85,6 +85,12 @@ let^clear2 = p^{ pressed2 := 0 upPressed2 := false^ downPressed2 := false^ }
 var^storyMode = true^
 var^campaign : vp.story.State|nil^= nil^
 var^brain : vp.cpu.Brain|nil^= nil^
+var^demoBrain : vp.cpu.Brain|nil^= nil^
+var^attract = false^
+var^attractLoaded = false^
+var^attractSeconds = 0
+var^attractNames : t^{string^[]} = {}
+var^attractSupports : t^{number^[]} = {}
 var^matchSeconds = 60
 var^paused = false^
 
@@ -324,13 +330,27 @@ let^place = p^p:Fighter, x:number^, facing:number^{
     vp.fighter.castShadow(p, SHADOW)
 }
 
+let^characterCode = p^p:Fighter-> number^{
+    for^i, name in^vp.select.CHARACTERS {
+        if^p.dir = $"assets/characters/{name}" { return^(i + 1) * 100 }
+    }
+    if^p.dir = "assets/characters/ヒルダ" { return^1100 }
+    panic^$"Unknown match character: {p.dir}"
+}
+
 let^startRound = p^{
+    # The demo bypasses portrait #25, which normally initializes variable 129.
+    # Set both identities before any HUD layer can choose its name image.
+    vp.fighter.setv(me, 129, characterCode(me))
+    vp.fighter.setv(me, 130, characterCode(foe))
     vp.hud.restart(hud)
     place(me, WORLD_W / 2 - START_X, 1)
     place(foe, WORLD_W / 2 + START_X, -1)
     roundFrames := if^matchSeconds = 0: 100000000 el^: matchSeconds * 100;
     let^cpu = brain
     if^cpu != nil^ { vp.cpu.reset(cpu) }
+    let^firstCPU = demoBrain
+    if^firstCPU != nil^ { vp.cpu.reset(firstCPU) }
     camX := (WORLD_W - VIEW_W) / 2
     camY := WORLD_H - VIEW_H
     aimX := camX
@@ -339,7 +359,32 @@ let^startRound = p^{
 
 # Back to the select screen after a match: the match's arena goes (what it
 # loaded), the select screen's is still there (TechnicalDocuments/0023).
+let^endAttract = p^animate:bool^{
+    let^l = pending
+    if^l != nil^ { vp.resource.cancel(l.batch) pending := nil^ }
+    love.audio.stop()
+    if^attractLoaded { vp.arena.pop() }
+    vp.arena.pop() # Previous opening scene.
+    attract := false^
+    attractLoaded := false^
+    demoBrain := nil^
+    brain := nil^
+    paused := false^
+    clock := 0
+    pressed := 0
+    upPressed := false^
+    downPressed := false^
+    leftPressed := false^
+    rightPressed := false^
+    clear2()
+    vp.fighter.clearSystemVars()
+    opening := true^
+    vp.arena.push("opening")
+    scene := vp.title.openingScreen(animate)
+}
+
 let^toSelect = p^{
+    if^attract { endAttract(true^) return^ }
     love.audio.stop()              # the match's music and sounds end with it
     vp.arena.pop()
     matchLoading := false^
@@ -397,6 +442,54 @@ let^startBattle = p^s:vp.select.Select{
     stage := vp.stage.load($"assets/stages/{STAGES[matchStage] ?? "スクール"}")
     flow := vp.round.load(SYSTEM)
     selecting := nil^
+    startRound()
+}
+
+let^queueAttract = p^{
+    attract := true^
+    attractLoaded := false^
+    attractSeconds := 0
+    attractNames := {}
+    attractSupports := {}
+    matchStage := love.math.random(0, STAGES.length^ - 1)
+    let^l = vp.preload.Load.new("attract")
+    for^k from^0 to^1 {
+        let^name = vp.select.CHARACTERS[love.math.random(0, 9)] ?? "ゆい"
+        let^support = love.math.random(101, 105)
+        attractNames.push^(name)
+        attractSupports.push^(support)
+        vp.preload.character(l, $"assets/characters/{name}", support)
+        vp.resource.request(l.batch, $"assets/characters/{name}/cpu.lton", "lton", false^)
+    }
+    vp.preload.add(l, $"assets/stages/{STAGES[matchStage] ?? "スクール"}", false^)
+    pending := l
+    pendingKind := "attract"
+}
+
+let^startAttract = p^{
+    let^name1 = attractNames[0] ?? "ゆい"
+    let^name2 = attractNames[1] ?? "ゆい"
+    vp.fighter.clearSystemVars()
+    vp.fighter.setv(me, 142, attractSupports[0] ?? 101)
+    vp.fighter.setv(me, 143, attractSupports[1] ?? 101)
+    me := Fighter.new($"assets/characters/{name1}", WORLD_W / 2 - START_X, GROUND)
+    foe := Fighter.new($"assets/characters/{name2}", WORLD_W / 2 + START_X, GROUND)
+    vp.script.install(me, vp.select.scriptOf(name1))
+    vp.script.install(foe, vp.select.scriptOf(name2))
+    foe.palette := if^name1 = name2: 1 el^: 0;
+    me.enemy := foe
+    foe.enemy := me
+    demoBrain := vp.cpu.Brain.new(name1, 100)
+    brain := vp.cpu.Brain.new(name2, 100)
+    campaign := nil^
+    selecting := nil^
+    matchSeconds := ROUND_SECONDS
+    stage := vp.stage.load($"assets/stages/{STAGES[matchStage] ?? "スクール"}")
+    flow := vp.round.load(SYSTEM)
+    flow.toWin := 2
+    scene := nil^
+    attractLoaded := true^
+    wasTiming := false^
     startRound()
 }
 
@@ -515,6 +608,9 @@ let^completeLoad = p^{
         vp.arena.push("opening")
         scene := vp.title.openingScreen(true^)
         initialized := true^
+    elseif^kind = "attract":
+        vp.arena.attach(l.batch.arena)
+        startAttract()
     elseif^kind = "briefing":
         vp.arena.attach(l.batch.arena)
         selecting := nil^
@@ -609,11 +705,31 @@ public^let^quit = p^-> bool^{
 public^let^status = f^{
     let^st = campaign
     let^cpu = brain
+    let^sc = scene
+    let^firstCPU = demoBrain
     let^support = me.slots[5]
+    let^cue = sc?.confirmSound
+    var^selectCue = false^
+    let^selectDemo = selecting?.demo
+    var^nameImage = -1
+    for^layer in^hud.layers { if^layer.skillNo = 59 { nameImage := layer.image } }
+    if^selectDemo != nil^ {
+        for^layer in^selectDemo.layers {
+            if^layer.sounds[2] != nil^ or^layer.sounds[3] != nil^ { selectCue := true^ }
+        }
+    }
     return^{ phase = if^selecting != nil^: "select" el^st != nil^: st.phase el^scene != nil^: "title" el^: "battle";,
         story = storyMode, cpuActions = if^cpu != nil^: cpu.actions el^: 0;,
         enemyX = foe.x, enemyLife = foe.life, playerLife = me.life, enemySkill = foe.skillNo,
         paused = paused, roundFrames = roundFrames,
+        modeExitFrames = if^sc != nil^: sc.exitFrames el^: -1;,
+        modeCuePlaying = cue != nil^ and^cue.isPlaying(), selectCuePlayed = selectCue,
+        attract = attract, attractLoaded = attractLoaded, attractSeconds = attractSeconds,
+        firstCPUActions = if^firstCPU != nil^: firstCPU.actions el^: 0;,
+        playerDir = me.dir, playerCode = vp.fighter.v(me, 129), enemyCode = vp.fighter.v(me, 130), playerNameImage = nameImage,
+        firstCPULevel = if^firstCPU != nil^: firstCPU.level el^: 0;,
+        secondCPULevel = if^cpu != nil^: cpu.level el^: 0;,
+        openingAnimated = sc != nil^ and^sc.customOpening and^!sc.titleShown,
         supportSkill = if^support != nil^: support.skillNo el^: -1;,
         wins = flow.wins1, losses = flow.wins2,
         difficulty = if^st != nil^: st.difficulty el^: -1;,
@@ -667,7 +783,19 @@ let^tick = p^{
     let^back = if^me.facing > 0: left el^: right;
     # Only while they fight does input count.
     let^live = vp.round.fighting(flow)
-    control(me, live and^vp.input.isDown(Key.up), live and^vp.input.isDown(Key.down), live and^forward, live and^back, if^live: pressed el^: 0;)
+    let^firstCPU = demoBrain
+    var^firstInput : vp.cpu.Input = {dir = 5, skill = 0, guard = false^}
+    if^firstCPU != nil^ {
+        if^live { firstInput := vp.cpu.step(firstCPU, me, foe) }
+        let^d = firstInput.dir
+        control(me, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, 0)
+        if^live and^firstInput.skill > 0 and^(me.skillNo != firstInput.skill or^me.finished()) and^vp.fighter.mayStart(me, firstInput.skill) {
+            me.begin(firstInput.skill)
+            firstCPU.actions += 1
+        }
+    else^:
+        control(me, live and^vp.input.isDown(Key.up), live and^vp.input.isDown(Key.down), live and^forward, live and^back, if^live: pressed el^: 0;)
+    }
     # Discard menu direction presses during battle so they cannot reach select.
     upPressed := false^
     downPressed := false^
@@ -694,7 +822,7 @@ let^tick = p^{
     # Guarding: holding back while free to move (on the ground or in the air).
     # The dummy guards while `dummyGuard` is on (G), crouching for 2.
     let^free = f^p:Fighter-> bool^{ return^groundIdle(p.skillNo) or^airIdle(p.skillNo) }
-    me.guarding := live and^back and^free(me)
+    me.guarding := live and^(if^firstCPU != nil^: firstInput.guard el^: back;) and^free(me)
     foe.guarding := live and^(if^cpu != nil^: cpuInput.guard el^: back2 or^dummyGuard > 0;) and^free(foe)
 
     # The clock runs while they fight and the timer shows (system variable
@@ -703,6 +831,7 @@ let^tick = p^{
     if^timing and^roundFrames > 0 and^matchSeconds > 0 { roundFrames -= 1 }
     vp.fighter.setRound(roundFrames, flow.number)
     vp.round.step(flow, me, foe, roundFrames <= 0, startRound, toSelect)
+    if^scene != nil^ { return^ }
     vp.stage.step(stage)
     if^timing and^!wasTiming { vp.hud.fightBegins(hud) }
     wasTiming := timing
@@ -751,6 +880,10 @@ public^let^update = p^dt:number^{
     completeLoad()
     if^pending != nil^ or^scene != nil^ or^(campaign != nil^ and^selecting is^nil^) { clear2() }
     if^!initialized { return^ }
+    if^attractLoaded {
+        attractSeconds += dt
+        if^attractSeconds >= 60 { endAttract(true^) return^ }
+    }
     let^st = campaign
     if^st != nil^ and^selecting is^nil^ and^st.phase != "battle" {
         let^running : vp.story.State = st
@@ -805,7 +938,8 @@ public^let^update = p^dt:number^{
         downPressed := false^
         pressed := 0
         clock := 0
-        if^sc.done { sceneDone() }
+        if^sc.done { sceneDone()
+        elseif^sc.attractReady and^pending is^nil^: queueAttract() }
         return^
     }
     clock += dt
@@ -974,6 +1108,15 @@ public^let^draw = p^{
         }
     }
     vp.fighter.setView(camX, camY)
+    if^attractLoaded and^(attractSeconds / 0.25).floor() % 2 = 0 {
+        let^prompt = vp.arena.texture("assets/demos/タイトル/images/0001.png")
+        if^prompt != nil^ {
+            love.graphics.setBlendMode(love.graphics.BlendMode.subtract)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.draw(prompt, 171, 421)
+            love.graphics.setBlendMode(love.graphics.BlendMode.alpha)
+        }
+    }
     love.graphics.pop()
     debugText($"{me.skillName}  image {me.image}  palette {me.palette + 1}  fps {love.timer.getFPS()}", 16, 16)
     debugText($"arrows move  z x c a s d = A-F  F1 boxes  1-8 palette  F2 opponent at 1  g dummy guard: {GUARD_NAMES[dummyGuard] ?? ""}", 16, 36)
@@ -990,6 +1133,14 @@ let^addButton = f^mask:number^, bit:number^-> number^{
 }
 
 public^let^keypressed = p^key:love.keyboard.Key, scancode:love.keyboard.Scancode, isrepeat:bool^{
+    if^attract {
+        let^action = key = Key.z or^key = Key.x or^key = Key.c or^key = Key.a or^key = Key.s or^key = Key.d or^
+            key = Key.l or^key = Key.semicolon or^key = Key.quote or^key = Key.o or^key = Key.p or^key = Key.leftbracket or^key = Key.return
+        if^!isrepeat and^action { endAttract(false^) prepare("title") }
+        return^
+    }
+    let^openingScene = scene
+    if^!isrepeat and^openingScene != nil^ and^openingScene.customOpening { openingScene.idleSeconds := 0 }
     # Gamepad Start is mapped to Return by vp.input.
     if^(key = Key.escape or^key = Key.return) and^inBattle() {
         if^!isrepeat { togglePause() }

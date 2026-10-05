@@ -120,6 +120,15 @@ public^let^load = p^systemDir:string^, story:bool^-> Select{
     s.story := story
     s.system := vp.script.load($"{systemDir}/script.lton")
     s.demo := vp.stage.load("assets/demos/キャラセレ")
+    let^demo = s.demo
+    if^demo != nil^ {
+        for^layer in^demo.layers {
+            # Confirmation belongs to the mode menu. The current converted
+            # opening uses cue 3; also mute the original coin cue in slot 2.
+            layer.mutedSounds[2] := true^
+            layer.mutedSounds[3] := true^
+        }
+    }
     s.sides := { Side.new(), Side.new() }
     vp.fighter.clearSystemVars()
     # VS mode: both sides are up from the start (the 2P cursor #85 moves

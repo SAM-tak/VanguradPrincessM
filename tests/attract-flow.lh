@@ -1,0 +1,85 @@
+module^vp.attracttest
+import^love.keyboard
+import^love.event
+import^love.timer
+import^love.audio
+require^"../main.lh"
+require^"../src/arena.lh"
+require^"../src/resource.lh"
+require^"../src/select.lh"
+var^phase = 0
+var^began = 0
+var^wait = 0
+let^press = p^key:love.keyboard.Key{ vp.main.keypressed(key, love.keyboard.Scancode.unknown, false^) }
+public^let^load = p^{ began := love.timer.getTime() vp.main.load() }
+public^let^update = p^dt:number^{
+    vp.main.update(0.02)
+    let^s = vp.main.status()
+    let^where = vp.arena.names()
+    if^phase = 0 and^where = "system / opening" {
+        vp.main.update(40)
+        if^vp.main.status().attract { panic^"Playing opening music did not block idle timeout" }
+        love.audio.stop() # Simulate the opening source reaching its end.
+        phase := 1
+    elseif^phase = 1 and^s.attractLoaded:
+        if^s.firstCPULevel != 100 or^s.secondCPULevel != 100 { panic^"Demo CPUs are not maximum level" }
+        print("PASS: music end -> CPU demo")
+        phase := 2
+    elseif^phase = 2:
+        wait += 1
+        let^nameImages = {241, 270, 291, 292, 293, 294, 295, 297, 296, 298}
+        for^i, name in^vp.select.CHARACTERS {
+            if^s.playerDir = $"assets/characters/{name}" {
+                if^s.playerCode != (i + 1) * 100 or^s.playerNameImage != nameImages[i] {
+                    panic^$"Wrong demo name: {name}, code={s.playerCode}, image={s.playerNameImage}"
+                }
+            }
+        }
+        if^s.firstCPUActions > 0 and^s.cpuActions > 0 {
+            vp.main.update(60)
+            let^after = vp.main.status()
+            if^after.attract or^!after.openingAnimated { panic^"Timeout did not restart animated opening" }
+            if^vp.arena.names() != "system / opening" { panic^"Demo arena leaked" }
+            print("PASS: both CPUs act; timeout -> opening")
+            love.audio.stop()
+            phase := 3
+        }
+        if^wait > 1500 { panic^"Demo CPUs did not act" }
+    elseif^phase = 3 and^s.attractLoaded:
+        for^key in^{love.keyboard.Key.escape, love.keyboard.Key.left, love.keyboard.Key.u, love.keyboard.Key.f2, love.keyboard.Key.digit1} {
+            press(key)
+            if^!vp.main.status().attractLoaded or^vp.main.status().paused { panic^"Non-action key interrupted demo" }
+        }
+        vp.main.keypressed(love.keyboard.Key.z, love.keyboard.Scancode.unknown, true^)
+        if^!vp.main.status().attractLoaded { panic^"Repeated key interrupted demo" }
+        press(love.keyboard.Key.leftbracket) # 2P F / second pad's right shoulder.
+        phase := 4
+    elseif^phase = 4 and^where = "system / title":
+        press(love.keyboard.Key.escape)
+        vp.main.update(29)
+        if^vp.main.status().attract { panic^"Silent opening started demo before 30 seconds" }
+        # A direction press resets inactivity without confirming the menu.
+        press(love.keyboard.Key.left)
+        vp.main.update(29)
+        if^vp.main.status().attract { panic^"Silent opening did not reset inactivity" }
+        vp.main.update(1)
+        if^!vp.main.status().attract { panic^"Silent opening did not start demo at 30 seconds" }
+        press(love.keyboard.Key.z) # Cancel while demo assets are in flight.
+        phase := 5
+    elseif^phase = 5 and^where = "system / title" and^vp.resource.outstanding() = 0:
+        press(love.keyboard.Key.escape)
+        vp.main.update(30)
+        phase := 6
+    elseif^phase = 6 and^s.attractLoaded:
+        press(love.keyboard.Key.return)
+        if^vp.main.status().paused { panic^"Demo Start opened pause" }
+        phase := 7
+    elseif^phase = 7 and^where = "system / title" and^vp.resource.outstanding() = 0:
+        if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^"Demo introduced synchronous loading" }
+        print("PASS: looping, A-F and Start -> mode menu, other keys ignored, silent idle/reset, cancellation, cleanup, no sync reads")
+        love.event.quit()
+    }
+    if^love.timer.getTime() - began > 120 { panic^$"Attract timeout phase={phase}" }
+}
+public^let^draw = p^{ vp.main.draw() }
+public^let^quit = p^-> bool^{ return^vp.main.quit() }
