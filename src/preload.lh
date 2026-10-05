@@ -59,7 +59,7 @@ public^let^Load = def^{
     assets = p^self^, d:Directory {
         let^dir = d.path
         let^file = if^d.portrait: "portrait.lton" el^: "script.lton";
-        let^sc = vp.script.load($"{dir}/{file}")
+        let^sc = vp.script.loadFor($"{dir}/{file}", d.support)
         if^d.winner >= 0 {
             let^lists = vp.resource.data($"{dir}/preload.lton")
             if^lists? {
@@ -73,9 +73,8 @@ public^let^Load = def^{
             }
             # Unknown winner codes retain the conservative full-list behavior.
         }
-        # Keep all owner skills (including Kurumi's collaboration attacks), but
-        # only the selected support's bodies and the common helper definitions.
-        # The effective namespace map includes Kurumi's explicit adapters.
+        # Keep body skills (including Kurumi's collaboration attacks) and the
+        # selected owner's support package, including its reachable helpers.
         let^independent = sc != nil^ and^sc.raw fits^t^{supportNamespaces:bool^} and^sc.raw.supportNamespaces
         if^(d.support >= 0 or^independent) and^sc? {
             let^selected = SUPPORTS[d.support - 101] ?? ""
@@ -153,7 +152,12 @@ public^let^Load = def^{
                 let^sc = vp.resource.script($"{d.path}/{file}")
                 if^sc? {
                     let^namespaced = sc.raw fits^t^{supportNamespaces:bool^} and^sc.raw.supportNamespaces
-                    if^namespaced {
+                    if^sc.raw fits^t^{supportOwner:string^} {
+                        for^name in^SUPPORTS {
+                            if^d.support >= 0 and^d.support != 101 + index^ { continue^ }
+                            self^.batch.request($"assets/supports/{name}/{sc.raw.supportOwner}.lton", "script", false^)
+                        }
+                    elseif^namespaced:
                         supportMedia := true^
                         for^name in^vp.script.SUPPORTS {
                             self^.batch.request($"assets/supports/{name}/script.lton", "script", false^)

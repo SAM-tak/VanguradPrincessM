@@ -12,6 +12,7 @@
 #   F1             show boxes      1-8         palette
 #   F2             opponent at 1 life (the next hit KOs); F3 sound log
 #   t              (select screen) the stage: random, or one of them in turn
+#   F8             return to title from any scene (development)
 #   escape         back (quit on title); pause/resume during battle
 #   return         confirm menus; pause/resume during battle (gamepad Start)
 #
@@ -94,10 +95,11 @@ var^attractNames : t^{string^[]} = {}
 var^attractSupports : t^{number^[]} = {}
 var^matchSeconds = 60
 var^paused = false^
+var^titleAfterBoot = false^
 
 let^inBattle = f^-> bool^{
     let^st = campaign
-    return^initialized and^scene is^nil^ and^selecting is^nil^ and^pending is^nil^ and^(st is^nil^ or^st.phase = "battle")
+    return^initialized and^scene is^nil^ and^selecting is^nil^ and^pending is^nil^ and^!matchIntro and^introCatchup = 0 and^(st is^nil^ or^st.phase = "battle")
 }
 let^togglePause = p^{
     paused := !paused
@@ -487,8 +489,8 @@ let^startBattle = p^s:vp.select.Select{
     if^!matchIntro { love.audio.stop() }
     me := Fighter.new($"assets/characters/{name1}", WORLD_W / 2 - START_X, GROUND)
     foe := Fighter.new($"assets/characters/{name2}", WORLD_W / 2 + START_X, GROUND)
-    (vp.select.scriptOf(name1)).install(me)
-    (vp.select.scriptOf(name2)).install(foe)
+    (vp.select.scriptFor(name1, me.v(142))).install(me)
+    (vp.select.scriptFor(name2, me.v(143))).install(foe)
     me.palette := colour1
     foe.palette := if^name1 = name2 and^colour1 = colour2: (colour2 + 1) % 8 el^: colour2;
     me.enemy := foe
@@ -531,8 +533,8 @@ let^startAttract = p^{
     me.setv(143, attractSupports[1] ?? 101)
     me := Fighter.new($"assets/characters/{name1}", WORLD_W / 2 - START_X, GROUND)
     foe := Fighter.new($"assets/characters/{name2}", WORLD_W / 2 + START_X, GROUND)
-    (vp.select.scriptOf(name1)).install(me)
-    (vp.select.scriptOf(name2)).install(foe)
+    (vp.select.scriptFor(name1, me.v(142))).install(me)
+    (vp.select.scriptFor(name2, me.v(143))).install(foe)
     foe.palette := if^name1 = name2: 1 el^: 0;
     me.enemy := foe
     foe.enemy := me
@@ -575,8 +577,8 @@ let^queueStory = p^st:vp.story.State{
 let^startStoryBattle = p^st:vp.story.State, e:vp.story.Event{
     me := Fighter.new($"assets/characters/{st.name}", WORLD_W / 2 - START_X, GROUND)
     foe := Fighter.new($"assets/characters/{e.name}", WORLD_W / 2 + START_X, GROUND)
-    (vp.select.scriptOf(st.name)).install(me)
-    (vp.select.scriptOf(e.name)).install(foe)
+    (vp.select.scriptFor(st.name, me.v(142))).install(me)
+    (vp.select.scriptFor(e.name, me.v(143))).install(foe)
     me.palette := st.colour
     foe.palette := if^st.name = e.name: (st.colour + 1) % 8 el^: 0;
     me.enemy := foe
@@ -657,7 +659,8 @@ let^completeLoad = p^{
         flow := vp.round.load(SYSTEM)
         demos := vp.title.loadDemos(SYSTEM)
         vp.arena.push("opening")
-        scene := vp.title.openingScreen(true^)
+        scene := vp.title.openingScreen(!titleAfterBoot)
+        titleAfterBoot := false^
         initialized := true^
     elseif^kind = "attract":
         l.batch.arena.attach()
@@ -734,6 +737,8 @@ let^completeLoad = p^{
 }
 
 let^goBack = p^{
+    # Loading cannot be cancelled from a menu back input.
+    if^pending != nil^ or^matchIntro or^introCatchup > 0 { return^ }
     clear2()
     if^!initialized { love.event.quit() return^ }
     let^sc = scene
@@ -741,9 +746,9 @@ let^goBack = p^{
     let^st = campaign
     if^st != nil^ and^selecting is^nil^ {
         if^st.phase = "battle" or^st.phase = "gameover" or^st.phase = "return-title" { return^ }
+        let^event = st.current()
+        if^st.phase = "event" and^event != nil^ and^event.name = "ゆい勝ち" { return^ }
         if^st.phase = "intro" { st.enter("difficulty") return^ }
-        let^l = pending
-        if^l != nil^ { l.batch.cancel() pending := nil^ }
         love.audio.stop()
         if^matchArena != nil^ { vp.arena.pop() matchArena := nil^ }
         if^st.phase = "event" { vp.arena.pop() }
@@ -762,10 +767,8 @@ let^goBack = p^{
         downPressed := false^
         return^
     }
-    # Battle will get its own pause screen later.
+    # Battle pause is handled before menu navigation.
     if^sc is^nil^ and^selecting is^nil^{ return^ }
-    let^l = pending
-    if^l != nil^ { l.batch.cancel() pending := nil^ }
     if^matchArena != nil^ { love.audio.stop() vp.arena.pop() matchArena := nil^ }
     campaign := nil^
     upPressed := false^
@@ -786,6 +789,40 @@ let^goBack = p^{
         vp.arena.push("opening")
         scene := vp.title.openingScreen(false^)
     }
+}
+
+# Development escape hatch, independent of menu and pause restrictions.
+let^debugTitle = p^{
+    if^!initialized { titleAfterBoot := true^ return^ }
+    let^l = pending
+    if^l != nil^ { l.batch.cancel() pending := nil^ }
+    love.audio.stop()
+    vp.arena.popToRoot()
+    campaign := nil^
+    selecting := nil^
+    matchArena := nil^
+    brain := nil^
+    demoBrain := nil^
+    attract := false^
+    attractLoaded := false^
+    attractSeconds := 0
+    matchLoading := false^
+    matchIntro := false^
+    introCatchup := 0
+    paused := false^
+    pendingKind := ""
+    clock := 0
+    pressed := 0
+    upPressed := false^
+    downPressed := false^
+    leftPressed := false^
+    rightPressed := false^
+    clear2()
+    vp.fighter.clearSystemVars()
+    flow := vp.round.load(SYSTEM)
+    opening := true^
+    vp.arena.push("opening")
+    scene := vp.title.openingScreen(false^)
 }
 
 public^let^quit = p^-> bool^{
@@ -1243,6 +1280,7 @@ let^addButton = f^mask:number^, bit:number^-> number^{
 }
 
 public^let^keypressed = p^key:love.keyboard.Key, scancode:love.keyboard.Scancode, isrepeat:bool^{
+    if^key = Key.f8 { if^!isrepeat { debugTitle() } return^ }
     if^attract {
         let^action = key = Key.z or^key = Key.x or^key = Key.c or^key = Key.a or^key = Key.s or^key = Key.d or^
             key = Key.l or^key = Key.semicolon or^key = Key.quote or^key = Key.o or^key = Key.p or^key = Key.leftbracket or^key = Key.return

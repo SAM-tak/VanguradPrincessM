@@ -67,7 +67,9 @@ public^let^update = p^dt:number^{
         if^wait % 5 = 0 { press(love.keyboard.Key.z) }
         if^s.phase = "event" {
             if^where != "system / select / story / story-event" { panic^$"Story transition discarded persistent arenas: {where}" }
-            print($"victory -> story event; CPU actions={actions}")
+            press(love.keyboard.Key.escape)
+            if^vp.main.status().phase != "event" or^vp.main.status().paused or^vp.arena.names() != where { panic^"ESC affected victory screen" }
+            print($"victory ignores ESC -> story event; CPU actions={actions}")
             if^actions = 0 { panic^"CPU never executed an action" }
             phase := 13 wait := 0
         }

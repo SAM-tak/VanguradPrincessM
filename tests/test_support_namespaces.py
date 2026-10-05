@@ -31,69 +31,86 @@ def runtime_skills(path, libraries=None):
 
 
 class SupportNamespacesTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.root = ROOT / 'data'
-        cls.libraries = {}
-        for name in BANKS:
-            cls.libraries.update(runtime_skills(cls.root / 'supports' / name / 'script.lton'))
-
-    def test_shared_packages_have_no_character_targets(self):
-        self.assertEqual(len(self.libraries), 366)
-        for number, skill in self.libraries.items():
-            for block in skill['blocks']:
-                for k in ref_positions(block):
-                    if block[k] > 0:
-                        self.assertTrue(block[k] in self.libraries, (number, block))
-
-    def test_compact_owners_and_complete_runtime_graphs(self):
-        for path in (self.root / 'characters').glob('*/script.lton'):
-            if path.parent.name == 'だみー':
+    def test_owner_packages_preserve_original_blocks_and_targets(self):
+        from owner_supports import groups_for, owner_hook
+        root = ROOT / 'data'
+        for path in (root / 'characters').glob('*/script.lton'):
+            owner = path.parent.name
+            if owner in ('だみー', 'ヒルダ'):
                 continue
-            own = runtime_skills(path, self.libraries)
-            ordinary = {n for n in own if n < 10000}
-            self.assertGreaterEqual(len(ordinary), 495)
-            if path.parent.name == 'ヒルダ':
-                self.assertEqual(len(ordinary), 806)
-                self.assertIn('fixedSupport = true^', path.read_text(encoding='utf-8'))
-                self.assertEqual(own[451]['blocks'][2], ['SG', 688, 0])
-                self.assertIn(['I', 1543, 5, -18, 1000, ''], own[710]['blocks'])
-            else:
-                self.assertLessEqual(len(ordinary), 499)
-            if path.parent.name != 'くるみ':
-                self.assertEqual(len(ordinary), len(own))
-            graph = self.libraries | own
-            # Verify all instruction references in the output that the game reads.
-            for number, skill in graph.items():
-                for block in skill['blocks']:
-                    for k in ref_positions(block):
-                        if block[k] > 0:
-                            self.assertTrue(block[k] in graph, (path.parent.name, number, block))
+            original = read_skills(path)
+            groups = groups_for(original)
+            core_map = {n: BANKS[name]+n for name, ns in groups.items() for n in ns}
+            body = runtime_skills(path)
+            self.assertEqual(set(body), set(range(len(original))) - set(core_map))
+            for n, skill in body.items():
+                expected = []
+                for raw in original[n]['blocks']:
+                    b = raw[:]
+                    for k in ref_positions(b):
+                        b[k] = core_map.get(b[k], b[k])
+                    expected.append(b)
+                self.assertEqual(skill['blocks'], expected, (owner, n))
+            graph = dict(body)
+            for name, ns in groups.items():
+                package = root / 'supports' / name / f'{owner}.lton'
+                text = package.read_text(encoding='utf-8')
+                self.assertNotIn('recipe =', text)
+                self.assertIn(f'media = "assets/characters/{owner}"', text)
+                own = runtime_skills(package)
+                self.assertFalse(set(own) & set(graph))
+                graph.update(own)
+                helpers = {n-BANKS[name]: n for n in own if n-BANKS[name] not in ns}
+                mapping = core_map | helpers
+                selected_graph = body | own
+                for handle, skill in own.items():
+                    for b in skill['blocks']:
+                        for k in ref_positions(b):
+                            if b[k] > 0:
+                                self.assertTrue(b[k] in selected_graph, (owner, name, handle, b))
+                for handle, skill in own.items():
+                    raw_id = handle - BANKS[name]
+                    self.assertEqual(len(skill['blocks']), len(original[raw_id]['blocks']))
+                    for at, (raw, actual) in enumerate(zip(original[raw_id]['blocks'], skill['blocks'])):
+                        if raw_id not in ns and actual == ['Nop']:
+                            continue
+                        expected = raw[:]
+                        if not (owner == 'くるみ' and owner_hook(raw) and raw[7] not in core_map):
+                            for k in ref_positions(expected):
+                                expected[k] = mapping.get(expected[k], expected[k])
+                        self.assertEqual(expected, actual, (owner, name, raw_id, at))
+            for n, skill in graph.items():
+                for b in skill['blocks']:
+                    for k in ref_positions(b):
+                        if b[k] > 0:
+                            self.assertTrue(b[k] in graph, (owner, n, b))
+                            # Original data also jumps beyond a skill's end.
+                            # Keep that termination behavior rather than clamp it.
+
+    def test_real_owner_balance_values_and_voice_entry(self):
+        root = ROOT / 'data/supports'
+        powers = {'ゆい': 50, 'かえで': 30, 'えり': 35, 'あやね': 20, 'くるみ': 70}
+        for owner, power in powers.items():
+            skills = runtime_skills(root / 'えこ' / f'{owner}.lton')
+            kick = next(s for s in skills.values() if s['name'] == 'キック')
+            hit = next(b for b in kick['blocks'] if b[0:2] == ['FA', 0] and b[4] > 0)
+            self.assertEqual(hit[6], power)
+        eri = runtime_skills(root / 'シエラ/えり.lton')
+        helper = eri[20353]['blocks']
+        self.assertEqual(helper[3], ['E'])
+        self.assertNotIn(['S', 29], helper)
+        movement = next(s for s in eri.values() if s['name'] == 'サポート移動前')
+        self.assertTrue(any(b[:3] == ['O', 20353, 3] for b in movement['blocks']))
+        self.assertIn(['V', 71, 2, 0, -15, 0, 0, -1, 0], eri[20404]['blocks'])
 
     def test_reactions_are_not_skill_references(self):
         self.assertEqual(ref_positions(['R', 402, 404, 405, 406, 407, 452]), [])
 
-    def test_conversion_matches_normalized_semantics(self):
-        for path in (self.root / 'characters').glob('*/script.lton'):
-            if path.parent.name == 'だみー':
-                continue
-            original = read_skills(path)
-            source = source_script(path).read_text(encoding='utf-8')
-            remap = {}
-            for i, part in enumerate(re.split(r'(?m)^\{ name = ', source)[1:]):
-                ref = re.search(r'support = "([^"]+)", base = (\d+)', part)
-                if ref:
-                    remap[i] = BANKS[ref[1]] + int(ref[2])
-            graph = self.libraries | runtime_skills(path, self.libraries)
-            for i, skill in enumerate(original):
-                actual = graph[remap.get(i, i)]['blocks']
-                self.assertEqual(len(actual), len(skill['blocks']))
-                for before, after in zip(skill['blocks'], actual):
-                    expected = before[:]
-                    for k in ref_positions(before):
-                        if before[k] > 0:
-                            expected[k] = remap.get(before[k], before[k])
-                    self.assertEqual(after, expected, (path.parent.name, i))
+    def test_regeneration_is_identical(self):
+        from owner_supports import plan
+        outputs, _ = plan(ROOT / 'data')
+        for path, text in outputs.items():
+            self.assertEqual(path.read_text(encoding='utf-8'), text, str(path))
 
 
 if __name__ == '__main__':

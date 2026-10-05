@@ -74,6 +74,11 @@ public^let^pop = p^{
     gen += 1
 }
 
+# Drop transient scenes while retaining the persistent system arena.
+public^let^popToRoot = p^{
+    repeat^while^stack.length^ > 1 { pop() }
+}
+
 # The names of the arenas, bottom to top (for logging).
 public^let^names = f^-> string^{
     var^out = ""

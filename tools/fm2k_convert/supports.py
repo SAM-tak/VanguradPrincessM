@@ -42,7 +42,7 @@ def read_skills(path, libraries=None):
     parts = re.split(r'(?m)^\{ name = ', path.read_text(encoding="utf-8"))[1:]
     skills = []
     for part in parts:
-        head = re.match(r'("(?:[^"\\]|\\.)*"), level = (-?\d+), blocks = \{', part)
+        head = re.match(r'("(?:[^"\\]|\\.)*"), level = (-?\d+), [^\n]*?blocks = \{', part)
         if not head:
             raise ValueError(f"{path}: unsupported skill header")
         blocks = []

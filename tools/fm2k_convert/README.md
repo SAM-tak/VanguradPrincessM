@@ -79,33 +79,27 @@ request-93 hook. It does not rewrite or unify skill bodies (TechnicalDocuments/0
 python tools/fm2k_convert/supports.py assets --out build/support-actions.json
 ```
 
-After generating the character scripts and sharing media, normalize and extract
-the support definitions with Yui as the canonical source:
+After generating each original character script, split complete owner-specific
+support definitions (without normalizing them to Yui):
 
 ```sh
-python tools/fm2k_convert/share_supports.py assets --apply
+python tools/fm2k_convert/owner_supports.py data --apply
 ```
 
-This writes five support libraries and common helper definitions under `data/supports/`;
-physical media stays under `assets/supports/`.
-Character scripts retain owner definitions and only Kurumi-specific library patches, with
-Kurumi's four collaboration hooks/HUD adapters preserved. Ordinary skill bodies,
-including the boss Hilda's inputs, use Yui's definitions. Re-run after regenerating
-any character script. Without `--apply`, only the proposed storage report is printed.
-See [0037](../../TechnicalDocuments/0037-shared-support-definitions.md) for linking,
-shared palettes/sounds, and validation coverage.
+This writes `data/supports/<support>/<owner>.lton` and keeps the original
+numbered conversion input in `data/_conversion`. Existing binary media and
+palettes stay referenced by the owner's manifests. Boss Hilda retains her
+fixed implementation; Kurumi retains her body collaboration attacks.
 
-Finally, move media used exclusively by one support into that support's folder:
+If restored dependencies reveal that an asset placed in one support's folder
+is actually used by multiple supports, return only those assets to the pool:
 
 ```sh
-python tools/fm2k_convert/organize_support_media.py assets --apply
+python tools/fm2k_convert/organize_support_media.py assets --restore-common-only --apply
 ```
 
-This moves files to `assets/supports/<name>/images|sounds/NNNN.*`, updates every
-manifest referencing them, and removes the unreferenced pool copies. Assets used
-by multiple supports or by non-bound character/stage/demo skills stay shared.
-Run after the two sharing steps above; omit `--apply` to inspect counts first.
-See [0038](../../TechnicalDocuments/0038-support-media-folders.md).
+This updates every manifest and verifies copies before removing the old files.
+Omit `--apply` to inspect the proposal. See TechnicalDocuments/0060.
 
 ## Names
 
@@ -201,33 +195,40 @@ CPU command references use the original command table, which includes empty
 entries. The export resolves them into skill numbers before runtime; indices
 from the filtered player-input command table must not be used here.
 
-## Support helper isolation
+## Owner-specific support definitions
 
-Support extraction also copies the transitive Yui helper dependencies into
-`supports/common/script.lton`; ordinary support code no longer invokes an
-owner's unrelated helper with the same name/number. Original owner helpers and
-Kurumi's explicit collaboration adapters remain intact.
+Run `gen_script.py` against the original player JSON (with `--player` for raw
+command input modes), then:
 
-`share_supports.py assets --apply` now also compiles independent runtime packages
-into `supports/{name}/script.lton` (the five supports and `common`).
-Character runtime scripts retain only 495–499 owner definitions with explicit
-original IDs; support compatibility slots are removed. Support IDs use separate
-10000-slot namespaces, and instruction references are relocated at conversion
-time. Kurumi alone keeps compact patches for her collaboration entry points and
-their adjusted block offsets. Shared library bodies remain immutable at runtime.
+```sh
+python tools/fm2k_convert/owner_supports.py data --apply
+```
 
-Boss Hilda is excluded from that normalization: her fixed support has different
-bodies and attacks despite reusing the same skill names. Her runtime keeps the
-806 original definitions with `fixedSupport = true^`, using her own media and
-references. The conversion input is preserved alongside the other owners, and
-re-running `share_supports.py` leaves it intact. See TechnicalDocuments/0053.
+`share_supports.py assets --apply` is a compatibility alias for this command;
+it no longer normalizes other characters to Yui. Previously normalized inputs
+are rejected: recover originals from the parser JSON before first extraction.
 
-`data/_conversion/characters/*/support-source.lton` and
-`data/_conversion/supports/*/support-source.lton` preserve normalized
-conversion inputs for repeatable extraction. They are not runtime packages and
-are excluded from distributions, along with the old character `skills/*.lton`
-exports. Support root `script.lton` packages ARE included in distributions.
-See `TechnicalDocuments/0045-support-skill-namespaces.md`.
+Runtime definitions are `data/supports/{support}/{owner}.lton`, e.g.
+`data/supports/えこ/ゆい.lton`. Each is a complete owner-specific definition,
+not a recipe or delta. Character scripts retain 495–499 body skills. Original
+conversion inputs live in `data/_conversion/characters/{owner}/support-source.lton`.
+Re-extracting from those inputs is deterministic; they are excluded from distributions.
+
+Support IDs are the support's 10000-slot bank plus the original skill number.
+A support's reachable helpers are cloned into the same bank. Unreachable helper
+instructions become Nop without changing block offsets; entering the middle of
+an owner's helper never accidentally executes preceding voice or body code.
+Kurumi's request-93 branches retain explicit connections to her body attacks.
+The boss Hilda remains a separate fixed-support implementation.
+
+Media numbers and palettes belong to the original owner. Existing image/sound
+manifests still point to shared files or support-specific media folders; this
+extraction never duplicates binary assets. A match loads only the selected
+owner/support definition and its media. Loading without a selection (tools and
+all-support tests) explicitly requests all five definitions for that owner.
+
+The old Yui-only `supports/*/script.lton` packages are retired. See
+TechnicalDocuments/0060-owner-support-packages.md for migration and verification.
 
 ## Victory demo preload lists
 

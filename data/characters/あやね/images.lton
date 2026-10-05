@@ -1374,7 +1374,7 @@
 { shared = "images/ded503c3899b61d52824b3e31d65e2dd3e3d48ee.dds", width = 126, height = 218, format = "indexed" },
 { shared = "images/cfc449b4699bd58e70cd748618ae5a674c3c057b.dds", width = 130, height = 218, format = "indexed" },
 { shared = "images/3ce88fc92f0af44f2068f580c3429d2fd719bd25.dds", width = 117, height = 218, format = "indexed" },
-{ asset = "assets/supports/えこ/images/1374.png", width = 31, height = 28, format = "rgba" },
+{ asset = "assets/shared/images/cf478a8c23054a159804c19f3c7358a125fc9f73.png", width = 31, height = 28, format = "rgba" },
 { shared = "images/54f805fcbba46dc429b19725e5376dd4d9bc23f7.dds", width = 161, height = 216, format = "indexed" },
 { shared = "images/43f046b0dae07a47e7a7bf28465324ba77765fdc.dds", width = 138, height = 216, format = "indexed" },
 { shared = "images/51be108c553021b0551847fa548b65c76253ddd8.dds", width = 102, height = 216, format = "indexed" },

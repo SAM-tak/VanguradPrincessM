@@ -70,3 +70,10 @@
 - [0054-vs-presentation-preload.md](0054-vs-presentation-preload.md) — ステージを先読みし、顔グラ・BGM付きVS演出の裏でキャラとサポートをロード。VS／ストーリー共通経路、常駐portrait、暗転での戦闘画面公開
 - [0055-loading-main-thread-budget.md](0055-loading-main-thread-budget.md) — 素材列挙のコルーチン分割と型付きTaskによる再帰型検査の撤去、停止時間の実測
 - [0056-vs-loading-animation-wait.md](0056-vs-loading-animation-wait.md) — VSでの約3秒の静止は演出時計の停止。顔グラの待機ループと退出直前のロード待ちに変更
+- [0057-escape-and-debug-title.md](0057-escape-and-debug-title.md) — 勝利デモ・ロード中のESC無効化と、全画面共通の開発用F8タイトル復帰
+- [0058-player-update-0117-audit.md](0058-player-update-0117-audit.md) — 1月17日修正.playerの全10キャラ比較：素材同一、209技とあやね設定、シエラ個別消費量の共通化への影響
+
+- [0059-support-owner-variant-audit.md](0059-support-owner-variant-audit.md) — 最新原作のサポートをゆいと比較：キャラ別の消費・威力・判定・分岐差と正規化比較ツール
+
+- [0060-owner-support-packages.md](0060-owner-support-packages.md) — 1月17日.player更新と、サポート50ファイルへの使用キャラ別完全定義の分離・選択先読み
+- [0061-saki-hilda-freeze-audit.md](0061-saki-hilda-freeze-audit.md) — サキ＋ヒルダの原作停止報告と、現行ランタイムの登場・待機・5種類の入力確認

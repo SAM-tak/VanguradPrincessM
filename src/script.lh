@@ -282,7 +282,7 @@ public^let^Script = def^{
 }
 
 # Prepared and normalized on a worker; only this small runtime wrapper is new.
-public^let^load = p^path:string^-> Script|nil^{
+public^let^loadFor = p^path:string^, selected:number^-> Script|nil^{
     let^d = vp.resource.script(path)
     if^d is^nil^ { return^nil^ }
     # The preloader prepares libraries first. Cache bound arrays in this
@@ -303,18 +303,26 @@ public^let^load = p^path:string^-> Script|nil^{
     sc.raw := d.raw
     sc.layers := d.layers
     sc.skills := d.skills
-    if^d.raw fits^t^{supportNamespaces:bool^} and^d.raw.supportNamespaces {
+    if^d.raw fits^t^{supportOwner:string^} {
+        for^name in^{"えこ", "シエラ", "ジュリエット", "かなえ", "ヒルダ"} {
+            if^selected >= 0 and^selected != 101 + index^ { continue^ }
+            let^library = vp.resource.script($"assets/supports/{name}/{d.raw.supportOwner}.lton")
+            if^library is^nil^ { panic^$"Missing owner support: {name}/{d.raw.supportOwner}" }
+            for^sk in^library.skills { sc.byId[sk.id] := sk }
+        }
+    elseif^d.raw fits^t^{supportNamespaces:bool^} and^d.raw.supportNamespaces:
         for^name in^SUPPORTS {
             let^library = vp.resource.script($"assets/supports/{name}/script.lton")
             if^library is^nil^ { panic^$"Missing support namespace: {name}" }
             for^sk in^library.skills { sc.byId[sk.id] := sk }
         }
     }
-    # Kurumi's explicit adapters override only their own namespace entries;
-    # the immutable shared libraries remain unchanged for the other fighter.
+    # Each script wrapper owns its lookup table; other fighters are unaffected.
     for^sk in^sc.skills { sc.byId[sk.id] := sk }
     return^sc
 }
+
+public^let^load = p^path:string^-> Script|nil^{ return^loadFor(path, -1) }
 
 let^numbers = p^list:t^{}-> t^{number^[]}{
     var^out : t^{number^[]} = {}

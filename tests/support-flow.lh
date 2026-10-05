@@ -33,6 +33,9 @@ public^let^load = p^{
     loadout.batch.request("assets/characters/ゆい/cpu.lton", "lton", false^)
     for^name in^NAMES {
         loadout.batch.request($"assets/characters/{name}/script.lton", "script", false^)
+        for^support in^{"えこ", "シエラ", "ジュリエット", "かなえ", "ヒルダ"} {
+            loadout.batch.request($"assets/supports/{support}/{name}.lton", "script", false^)
+        }
     }
 }
 
@@ -48,7 +51,7 @@ let^check = p^name:string^{
             if^sk.name = DISPATCHERS[hi] { dispatch := n }
             if^sk.name = hud {
                 skill := n
-                if^sk.media != "assets/supports/common" { panic^"Support media still belongs to owner" }
+                if^sk.media != dir { panic^"Support media still belongs to owner" }
                 for^i, b in^sk.blocks {
                     if^b.op = "COM" and^first < 0 { first := i }
                 }
@@ -104,7 +107,7 @@ let^effects = p^{
             p.enemy := vp.fighter.Fighter.new(dir, if^travel = 1: 300 el^: 900;, 920)
             p.setv(70, if^base = 1: 100 el^: 200;)
             p.setv(78, 5600)
-            let^actor = p.makeObject(if^travel = 1: 20017 el^: 20018;, 0, 600, 920, 69)
+            let^actor = p.makeObject(if^travel = 1: 20526 el^: 20527;, 0, 600, 920, 69)
             p.slots[5] := actor
             p.stepObjects()
             let^drawFace = (if^actor.fixed: 1 el^: actor.facing;) * (if^actor.turnX: -1 el^: 1;)
@@ -117,7 +120,7 @@ let^effects = p^{
             for^i from^0 to^100 { p.stepObjects() }
             if^actor.facing * (if^actor.turnX: -1 el^: 1;) != travel { panic^"Support did not turn after sides swapped" }
         }
-        for^skill in^{20025, 20026} {
+        for^skill in^{20534, 20535} {
             let^p = vp.fighter.Fighter.new(dir, 640, 920)
             sc.install(p)
             p.facing := base
@@ -126,7 +129,7 @@ let^effects = p^{
             var^fell = false^
             for^i from^0 to^250 {
                 p.stepObjects()
-                if^shell.skillNo = 20027 { bounced := true^ }
+                if^shell.skillNo = 20536 { bounced := true^ }
                 if^shell.y > shell.ground { fell := true^ }
             }
             if^!bounced or^!fell or^shell.alive { panic^"Shell must bounce, fall below floor, then expire" }
@@ -148,7 +151,7 @@ let^cpuAndBoss = p^{
             p.facing := side
             p.enemy := enemy
             p.setv(71, 100)
-            p.slots[5] := p.makeObject((hi + 1) * 10000, 0, 600, 920, 69)
+            p.slots[5] := p.makeObject((hi + 1) * 10000 + ({452, 509, 575, 627, 688}[hi] ?? 0), 0, 600, 920, 69)
             var^controller : vp.fighter.Fighter|nil^= nil^
             for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
                 if^sk.name = hud {

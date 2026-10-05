@@ -57,10 +57,13 @@ public^let^update = p^dt:number^{
     elseif^phase = 6 and^s.phase = "difficulty": press(love.keyboard.Key.escape) phase := 7
     elseif^phase = 7 and^s.phase = "select":
         row += 1 moved := 0 wait := 0 phase := 3
-    elseif^phase = 8 and^s.phase = "match-intro": press(love.keyboard.Key.escape) phase := 9
-    elseif^phase = 9 and^s.phase = "select" and^vp.resource.outstanding() = 0:
+    elseif^phase = 8 and^s.phase = "match-intro":
+        press(love.keyboard.Key.escape)
+        if^vp.main.status().phase != "match-intro" or^vp.main.status().paused { panic^"ESC affected story loading" }
+        phase := 9
+    elseif^phase = 9 and^s.phase = "battle" and^vp.resource.outstanding() = 0:
         if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^"synchronous fallback" }
-        print("PASS: all 10 introductions, 3 difficulties, ESC navigation, cancel and drain")
+        print("PASS: all 10 introductions, 3 difficulties, ESC navigation, loading ignores ESC")
         love.event.quit()
     }
     if^love.timer.getTime() - began > 120 { panic^$"timeout row={row} phase={phase}" }

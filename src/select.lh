@@ -210,6 +210,15 @@ public^let^scriptOf = p^name:string^-> vp.script.Script{
     return^loadScript(name, "script.lton")
 }
 
+public^let^scriptFor = p^name:string^, support:number^-> vp.script.Script{
+    let^key = $"{name}/support/{support}"
+    let^known = scripts[key]
+    if^known? { return^known }
+    let^sc = vp.script.loadFor($"assets/characters/{name}/script.lton", support) ?? vp.script.Script.new()
+    scripts[key] := sc
+    return^sc
+}
+
 let^portraitOf = p^name:string^-> vp.script.Script{
     return^loadScript(name, "portrait.lton")
 }

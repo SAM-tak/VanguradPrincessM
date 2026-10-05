@@ -25,36 +25,6 @@ def fixture():
 
 
 class SupportActionsTest(unittest.TestCase):
-    def test_support_helpers_do_not_escape_to_owner_skills(self):
-        root = Path(__file__).resolve().parents[1] / "data"
-        allowed_huds = {v[2] for v in list(supports.SUPPORTS.values())[:4]}
-        for path in (root / "characters").glob("*/script.lton"):
-            if path.parent.name == "だみー":
-                continue
-            skills = supports.read_skills(path)
-            parts = re.split(r'(?m)^\{ name = ', supports.source_script(path).read_text(encoding="utf-8"))[1:]
-            bound = {i for i, part in enumerate(parts) if "support = " in part}
-            for i in bound:
-                for block in skills[i]["blocks"]:
-                    k = share_supports.target_index(block)
-                    if not k or block[k] in bound:
-                        continue
-                    collaboration = (skills[i]["name"] in allowed_huds or
-                                     block[0] == "V" and block[1] == 76 and block[5:7] == [1, 93])
-                    self.assertTrue(path.parent.name == "くるみ" and collaboration,
-                                    (path.parent.name, skills[i]["name"], block))
-
-    def test_eri_support_movement_does_not_play_owner_voice(self):
-        root = Path(__file__).resolve().parents[1] / "data"
-        skills = supports.read_skills(root / "characters/えり/script.lton")
-        helper = supports.named(skills, "共通サポート補助_353_ダッシュエフェクト")
-        self.assertEqual(skills[helper]["blocks"], [["Settings", 10, 0]])
-        for name in ["サポート移動前", "サポート移動後ろｒ", "りふれくたー", "おまけ移動前", "おまけ移動前2ｐ"]:
-            blocks = skills[supports.named(skills, name)]["blocks"]
-            self.assertTrue(any(b[0] == "O" and b[1:3] == [helper, 0] for b in blocks), name)
-            self.assertFalse(any(b[0] == "O" and b[1] == 353 for b in blocks), name)
-        self.assertEqual(skills[353]["blocks"][1], ["S", 29])  # Owner voice remains available.
-
     def test_recipe_insert_delete_and_reordered_blocks(self):
         base = [["I", 1], ["V", 2], ["I", 3], ["E"]]
         target = [["V", 2], ["I", 4], ["I", 1], ["E"]]
@@ -99,44 +69,6 @@ class SupportActionsTest(unittest.TestCase):
         self.assertEqual(eko["owner_request_93"][0]["skill"], 0)
         self.assertEqual(eko["additional_inputs"][0]["request"], 110)
 
-    def test_converted_regular_definitions_match_yui(self):
-        root = Path(__file__).resolve().parents[1] / "data"
-        if not (root / "supports" / "えこ" / "script.lton").exists():
-            self.skipTest("converted assets unavailable")
-        cache = {}
-        yui = supports.read_skills(root / "characters" / "ゆい" / "script.lton", cache)
-        starts = [supports.named(yui, n) for n in share_supports.STARTS.values()]
-        indices = list(range(starts[0], supports.named(yui, "kage2  ")))
-        indices += [supports.named(yui, v[2]) for v in supports.SUPPORTS.values()]
-
-        def body(blocks):
-            result = []
-            for raw in blocks:
-                b = raw[:]
-                if b[0] == "V" and b[1] == 76 and b[5] == 1 and b[6] == 93:
-                    continue
-                k = share_supports.target_index(b)
-                if k:
-                    b[k] = 0
-                    if b[0] != "C":
-                        b[k + 1] = 0
-                result.append(b)
-            return result
-
-        for path in sorted((root / "characters").glob("*/script.lton")):
-            if path.parent.name in ("だみー", "ヒルダ"):
-                continue
-            skills = supports.read_skills(path, cache)
-            report = supports.identify(skills)
-            for support in report.values():
-                for action in support["actions"].values():
-                    self.assertEqual(action["request"], action["actual_request"])
-            for n in indices:
-                name = yui[n]["name"]
-                if path.parent.name == "くるみ" and name in [v[2] for v in list(supports.SUPPORTS.values())[:4]]:
-                    continue  # Explicit collaboration HUD adapters.
-                local = supports.named(skills, share_supports.ALIASES.get((path.parent.name, name), name))
-                self.assertEqual(body(skills[local]["blocks"]), body(yui[n]["blocks"]), (path.parent.name, name))
 
 
 if __name__ == "__main__":

@@ -74,9 +74,15 @@ public^let^update = p^dt:number^{
     elseif^phase = 5: press(love.keyboard.Key.l) phase := 6
     elseif^phase = 6 and^vp.main.status().phase = "match-intro" and^vp.resource.outstanding() > 0:
         wait += 1
-        if^wait >= 5 { print("cancel in-flight match") press(love.keyboard.Key.escape) phase := 7 }
-    elseif^phase = 7 and^where = "system / title": press(love.keyboard.Key.escape) phase := 8
-    elseif^phase = 8 and^where = "system / opening": press(love.keyboard.Key.z) phase := 9
+        if^wait >= 5 {
+            let^before = vp.arena.names()
+            press(love.keyboard.Key.escape)
+            if^vp.arena.names() != before or^vp.main.status().phase != "match-intro" or^vp.main.status().paused { panic^"ESC affected loading" }
+            press(love.keyboard.Key.f8)
+            if^vp.main.status().paused or^vp.arena.names() != "system / opening" { panic^"F8 failed during loading" }
+            phase := 7
+        }
+    elseif^phase = 7 and^where = "system / opening": press(love.keyboard.Key.z) phase := 9
     elseif^phase = 9 and^where = "system / title": press(love.keyboard.Key.down) press(love.keyboard.Key.z) phase := 10
     elseif^phase = 10 and^where = "system / select": press(love.keyboard.Key.z) phase := 11
     elseif^phase = 11: press(love.keyboard.Key.j) phase := 12
@@ -92,7 +98,7 @@ public^let^update = p^dt:number^{
         wait += 1
         if^wait > 200 and^wait < 400 and^wait % 17 = 0 { press(love.keyboard.Key.a) }
         let^support = vp.main.status().supportSkill
-        if^support >= 10024 and^support <= 10054 { supportAttacked := true^ }
+        if^support >= 10476 and^support <= 10506 { supportAttacked := true^ }
         if^wait = 450 {
             press(love.keyboard.Key.escape)
             let^s = vp.main.status()
@@ -147,7 +153,11 @@ public^let^update = p^dt:number^{
                     failure := missing
                     phase := 18
                 else^:
-                    print($"PASS: cancel, retry, two fighters, D support attack, pause/freeze/resume, battle drawing, missing image, sound, typed table and script; frames={frames}; synchronous fallback reads=0")
+                    press(love.keyboard.Key.escape)
+                    if^!vp.main.status().paused { panic^"Pause setup failed" }
+                    press(love.keyboard.Key.f8)
+                    if^vp.main.status().paused or^vp.arena.names() != "system / opening" { panic^"F8 failed from pause" }
+                    print($"PASS: F8 from loading and pause, loading ignores ESC, two fighters, D support attack, pause/freeze/resume, battle drawing, missing image, sound, typed table and script; frames={frames}; synchronous fallback reads=0")
                     love.event.quit()
                 }
             }

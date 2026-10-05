@@ -36,6 +36,20 @@ def fixture(root):
 
 
 class OrganizeSupportMediaTest(unittest.TestCase):
+    def test_new_cross_support_reference_moves_effect_back_to_shared(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            files, _ = fixture(root)
+            moves, rewritten = organize.plan(root)
+            organize.apply(root, moves, rewritten)
+            script = root / 'supports/かなえ/script.lton'
+            script.write_text('{ name = "effect", level = 0, blocks = {\n    { "S", 0 },\n} },\n', encoding='utf-8')
+            moves, rewritten = organize.plan(root)
+            self.assertEqual(moves, {root / 'supports/えこ/sounds/0000.wav': files[0]})
+            organize.apply(root, moves, rewritten)
+            self.assertEqual(files[0].read_bytes(), b'exclusive')
+            self.assertEqual(organize.plan(root), ({}, {}))
+
     def test_exclusivity_all_references_and_regeneration(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

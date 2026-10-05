@@ -1,9 +1,8 @@
-"""Use Yui's support definitions for all owners, with Kurumi's collaboration hooks.
+"""Legacy Yui normalization helpers, retained for reading old conversion records.
 
-Run after gen_script.py: share_supports.py assets --apply
-Without --apply this prints the size/reuse report only. Re-running is safe,
-including after regenerating just one character. Support media comes from Yui;
-owner skill numbers are linked, not copied blindly.
+The command now delegates to owner_supports.py and preserves owner differences.
+The old normalization functions below are historical utilities, not the active
+export path. Run gen_script.py from original JSON before the first migration.
 """
 
 import argparse
@@ -339,21 +338,9 @@ def plan(root):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("assets", type=Path)
-    parser.add_argument("--apply", action="store_true")
-    args = parser.parse_args()
-    outputs, stats = plan(args.assets)
-    print(json.dumps(stats, indent=2))
-    if args.apply:
-        # Resolve and validate every source before changing any files.
-        for path, text in outputs.items():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8", newline="\n")
-        (media_path(args.assets) / "supports" / "common").mkdir(parents=True, exist_ok=True)
-        (media_path(args.assets) / "supports" / "common" / "palettes.png").write_bytes(
-            (media_path(args.assets) / "characters" / "ゆい" / "palettes.png").read_bytes())
-        print(f"Wrote {len(outputs)} files")
+    # Keep the old command safe: never silently restore Yui-only balance.
+    from owner_supports import main as extract_owners
+    extract_owners()
 
 
 if __name__ == "__main__":
