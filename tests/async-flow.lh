@@ -157,6 +157,9 @@ public^let^update = p^dt:number^{
                     if^!vp.main.status().paused { panic^"Pause setup failed" }
                     press(love.keyboard.Key.f8)
                     if^vp.main.status().paused or^vp.arena.names() != "system / opening" { panic^"F8 failed from pause" }
+                    if^vp.main.status().battleResourcesHeld { panic^"F8 retained battle resources" }
+                    vp.main.update(0.02)
+                    if^vp.resource.cachedScripts() != 1 { panic^"F8 retained battle definitions" }
                     print($"PASS: F8 from loading and pause, loading ignores ESC, two fighters, D support attack, pause/freeze/resume, battle drawing, missing image, sound, typed table and script; frames={frames}; synchronous fallback reads=0")
                     love.event.quit()
                 }

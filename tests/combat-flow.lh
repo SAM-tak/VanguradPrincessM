@@ -9,6 +9,7 @@ require^"../src/scriptdata.lh"
 require^"../src/fighter.lh"
 require^"../src/shake.lh"
 require^"../src/cpu.lh"
+require^"../src/round.lh"
 
 let^Fighter = vp.fighter.Fighter
 let^loadout = vp.preload.Load.new("combat-test")
@@ -20,6 +21,7 @@ public^let^load = p^{
     loadout.add("assets/characters/カテジナ", false^)
     loadout.add("assets/characters/ゆい", false^)
     loadout.add("assets/characters/はるか", false^)
+    loadout.add("assets/system/ヴァンガードプリンセス", false^)
 }
 
 # Isolate FA lifetime from movement, hitstop, invincibility and effect objects.
@@ -400,6 +402,42 @@ let^shake = p^{
     print("PASS: shake envelopes, duration, independent axes, original EB execution")
 }
 
+let^comboColour = p^{
+    let^dir = "assets/system/ヴァンガードプリンセス"
+    let^sc = vp.script.load("assets/characters/ゆい/script.lton")
+    let^sys = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ or^sys is^nil^ { panic^"Missing combo scripts" }
+    let^p = Fighter.new("assets/characters/ゆい", 600, 500)
+    sc.install(p)
+    let^flow = vp.round.Round.new()
+    flow.dir := dir
+    flow.script := sys
+    p.setv(128, 0)
+    flow.showCombo(2, 600, 500, p.v(128))
+    # The real falling reaction opens recovery and sets the red marker.
+    p.start(163, 0)
+    p.advance()
+    if^p.v(128) != 1 { panic^"Recovery reaction did not set combo marker" }
+    flow.showCombo(2, 600, 500, p.v(128))
+    # The next tumble reaction clears it before either display's delayed V.
+    p.begin(94)
+    p.advance()
+    if^p.v(128) != 0 { panic^"Tumble reaction did not clear combo marker" }
+    for^i from^0 to^11 {
+        for^c in^flow.combos { c.step() }
+    }
+    let^expected = {261, 12, 30, 29}
+    for^i, c in^flow.combos {
+        if^c.image != expected[i] { panic^$"Combo colour {i}: image={c.image}" }
+    }
+    if^p.v(128) != 0 { panic^"Combo display changed the shared marker" }
+    # A later unrelated red state must not recolour an existing blue count.
+    p.setv(128, 1)
+    if^flow.combos[0]?.v(128) != 0 { panic^"Blue combo lost its hit-time marker" }
+    p.setv(128, 0)
+    print("PASS: original recovery/tumble scripts; simultaneous blue/red combo text and digits")
+}
+
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
     if^!done and^loadout.ready() {
@@ -412,6 +450,7 @@ public^let^update = p^dt:number^{
         landingAndPush()
         sweepSuper()
         shake()
+        comboColour()
         print("PASS: combat regressions")
         love.event.quit()
     }

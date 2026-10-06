@@ -1,0 +1,60 @@
+# Finish a VS match normally, then back through both menus with ESC.
+module^vp.vsmemoryreturn
+import^love.keyboard
+import^love.event
+import^love.timer
+require^"../main.lh"
+require^"../src/arena.lh"
+require^"../src/resource.lh"
+var^phase = 0
+var^cycles = 0
+var^began = 0
+let^press = p^key:love.keyboard.Key{ vp.main.keypressed(key, love.keyboard.Scancode.unknown, false^) }
+public^let^load = p^{ began := love.timer.getTime() vp.main.load() }
+public^let^update = p^dt:number^{
+    vp.main.update(0.02)
+    let^s = vp.main.status()
+    let^where = vp.arena.names()
+    if^phase = 0 and^where = "system / opening" {
+        press(love.keyboard.Key.z) phase := 1
+    elseif^phase = 1:
+        press(love.keyboard.Key.z) phase := 2
+    elseif^phase = 2 and^where = "system / title":
+        press(love.keyboard.Key.down) press(love.keyboard.Key.z) phase := 3
+    elseif^phase = 3 and^s.phase = "select":
+        press(love.keyboard.Key.z) phase := 4
+    elseif^phase = 4:
+        press(love.keyboard.Key.l) phase := 5
+    elseif^phase = 5 and^s.phase = "battle":
+        if^!s.battleResourcesHeld { panic^"Match never held battle resources" }
+        phase := 6
+    elseif^phase = 6:
+        # Two time-over wins through the real round flow. Do not bypass cleanup.
+        for^i from^0 to^59 {
+            if^vp.main.status().phase = "select" { break^ }
+            press(love.keyboard.Key.f2)
+            vp.main.update(0.02)
+        }
+        if^vp.main.status().phase = "select" {
+            if^vp.main.status().battleResourcesHeld { panic^"Completed VS retained fighters/stage" }
+            if^vp.arena.names() != "system / select" { panic^"Completed VS retained match arena" }
+            press(love.keyboard.Key.escape) phase := 7
+        }
+    elseif^phase = 7 and^where = "system / title" and^vp.resource.outstanding() = 0:
+        if^s.battleResourcesHeld { panic^"Mode menu retained battle resources" }
+        press(love.keyboard.Key.escape) phase := 8
+    elseif^phase = 8 and^where = "system / opening":
+        if^s.battleResourcesHeld or^vp.resource.cachedScripts() != 1 { panic^"Title retained battle definitions" }
+        cycles += 1
+        print($"PASS: VS -> select -> ESC mode -> ESC title, cycle={cycles}, scripts={vp.resource.cachedScripts()}")
+        if^cycles = 3 {
+            if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^"Synchronous fallback" }
+            love.event.quit()
+        else^:
+            press(love.keyboard.Key.z) phase := 2
+        }
+    }
+    if^love.timer.getTime() - began > 300 { panic^$"VS memory return timeout phase={phase}" }
+}
+public^let^draw = p^{ vp.main.draw() }
+public^let^quit = p^-> bool^{ return^vp.main.quit() }

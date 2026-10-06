@@ -72,6 +72,7 @@ public^let^update = p^dt:number^{
         }
         print($"PASS: selection case {caseNo}: images={images}, sounds={sounds}")
         l.batch.cancel()
+        if^vp.resource.cachedScripts() != 0 { panic^"Cancelled selection retained script metadata" }
         caseNo += 1
         if^caseNo < 12 { queue()
         else^:

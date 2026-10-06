@@ -75,6 +75,7 @@ public^let^Fighter = def^{
         hurts : t^{[number^]:Box|nil^} = {},
         hits : t^{[number^]:Box|nil^} = {},
         sounds : t^{[number^]:love.audio.Source|nil^} = {},
+        soundsByPath : t^{[string^]:love.audio.Source|nil^} = {},
         externalIntroPortrait = false^,
         mutedSounds : t^{[number^]:bool^|nil^} = {},
         soundsGen = -1,             # the scene (vp.arena) its sounds were loaded in
@@ -112,6 +113,7 @@ public^let^Fighter = def^{
         guardCrouched = false^,
         attackConnected = false^,   # shared by the currently active group of FA slots
         combo = 0,                  # hits taken since it was last free to move
+        comboMarker : number^|nil^= nil^, # hit-time V128 snapshot for a combo display only
         stop = 0,                   # hitstop frames left: the fighter is frozen
         # Objects (O blocks): effects, voices, sparks, projectiles. They run the
         # owner's skills as fighters of their own.
@@ -607,6 +609,7 @@ public^let^Fighter = def^{
     # seconds, 199 the round number.
     v = f^self^, n:number^-> number^{
         for^n:
+        when^128: self^.comboMarker ?? (self^.home(n)[n] ?? 0)
         when^192: self^.x
         when^193: self^.y
         when^194: viewX
@@ -755,6 +758,14 @@ public^let^Fighter = def^{
     move = p^self^, vx:number^, ax:number^{
         self^.motion(vx, 0, ax, 0, "keepVY keepAY")
     },
+    # Both sound caches belong to the same scene as their playback sources.
+    freshSounds = p^self^{
+        if^self^.soundsGen != vp.arena.generation() {
+            self^.sounds := {}
+            self^.soundsByPath := {}
+            self^.soundsGen := vp.arena.generation()
+        }
+    },
     # S — a sound by its FM2K number.
     sound = p^self^, n:number^{
         if^(self^.owner ?? self^).mutedSounds[n] = true^ { return^ }
@@ -765,10 +776,7 @@ public^let^Fighter = def^{
         # A character and its objects share its sounds; a new scene (vp.arena)
         # disposed the last one's.
         let^holder = self^.owner ?? self^
-        if^holder.soundsGen != vp.arena.generation() {
-            holder.sounds := {}
-            holder.soundsGen := vp.arena.generation()
-        }
+        holder.freshSounds()
         var^src = holder.sounds[n]
         if^src is^nil^{
             # A looping sound (the music) is long: streamed, looped over the whole
@@ -786,14 +794,20 @@ public^let^Fighter = def^{
         }
     },
     # ---------------------------------------------------------------------------
-    # Shared definitions have their own sound numbering. The arena caches by path,
-    # so these sources never collide with the owner's numeric sound cache.
+    # Shared definitions have their own numbering. Cache playback by path on
+    # the owner, keeping opponents independent without cloning on every play.
     soundFrom = p^self^, dir:string^, n:number^{
         let^e = soundEntry(dir, n)
         let^path = vp.sprite.assetPath(dir, e)
         if^path is^nil^ { return^ }
-        let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
-        let^src = vp.arena.sound(path, loop)
+        let^holder = self^.owner ?? self^
+        holder.freshSounds()
+        var^src = holder.soundsByPath[path]
+        if^src is^nil^{
+            let^loop = e fits^t^{endlessLoop:bool^} and^e.endlessLoop
+            src := vp.arena.sound(path, loop)
+            holder.soundsByPath[path] := src
+        }
         if^src fits^love.audio.Source { src.stop() src.play() }
     },
     # A new object of `me`'s character running skill n from block b, at (x, y) in

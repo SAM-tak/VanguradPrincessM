@@ -1,0 +1,46 @@
+module^vp.metadatalifetimetest
+import^love.event
+import^love.timer
+require^"../src/resource.lh"
+require^"../src/arena.lh"
+let^path = "assets/characters/ゆい/portrait.lton"
+let^first = vp.resource.Batch.new("first")
+var^cancelled : vp.resource.Batch|nil^= nil^
+var^phase = 0
+var^began = 0
+public^let^load = p^{
+    began := love.timer.getTime()
+    first.request(path, "script", false^)
+}
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^phase = 0 and^first.ready() {
+        let^second = vp.resource.Batch.new("second")
+        second.request(path, "script", false^)
+        if^!second.ready() { panic^"Shared script was unnecessarily reloaded" }
+        first.cancel()
+        if^vp.resource.cachedScripts() != 1 { panic^"Live second arena lost its script" }
+        let^parent = vp.arena.Arena.new("parent")
+        parent.absorb(second.arena)
+        second.arena.dispose()
+        if^vp.resource.cachedScripts() != 1 { panic^"Absorbed ownership was lost" }
+        parent.dispose()
+        parent.dispose()
+        first.cancel()
+        if^vp.resource.cachedScripts() != 0 { panic^"Last owner retained script" }
+        let^pending = vp.resource.Batch.new("cancelled")
+        pending.request(path, "script", false^)
+        vp.resource.pump(0.006)
+        pending.cancel()
+        cancelled := pending
+        phase := 1
+    elseif^phase = 1 and^vp.resource.outstanding() = 0:
+        if^vp.resource.cachedScripts() != 0 { panic^"Cancelled worker resurrected script" }
+        if^vp.resource.fallbackReads() != 0 { panic^"Synchronous metadata read" }
+        print("PASS: shared script leases, arena absorption, repeated disposal, cancellation during IO")
+        love.event.quit()
+    }
+    if^love.timer.getTime() - began > 30 { panic^"Metadata lifetime timeout" }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

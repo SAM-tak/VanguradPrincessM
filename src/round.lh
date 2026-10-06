@@ -283,9 +283,12 @@ public^let^Round = def^{
     # at (x, y) in the world. Measured in the original (TechnicalDocuments/0018):
     # every hit from the second on spawns a fresh set, and the earlier ones play
     # out their own scripts.
-    showCombo = p^self^, count:number^, x:number^, y:number^{
+    showCombo = p^self^, count:number^, x:number^, y:number^, marker:number^{
         let^add = p^n:number^, at:number^{
             let^c = self^.runAt(n, at, y)
+            # The original script checks V128 after its entrance images. Keep
+            # the hit's value even if a later reaction/landing clears it.
+            c.comboMarker := marker
             c.depth := 101
             self^.combos.push^(c)
         }

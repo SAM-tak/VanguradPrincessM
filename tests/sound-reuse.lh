@@ -1,0 +1,65 @@
+module^vp.soundreusetest
+import^love.event
+import^love.timer
+require^"../src/fighter.lh"
+require^"../src/resource.lh"
+require^"../src/arena.lh"
+let^dir = "assets/characters/ゆい"
+let^path = $"{dir}/sounds/0001.wav"
+let^first = vp.resource.Batch.new("sound-first")
+let^second = vp.resource.Batch.new("sound-second")
+let^p1 = vp.fighter.Fighter.new(dir, 0, 0)
+let^p2 = vp.fighter.Fighter.new(dir, 0, 0)
+var^phase = 0
+var^began = 0
+public^let^load = p^{
+    began := love.timer.getTime()
+    first.request($"{dir}/sounds.lton", "lton", false^)
+    first.request(path, "sound", false^)
+}
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^phase = 0 and^first.ready() {
+        first.arena.attach()
+        p1.sound(1)
+        p1.soundFrom(dir, 1)
+        p2.soundFrom(dir, 1)
+        let^a = p1.soundsByPath[path]
+        let^b = p2.soundsByPath[path]
+        if^a is^nil^ or^b is^nil^ { panic^"Missing playback source" }
+        if^a = b { panic^"Opponents share playback state" }
+        let^child = vp.fighter.Fighter.new(dir, 0, 0)
+        child.owner := p1
+        let^count = first.arena.sources.length^
+        for^i from^1 to^100 {
+            p1.soundFrom(dir, 1)
+            child.soundFrom(dir, 1)
+        }
+        if^p1.soundsByPath[path] != a or^first.arena.sources.length^ != count {
+            panic^"Repeated shared sounds created playback sources"
+        }
+        vp.arena.pop()
+        second.request(path, "sound", false^)
+        phase := 1
+    elseif^phase = 1 and^second.ready():
+        second.arena.attach()
+        let^old = p1.soundsByPath[path]
+        p1.soundFrom(dir, 1)
+        if^p1.soundsByPath[path] is^nil^ or^p1.soundsByPath[path] = old {
+            panic^"Reused a disposed source across scenes"
+        }
+        if^p1.sounds[1] != nil^ { panic^"Numeric cache survived source disposal" }
+        p1.sound(1)
+        if^p1.sounds[1] is^nil^ { panic^"Numeric playback did not reload" }
+        vp.arena.pop()
+        if^vp.arena.fallbacks() != 0 or^vp.resource.fallbackReads() != 0 {
+            panic^"Unexpected synchronous resource load"
+        }
+        print("PASS: shared sound reuse, child ownership, independent opponents, scene invalidation")
+        love.event.quit()
+        phase := 2
+    }
+    if^love.timer.getTime() - began > 30 { panic^"Sound reuse timeout" }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

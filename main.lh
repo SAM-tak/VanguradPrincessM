@@ -96,6 +96,7 @@ var^attractSupports : t^{number^[]} = {}
 var^matchSeconds = 60
 var^paused = false^
 var^titleAfterBoot = false^
+var^collectSceneGarbage = false^
 
 let^inBattle = f^-> bool^{
     let^st = campaign
@@ -258,10 +259,11 @@ let^strike = p^a:Fighter, b:Fighter{
                             # its middle), from where the defender stood (0018)
                             let^cx = b.x + hurt.x * b.facing
                             let^cy = b.y + hurt.y
+                            let^comboMarker = b.v(128)
                             let^guarded, spark = a.struck(atk, b, hurt.rate, endsCrouched(b, b.skillNo))
                             if^!guarded {
                                 b.combo += 1
-                                if^b.combo >= 2 { flow.showCombo(b.combo, cx, cy) }
+                                if^b.combo >= 2 { flow.showCombo(b.combo, cx, cy, comboMarker) }
                             }
                             # The attacker's spark, run as the attacker's object (0008).
                             if^spark > 0 { a.makeObject(spark, 0, hx, hy, 127) }
@@ -390,8 +392,18 @@ let^startRound = p^{
     aimY := camY
 }
 
-# Back to the select screen after a match: the match's arena goes (what it
-# loaded), the select screen's is still there (TechnicalDocuments/0023).
+# Drop script graphs and suspended skill coroutines as well as native assets.
+# Collect after the retiring scene's stack has returned.
+let^releaseBattle = p^{
+    brain := nil^
+    demoBrain := nil^
+    me := Fighter.new("assets/characters/ゆい", WORLD_W / 2 - START_X, GROUND)
+    foe := Fighter.new("assets/characters/ゆい", WORLD_W / 2 + START_X, GROUND)
+    stage := vp.stage.Stage.new()
+    flow := vp.round.load(SYSTEM)
+    collectSceneGarbage := true^
+}
+
 let^endAttract = p^animate:bool^{
     let^l = pending
     if^l != nil^ { l.batch.cancel() pending := nil^ }
@@ -400,8 +412,7 @@ let^endAttract = p^animate:bool^{
     vp.arena.pop() # Previous opening scene.
     attract := false^
     attractLoaded := false^
-    demoBrain := nil^
-    brain := nil^
+    releaseBattle()
     paused := false^
     clock := 0
     pressed := 0
@@ -416,6 +427,7 @@ let^endAttract = p^animate:bool^{
     scene := vp.title.openingScreen(animate)
 }
 
+# The match arena goes; the select arena remains (TechnicalDocuments/0023).
 let^toSelect = p^{
     if^attract { endAttract(true^) return^ }
     love.audio.stop()              # the match's music and sounds end with it
@@ -423,8 +435,10 @@ let^toSelect = p^{
     matchArena := nil^
     matchLoading := false^
     let^st = campaign
+    let^won = flow.wins1 >= flow.toWin
+    releaseBattle()
     if^st != nil^ {
-        if^flow.wins1 >= flow.toWin { st.advance()
+        if^won { st.advance()
         else^: st.enter("continue") st.continueChoice := 0 }
         return^
     }
@@ -725,6 +739,7 @@ let^completeLoad = p^{
         l.batch.arena.attach()
         if^kind = "title" {
             selecting := nil^
+            collectSceneGarbage := true^
             opening := false^
             vp.fighter.clearSystemVars()
             let^system = vp.script.load($"{SYSTEM}/script.lton") ?? vp.script.Script.new()
@@ -759,6 +774,7 @@ let^goBack = p^{
         matchIntro := false^
         flow.preparing := false^
         flow.externalPresentation := false^
+        releaseBattle()
         selecting := vp.select.load(SYSTEM, true^)
         pressed := 0
         leftPressed := false^
@@ -779,6 +795,7 @@ let^goBack = p^{
     matchIntro := false^
     flow.preparing := false^
     flow.externalPresentation := false^
+    releaseBattle()
     if^selecting != nil^ {
         prepare("title")
     else^:
@@ -819,7 +836,7 @@ let^debugTitle = p^{
     rightPressed := false^
     clear2()
     vp.fighter.clearSystemVars()
-    flow := vp.round.load(SYSTEM)
+    releaseBattle()
     opening := true^
     vp.arena.push("opening")
     scene := vp.title.openingScreen(false^)
@@ -865,6 +882,7 @@ public^let^status = f^{
         story = storyMode, cpuActions = if^cpu != nil^: cpu.actions el^: 0;,
         enemyX = foe.x, enemyLife = foe.life, playerLife = me.life, enemySkill = foe.skillNo,
         paused = paused, roundFrames = roundFrames,
+        battleResourcesHeld = me.skills[1] != nil^ or^foe.skills[1] != nil^ or^stage.layers.length^ > 0,
         modeExitFrames = if^sc != nil^: sc.exitFrames el^: -1;,
         modeCuePlaying = cue != nil^ and^cue.isPlaying(), selectCuePlayed = selectCue,
         attract = attract, attractLoaded = attractLoaded, attractSeconds = attractSeconds,
@@ -988,6 +1006,12 @@ let^tick = p^{
 }
 
 public^let^update = p^dt:number^{
+    # Run after the retiring scene's call stack has unwound. Automatic GC
+    # otherwise keeps large, discarded skill graphs across opening loops.
+    if^collectSceneGarbage {
+        collectSceneGarbage := false^
+        L^.collectgarbage()
+    }
     for^key in^vp.input.poll() { keypressed(key, love.keyboard.Scancode.unknown, false^) }
     if^paused { return^ }
     vp.resource.pump(LOAD_SLICE)
@@ -1043,6 +1067,7 @@ public^let^update = p^dt:number^{
             brain := nil^
             matchLoading := false^
             selecting := nil^
+            releaseBattle()
             vp.fighter.clearSystemVars()
             opening := true^
             clock := 0

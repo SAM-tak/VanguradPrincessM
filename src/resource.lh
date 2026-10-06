@@ -25,6 +25,20 @@ public^let^Batch = def^{
         let^key = $"{kind}:{path}"
         if^self^.cancelled or^self^.seen[key] != nil^ { return^ }
         self^.seen[key] := true^
+        if^kind = "script" {
+            # Count arenas, including cache hits: a transitioning scene may
+            # still need the same definition after the previous arena retires.
+            scriptUsers[path] := (scriptUsers[path] ?? 0) + 1
+            self^.arena.cleanups.push^(p^{
+                let^left = (scriptUsers[path] ?? 1) - 1
+                if^left > 0 { scriptUsers[path] := left
+                else^:
+                    scriptUsers[path] := nil^
+                    scripts[path] := nil^
+                    tables[path] := nil^
+                }
+            })
+        }
         if^kind = "lton" and^tables[path] != nil^ { return^ }
         if^kind = "script" and^scripts[path] != nil^ { return^ }
         let^j = Job.new(self^)
@@ -158,8 +172,14 @@ var^active : t^{Job[]} = {}
 var^started = false^
 var^tables : t^{[string^]:t^{}|nil^} = {}
 var^scripts : t^{[string^]:vp.scriptdata.Data|nil^} = {}
+var^scriptUsers : t^{[string^]:number^|nil^} = {}
 var^syncReads = 0
 public^let^fallbackReads = f^{ syncReads }
+public^let^cachedScripts = p^-> number^{
+    var^count = 0
+    for^path:string^, data:vp.scriptdata.Data in^scripts { count += 1 }
+    return^count
+}
 
 # Callers use the media directory as a logical package key. Only metadata IO
 # maps to data/; texture/audio paths and cache keys remain under assets/.

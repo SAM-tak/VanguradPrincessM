@@ -1,0 +1,59 @@
+# Lose a real story match and return through NO/game-over, twice.
+module^vp.storymemoryreturn
+import^love.keyboard
+import^love.event
+import^love.timer
+require^"../main.lh"
+require^"../src/arena.lh"
+require^"../src/resource.lh"
+var^phase = 0
+var^cycles = 0
+var^began = 0
+let^press = p^key:love.keyboard.Key{ vp.main.keypressed(key, love.keyboard.Scancode.unknown, false^) }
+public^let^load = p^{ began := love.timer.getTime() vp.main.load() }
+public^let^update = p^dt:number^{
+    vp.main.update(0.02)
+    let^s = vp.main.status()
+    let^where = vp.arena.names()
+    if^phase = 0 and^where = "system / opening" {
+        press(love.keyboard.Key.z) phase := 1
+    elseif^phase = 1:
+        press(love.keyboard.Key.z) phase := 2
+    elseif^phase = 2 and^where = "system / title":
+        press(love.keyboard.Key.z) phase := 3
+    elseif^phase = 3 and^s.phase = "select":
+        press(love.keyboard.Key.z) phase := 4
+    elseif^phase = 4 and^s.phase = "difficulty":
+        vp.main.update(0.3)
+        press(love.keyboard.Key.right)
+        press(love.keyboard.Key.z) phase := 5
+    elseif^phase = 5 and^s.phase = "intro":
+        vp.main.update(0.3)
+        press(love.keyboard.Key.z) phase := 6
+    elseif^phase = 6 and^s.phase = "battle":
+        for^i from^0 to^59 {
+            if^vp.main.status().phase != "battle" { break^ }
+            vp.main.update(0.02)
+        }
+    elseif^phase = 6 and^s.phase = "continue":
+        if^s.battleResourcesHeld { panic^"Continue retained the retired match" }
+        vp.main.update(0.3)
+        press(love.keyboard.Key.right)
+        press(love.keyboard.Key.z) phase := 7
+    elseif^phase = 7 and^where = "system / opening":
+        phase := 8
+    elseif^phase = 8:
+        if^s.battleResourcesHeld or^vp.resource.cachedScripts() != 1 { panic^"Story title retained battle definitions" }
+        cycles += 1
+        print($"PASS: story defeat -> NO -> game-over -> title cycle={cycles}")
+        if^cycles = 2 {
+            if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^"Synchronous fallback" }
+            love.event.quit()
+        else^:
+            press(love.keyboard.Key.z) phase := 2
+        }
+    }
+    if^love.timer.getTime() - began > 300 { panic^$"Story memory return timeout phase={phase} scene={s.phase}" }
+}
+public^let^draw = p^{ vp.main.draw() }
+public^let^quit = p^-> bool^{ return^vp.main.quit() }

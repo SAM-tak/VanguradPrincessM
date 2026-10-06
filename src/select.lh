@@ -191,10 +191,8 @@ public^let^Select = def^{
     },
 }
 
-# Scripts of the characters, loaded once: the whole one (script.lton, for a
-# match) and the portrait's (portrait.lton: only what the select screen's #25
-# runs, so the screen opens without reading every whole script;
-# TechnicalDocuments/0023).
+# Only portraits stay resident. Match wrappers must not retain every
+# character/support combination after its resource arena has gone.
 var^scripts : t^{[string^]:vp.script.Script|nil^} = {}
 
 let^loadScript = p^name:string^, file:string^-> vp.script.Script{
@@ -207,16 +205,11 @@ let^loadScript = p^name:string^, file:string^-> vp.script.Script{
 }
 
 public^let^scriptOf = p^name:string^-> vp.script.Script{
-    return^loadScript(name, "script.lton")
+    return^vp.script.load($"assets/characters/{name}/script.lton") ?? vp.script.Script.new()
 }
 
 public^let^scriptFor = p^name:string^, support:number^-> vp.script.Script{
-    let^key = $"{name}/support/{support}"
-    let^known = scripts[key]
-    if^known? { return^known }
-    let^sc = vp.script.loadFor($"assets/characters/{name}/script.lton", support) ?? vp.script.Script.new()
-    scripts[key] := sc
-    return^sc
+    return^vp.script.loadFor($"assets/characters/{name}/script.lton", support) ?? vp.script.Script.new()
 }
 
 let^portraitOf = p^name:string^-> vp.script.Script{

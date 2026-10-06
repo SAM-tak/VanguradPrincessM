@@ -77,3 +77,10 @@
 
 - [0060-owner-support-packages.md](0060-owner-support-packages.md) — 1月17日.player更新と、サポート50ファイルへの使用キャラ別完全定義の分離・選択先読み
 - [0061-saki-hilda-freeze-audit.md](0061-saki-hilda-freeze-audit.md) — サキ＋ヒルダの原作停止報告と、現行ランタイムの登場・待機・5種類の入力確認
+- [0062-recoverable-combo-colour.md](0062-recoverable-combo-colour.md) — 受け身可能な追撃のV128をヒット時点で保持し、赤いコンボ文字・数字へ反映
+- [0063-attract-memory-lifetime.md](0063-attract-memory-lifetime.md) — デモ／通常対戦終了時の技キャッシュ・対戦参照の解放、GCとプロセスメモリ測定
+- [0064-memory-heap-audit.md](0064-memory-heap-audit.md) — GC後の生存量とOS確保領域の区別、L^弱参照表の削除反復による拡大と修正
+- [0065-core-member-allocation-measurement.md](0065-core-member-allocation-measurement.md) — コアのメンバー名検索最適化後のGC回収数・メモリ使用量・update時間の再測定
+- [0066-original-palette-rendering.md](0066-original-palette-rendering.md) — 原作EXEの8bit画像入力・16bitパレット参照・画面バッファ描画の確認
+- [0067-process-memory-breakdown.md](0067-process-memory-breakdown.md) — 約1GBのOS領域別内訳、GCで消える約256MBと描画側の遅延解放約235MB
+- [0068-render-audio-resource-reuse-audit.md](0068-render-audio-resource-reuse-audit.md) — 画像・Shaderの再利用、描画ごとのQuad生成と共通音声Sourceの再生ごとの複製

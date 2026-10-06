@@ -23,6 +23,7 @@ public^let^Arena = def^{
         textures : t^{[string^]:love.graphics.Texture|nil^} = {},
         sources : t^{love.audio.Source[]} = {},
         sounds : t^{[string^]:love.audio.Source|nil^} = {},
+        cleanups : t^{(p^;)[]} = {},
     },
     override^new = f^name:string^{ self^{ name = name } },
     # A prepared scene joins the stack when it becomes visible.
@@ -31,16 +32,23 @@ public^let^Arena = def^{
     # cached textures stay valid; the donor no longer owns any resources.
     absorb = p^self^, other:Arena{
         for^path:string^, texture:love.graphics.Texture in^other.textures {
-            if^self^.textures[path] != nil^ { texture.dispose()
-            else^: self^.textures[path] := texture }
+            if^self^.textures[path]? {
+                texture.dispose()
+            else^:
+                self^.textures[path] := texture
+            }
         }
         for^path:string^, sound:love.audio.Source in^other.sounds { self^.sounds[path] := sound }
         for^source in^other.sources { self^.sources.push^(source) }
+        for^cleanup in^other.cleanups { self^.cleanups.push^(cleanup) }
+        other.cleanups := {}
         other.textures := {}
         other.sounds := {}
         other.sources := {}
     },
     dispose = p^self^{
+        for^cleanup in^self^.cleanups { cleanup() }
+        self^.cleanups := {}
         for^path:string^, t:love.graphics.Texture in^self^.textures { t.dispose() }
         for^s in^self^.sources { s.dispose() }
         self^.textures := {}

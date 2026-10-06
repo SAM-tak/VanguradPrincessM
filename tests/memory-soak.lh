@@ -1,0 +1,57 @@
+# Repeated real CPU matches; monitor the process's private bytes externally.
+module^vp.memorysoak
+import^love.event
+import^love.timer
+import^love.audio
+import^love.graphics
+import^love.math
+require^"../main.lh"
+require^"../src/arena.lh"
+require^"../src/resource.lh"
+var^phase = 0
+var^cycles = 0
+var^began = 0
+var^residentScripts = -1
+var^residentTextures = 0
+var^worstUpdate = 0
+public^let^load = p^{ began := love.timer.getTime() vp.main.load() }
+public^let^update = p^dt:number^{
+    let^at = love.timer.getTime()
+    vp.main.update(0.02)
+    let^elapsed = love.timer.getTime() - at
+    if^elapsed > worstUpdate { worstUpdate := elapsed }
+    let^s = vp.main.status()
+    if^phase = 0 and^vp.arena.names() = "system / opening" {
+        let^stats = love.graphics.getStats()
+        let^scripts = vp.resource.cachedScripts()
+        if^residentScripts < 0 { residentScripts := scripts residentTextures := stats.textures }
+        if^scripts != residentScripts { panic^"Retired scene retained scripts" }
+        # Renderer texture/sampler bindings can retain a few last-used images.
+        # Allow that bounded tail, never another match's hundreds of textures.
+        if^stats.textures > residentTextures + 8 { panic^$"Retired scene retained textures: {stats.textures} vs {residentTextures}" }
+        print($"MEM cycle={cycles} textures={stats.textures} bytes={stats.texturememory} scripts={scripts} worstUpdate={worstUpdate}")
+        if^cycles >= 20 { print("PASS: 20 complete CPU demo/title loops") love.event.quit() return^ }
+        love.math.setRandomSeed(42 + cycles)
+        vp.main.update(40)
+        love.audio.stop()
+        phase := 1
+    elseif^phase = 1 and^s.attractLoaded:
+        phase := 2
+    elseif^phase = 2:
+        # Execute the full simulation, not a single large dt (which skips it).
+        for^i from^0 to^29 {
+            if^!vp.main.status().attract { break^ }
+            vp.main.update(0.02)
+        }
+        if^!vp.main.status().attract {
+            cycles += 1
+            phase := 3
+        }
+    elseif^phase = 3:
+        # Let the first title draw flush the previous frame's GPU batch.
+        phase := 0
+    }
+    if^love.timer.getTime() - began > 900 { panic^"Memory soak timeout" }
+}
+public^let^draw = p^{ vp.main.draw() }
+public^let^quit = p^-> bool^{ return^vp.main.quit() }

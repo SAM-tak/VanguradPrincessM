@@ -26,6 +26,9 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 "
 
 var^shader : love.graphics.Shader|nil^= nil^
+# draw copies the Quad's vertices and UVs, so all partial draws can share one.
+# It holds no texture reference and remains valid across arena changes.
+var^partQuad : love.graphics.Quad|nil^= nil^
 
 # FM2K's COLOR blends: 0 normal, 1 half transparent, 2 additive, 3 subtractive,
 # 4 custom alpha. `alpha` is the opacity for 1 and 4.
@@ -166,11 +169,19 @@ public^let^Sheet = def^{
         if^!(tex fits^love.graphics.Texture) or^width <= 0 { return^}
         self^.useShader(i, 0, tr, tg, tb)
         let^w, h = tex.getDimensions()
-        let^q = love.graphics.newQuad(from, 0, width, h, w, h)
-        if^mirrored {
-            love.graphics.draw(tex, q, x + w - from, y, 0, -1, 1)
+        var^q = partQuad
+        if^q is^nil^{
+            q := love.graphics.newQuad(from, 0, width, h, w, h)
+            partQuad := q
         else^:
-            love.graphics.draw(tex, q, x + from, y)
+            q.setViewport(from, 0, width, h, w, h)
+        }
+        if^q fits^love.graphics.Quad {
+            if^mirrored {
+                love.graphics.draw(tex, q, x + w - from, y, 0, -1, 1)
+            else^:
+                love.graphics.draw(tex, q, x + from, y)
+            }
         }
         love.graphics.setShader()
     },
