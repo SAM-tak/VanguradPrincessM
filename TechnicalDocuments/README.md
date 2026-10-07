@@ -125,3 +125,5 @@
 - [0095-motion-fixed-point.md](0095-motion-fixed-point.md) — Mの整数係数・符号・保持と32bit加算境界。
 
 - [0096-random-gauge-boundaries.md](0096-random-gauge-boundaries.md) — Rndの端点、GL/GS/GPの比較・消費・数値境界。
+
+- [0097-unused-gauge-fallback.md](0097-unused-gauge-fallback.md) — GL/GS分岐先0は現行VPで未使用、対象外へ整理。

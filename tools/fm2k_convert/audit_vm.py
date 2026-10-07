@@ -57,6 +57,8 @@ def main():
                 handled['DS_throw_contact'].append(row)
             elif b[-1] == 'offsetWay':
                 handled['DS_FA_contact'].append(row)
+        if op in ('GL', 'GS') and b[3 if op == 'GL' else 4] <= 0:
+            gaps['gauge_zero_target_fallback'].append(row)
         if op == 'Nop':
             gaps['Nop_origin_review_not_necessarily_missing'].append(row)
         if op in ('AI', 'RC'):
@@ -134,10 +136,11 @@ def main():
                   command_findings=dict(commands))
     # A zero missing_dispatch count does not mean complete FM2K compatibility.
     result['runtime_reviews'] = [
-        'GL/GS zero-target command fallback, remaining render/sound settings',
+        'Remaining used render/sound settings',
     ]
     result['out_of_scope_unused'] = [
         'RC nonzero common-pose binding', 'EB nonzero colour fades', 'O shadow rendering flag',
+        'GL/GS zero-target command fallback (no current definitions; inventoried if introduced)',
     ]
     dispatch = set(re.findall(r'op = "([A-Za-z]+)"', (ROOT / 'src/script.lh').read_text(encoding='utf-8')))
     result['missing_dispatch'] = {op: count for op, count in ops.items() if op not in dispatch and op != 'Nop'}
