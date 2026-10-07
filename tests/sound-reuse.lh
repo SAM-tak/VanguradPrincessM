@@ -4,6 +4,8 @@ import^love.timer
 require^"../src/fighter.lh"
 require^"../src/resource.lh"
 require^"../src/arena.lh"
+require^"../src/script.lh"
+require^"../src/scriptdata.lh"
 let^dir = "assets/characters/ゆい"
 let^path = $"{dir}/sounds/0001.wav"
 let^first = vp.resource.Batch.new("sound-first")
@@ -38,6 +40,25 @@ public^let^update = p^dt:number^{
         if^p1.soundsByPath[path] != a or^first.arena.sources.length^ != count {
             panic^"Repeated shared sounds created playback sources"
         }
+        # Keep both sources active so global stop cannot pass through natural completion.
+        a.setLooping(true^) b.setLooping(true^)
+        a.play() b.play()
+        if^!a.isPlaying() or^!b.isPlaying() { panic^"Audio test sources did not start" }
+        child.soundFrom(dir, 9999)
+        if^!a.isPlaying() or^!b.isPlaying() { panic^"Missing sound stopped playback" }
+        p1.sound(0)
+        if^a.isPlaying() or^b.isPlaying() { panic^"S type 0 did not stop both owners" }
+        if^p1.sounds[0] != nil^ { panic^"Stop command allocated a source" }
+        # Exercise the VM's explicit media route too, as used by support definitions.
+        let^data = vp.scriptdata.parse({{id=9000,name="stop audio",level=0,media=dir,blocks={{"S",0},{"E"}}}})
+        let^sc = vp.script.Script.new()
+        for^sk in^data.skills { sc.byId[sk.id] := sk }
+        sc.install(child)
+        p1.soundFrom(dir, 1) p2.soundFrom(dir, 1)
+        if^!a.isPlaying() or^!b.isPlaying() { panic^"Stopped sources could not restart" }
+        child.begin(9000) child.stepScript()
+        if^a.isPlaying() or^b.isPlaying() { panic^"Shared VM S type 0 did not stop audio" }
+        if^first.arena.sources.length^ != count { panic^"Stop/restart grew the source cache" }
         vp.arena.pop()
         second.request(path, "sound", false^)
         phase := 1
@@ -55,7 +76,7 @@ public^let^update = p^dt:number^{
         if^vp.arena.fallbacks() != 0 or^vp.resource.fallbackReads() != 0 {
             panic^"Unexpected synchronous resource load"
         }
-        print("PASS: shared sound reuse, child ownership, independent opponents, scene invalidation")
+        print("PASS: shared sound reuse, child ownership, independent opponents, global S type 0 stop/restart, missing entry, scene invalidation")
         love.event.quit()
         phase := 2
     }

@@ -129,3 +129,5 @@
 - [0097-unused-gauge-fallback.md](0097-unused-gauge-fallback.md) — GL/GS分岐先0は現行VPで未使用、対象外へ整理。
 
 - [0098-color-and-sound-settings-inventory.md](0098-color-and-sound-settings-inventory.md) — COLORの透明度指定・使用範囲と音声メタデータの棚卸し。
+
+- [0099-sound-stop-semantics.md](0099-sound-stop-semantics.md) — Sの音源種別0による全音声停止と通常再生の照合。

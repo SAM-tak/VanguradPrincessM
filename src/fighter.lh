@@ -1137,6 +1137,9 @@ public^let^Fighter = def^{
     # S — a sound by its FM2K number.
     sound = p^self^, n:number^{
         if^(self^.owner ?? self^).mutedSounds[n] = true^ { return^ }
+        let^e = soundEntry(self^.dir, n)
+        # Native type 0 stops every sound; it is not a missing WAV slot.
+        if^e fits^t^{type:number^} and^e.type = 0 { love.audio.stop() return^ }
         if^logSounds {
             let^who = if^self^.owner?: "object" el^: "fighter";
             print($"sound {n} by {who} {self^.skillName}")
@@ -1149,7 +1152,6 @@ public^let^Fighter = def^{
         if^src is^nil^{
             # A looping sound (the music) is long: streamed, looped over the whole
             # file (the tracks have no loop points and end in a fade).
-            let^e = soundEntry(self^.dir, n)
             let^loop = e fits^t^{ endlessLoop : bool^ } and^e.endlessLoop
             let^path = vp.sprite.assetPath(self^.dir, e) ?? $"{self^.soundDir}/{n:%04d}.wav"
             let^loaded = vp.arena.sound(path, loop)
@@ -1166,6 +1168,7 @@ public^let^Fighter = def^{
     # the owner, keeping opponents independent without cloning on every play.
     soundFrom = p^self^, dir:string^, n:number^{
         let^e = soundEntry(dir, n)
+        if^e fits^t^{type:number^} and^e.type = 0 { love.audio.stop() return^ }
         let^path = vp.sprite.assetPath(dir, e)
         if^path is^nil^ { return^ }
         let^holder = self^.owner ?? self^
