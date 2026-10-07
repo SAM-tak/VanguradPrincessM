@@ -225,7 +225,7 @@ let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, butt
 
 # Turning: on the ground and free to move, a fighter faces the other one. The
 # FM2K turn skills (#16, #17) are empty, so turning is just the flip.
-let^face = p^p:Fighter, other:Fighter{
+let^face = p^p:Fighter, other:Fighter {
     if^p.eventPending or^p.airborne() or^!groundIdle(p.skillNo) { return^}
     if^other.x > p.x + 1 { p.facing := 1 }
     if^other.x < p.x - 1 { p.facing := -1 }
@@ -239,14 +239,15 @@ let^overlaps = p^a:Fighter, ba:vp.fighter.Box, b:Fighter, bb:vp.fighter.Box-> bo
     return^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah
 }
 
-let^strike = p^a:Fighter, b:Fighter{
+let^strike = p^a:Fighter, b:Fighter {
+    if^!b.hasHurtBoxes() { return^ }
     for^s1, atk in^a.hits {
-        if^atk fits^vp.fighter.Box {
+        if^atk fits^vp.fighter.Box and^a.canHit(atk, b) {
             for^s2 from^0 to^19 {
                 let^hurt = b.hurts[s2]
                 if^hurt fits^vp.fighter.Box {
                     if^hurt.vulnerable and^hurt.w > 0 and^hurt.h > 0 {
-                        if^a.canHit(atk, b) and^overlaps(a, atk, b, hurt) {
+                        if^overlaps(a, atk, b, hurt) {
                             if^b.owner != nil^ {
                                 a.struck(atk, b, hurt.rate, false^, hurt.flags)
                                 return^
@@ -280,6 +281,7 @@ let^strike = p^a:Fighter, b:Fighter{
 }
 
 let^strikeTeam = p^a:Fighter, b:Fighter{
+    if^!a.hasAttackBoxes() { return^ }
     strike(a, b)
     for^target in^b.objects { strike(a, target) }
 }
@@ -490,7 +492,7 @@ let^beginPresentation = p^name1:string^, colour1:number^, name2:string^, colour2
     if^music != nil^ { music.play() }
 }
 
-let^loadMatch = p^s:vp.select.Select{
+let^loadMatch = p^s:vp.select.Select {
     if^s.story {
         let^name, colour = s.chosen(0)
         let^st = vp.story.State.new(name, colour, me.v(142))
@@ -512,7 +514,7 @@ let^loadMatch = p^s:vp.select.Select{
 
 # The chosen characters, their colours and a stage at random; the supports
 # chosen on the select screen are in system variables 142 / 143.
-let^startBattle = p^s:vp.select.Select{
+let^startBattle = p^s:vp.select.Select {
     brain := nil^
     matchSeconds := ROUND_SECONDS
     let^name1, colour1 = s.chosen(0)
@@ -584,7 +586,7 @@ let^startAttract = p^{
 }
 
 # Only real fights and authored demos remain in the converted story routes.
-let^queueStory = p^st:vp.story.State{
+let^queueStory = p^st:vp.story.State {
     let^e = st.current()
     if^e is^nil^ { st.enter("complete") return^ }
     st.loadImage := if^love.math.random(1, 10) = 1: 2 el^: 1;
@@ -605,7 +607,7 @@ let^queueStory = p^st:vp.story.State{
     st.enter("loading")
 }
 
-let^startStoryBattle = p^st:vp.story.State, e:vp.story.Event{
+let^startStoryBattle = p^st:vp.story.State, e:vp.story.Event {
     me := Fighter.new($"assets/characters/{st.name}", WORLD_W / 2 - START_X, GROUND)
     foe := Fighter.new($"assets/characters/{e.name}", WORLD_W / 2 + START_X, GROUND)
     (vp.select.scriptFor(st.name, me.v(142))).install(me)

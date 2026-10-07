@@ -105,3 +105,5 @@
 - [0084-db-object-chip.md](0084-db-object-chip.md) — UnknownだったDBの復元、Oの存在時分岐・削除・depth、FAガード削り、VM対応の残件
 - [0085-command-range-repeat-charge.md](0085-command-range-repeat-charge.md) — キャラ別間合いによる近遠技の選択、連打・溜め入力と保持履歴
 - [0086-command-scan-performance.md](0086-command-scan-performance.md) — 36FPS低下の再現、旧コミット比較、入力履歴の不成立判定で安定区間75FPSへ改善
+
+- [0087-decoration-collision-performance.md](0087-decoration-collision-performance.md) — 演出オブジェクト増加時の接触・被弾判定負荷削減と計測。

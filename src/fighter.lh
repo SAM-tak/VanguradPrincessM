@@ -181,9 +181,22 @@ public^let^Fighter = def^{
         }
     },
 
+    # Sparse FA slots may contain nil entries after cancellation. Check the
+    # live slots, not the table length, before enumerating opposing actors.
+    hasAttackBoxes = f^self^-> bool^{
+        for^slot, box in^self^.hits { if^box != nil^ { return^true^ } }
+        return^false^
+    },
+    hasHurtBoxes = f^self^-> bool^{
+        for^slot, box in^self^.hurts {
+            if^box != nil^ and^box.vulnerable and^box.w > 0 and^box.h > 0 { return^true^ }
+        }
+        return^false^
+    },
     # FA versus FA contact precedes ordinary damage (original 0x40EB60).
     # Zero-power boxes are also detectors: Eri's dash meets the enemy shadow.
     offsetAgainst = p^self^, other:Fighter{
+        if^!self^.hasAttackBoxes() or^!other.hasAttackBoxes() { return^ }
         if^!self^.alive or^!other.alive or^self^.onScreen != other.onScreen { return^ }
         if^self^.charOf() = other.charOf() or^other.receiving or^other.blocking { return^ }
         for^slot, a in^self^.hits {
@@ -222,11 +235,15 @@ public^let^Fighter = def^{
     },
     # Cross-team pairs only; objects include the built-in contact shadows.
     offsetTeamAgainst = p^self^, other:Fighter{
-        self^.offsetAgainst(other)
-        for^o in^other.objects { self^.offsetAgainst(o) }
+        if^self^.hasAttackBoxes() {
+            self^.offsetAgainst(other)
+            for^o in^other.objects { self^.offsetAgainst(o) }
+        }
         for^o in^self^.objects {
-            o.offsetAgainst(other)
-            for^target in^other.objects { o.offsetAgainst(target) }
+            if^o.hasAttackBoxes() {
+                o.offsetAgainst(other)
+                for^target in^other.objects { o.offsetAgainst(target) }
+            }
         }
     },
 

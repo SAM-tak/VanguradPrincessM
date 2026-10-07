@@ -71,6 +71,16 @@ let^probe = p^side:number^, player:number^, shadow:bool^{
     print($"PASS Eri 214A: side={side}, player={player}, shadow={shadow}, contact={contact}, crossed={crossed}, sobat={sobat}")
 }
 let^clashes = p^{
+    # Decorative actors must not enter pair scans, but a zero-power FA in a
+    # sparse slot is still a contact detector (including the built-in shadow).
+    let^decoration = Fighter.new("assets/characters/ゆい", 0, 0)
+    decoration.hits[0] := nil^
+    decoration.hurts[0] := nil^
+    if^decoration.hasAttackBoxes() or^decoration.hasHurtBoxes() { panic^"Empty collision slots included" }
+    decoration.hit(19, 0, 0, 10, 10, 0)
+    if^!decoration.hasAttackBoxes() { panic^"Sparse zero-power detector excluded" }
+    decoration.hurts[19] := vp.fighter.Box.new(0, 0, 10, 10)
+    if^!decoration.hasHurtBoxes() { panic^"Sparse hurt box excluded" }
     for^power in^{0, 1} {
         let^a = Fighter.new("assets/characters/えり", 0, 0)
         let^b = Fighter.new("assets/characters/ゆい", 0, 0)
