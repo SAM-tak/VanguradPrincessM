@@ -43,11 +43,18 @@ def main():
     blocks = list(inventory(args.data))
     ops = Counter(b['instruction'][0] for b in blocks)
     flags, events = Counter(), Counter()
+    color_modes, color_values = Counter(), [Counter() for _ in range(4)]
     gaps = defaultdict(list)
     handled = defaultdict(list)
     for row in blocks:
         b = row['instruction']
         op = b[0]
+        if op == 'COLOR':
+            color_modes[b[1]] += 1
+            for values, value in zip(color_values, b[2:6]):
+                values[value] += 1
+            if b[1] not in range(5) or any(not -32 <= (n - 256 if n >= 128 else n) <= 32 for n in b[2:5]) or (b[1] == 4 and not 0 <= b[5] <= 32):
+                gaps['COLOR_outside_reviewed_range'].append(row)
         if isinstance(b[-1], str) and len(b) > 1:
             for flag in b[-1].split():
                 flags[f'{op}.{flag}'] += 1
@@ -93,7 +100,20 @@ def main():
             handled['DB_basic_condition'].append(row)
         if op == 'V' and b[2] == 2:
             handled['V_add_saturation'].append(row)
+    sound_options = Counter()
+    for path in sorted(args.data.rglob('sounds.lton')):
+        if '_conversion' in path.parts:
+            continue
+        for line_no, line in enumerate(path.read_text(encoding='utf-8-sig').splitlines(), 1):
+            match = re.search(r'type = (\d+).*endlessLoop = (true|false)\^, cddaTrack = (\d+)', line)
+            if not match:
+                continue
+            kind, loop, track = match.groups()
+            sound_options[f'type={kind},loop={loop},cdda={track}'] += 1
+            if kind not in ('0', '1') or track != '0':
+                gaps['sound_unreviewed_options'].append(dict(file=path.relative_to(ROOT).as_posix(), line=line_no, text=line.strip()))
     raw_ops, lost = Counter(), []
+    color_alpha_flags = Counter()
     commands = defaultdict(list)
     for path in sorted((args.data / 'characters').glob('*/script.lton')):
         for line_no, line in enumerate(path.read_text(encoding='utf-8-sig').splitlines(), 1):
@@ -117,6 +137,8 @@ def main():
             for n, skill in enumerate(data.get('skills', [])):
                 for i, b in enumerate(skill['blocks']):
                     raw_ops[b['type']] += 1
+                    if b['type'] == 'COLOR':
+                        color_alpha_flags[f"mode={b['option']},aEnabled={b['aEnabled']}"] += 1
                     if convert_block(b)[0] == 'Nop':
                         row = dict(file=str(path), skill=n, name=skill['name'], block=i, raw=b)
                         if b['type'] == 'DS' and b['when'] == 0:
@@ -134,9 +156,13 @@ def main():
                   findings={k: dict(count=len(v), locations=v) for k, v in gaps.items()},
                   raw_operations=dict(raw_ops), conversion_nops=lost, source_sha256=source_hashes,
                   command_findings=dict(commands))
+    result['render_sound_inventory'] = dict(
+        color_modes=dict(color_modes),
+        color_operands={key: dict(sorted(values.items())) for key, values in zip(('r', 'g', 'b', 'a'), color_values)},
+        raw_color_alpha_flags=dict(color_alpha_flags), sound_options=dict(sound_options))
     # A zero missing_dispatch count does not mean complete FM2K compatibility.
     result['runtime_reviews'] = [
-        'Remaining used render/sound settings',
+        'Used render pixel blending/layer behavior and sound playback semantics (COLOR operand range and sound metadata inventoried in 0098)',
     ]
     result['out_of_scope_unused'] = [
         'RC nonzero common-pose binding', 'EB nonzero colour fades', 'O shadow rendering flag',

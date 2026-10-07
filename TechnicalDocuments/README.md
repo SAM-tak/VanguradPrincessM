@@ -127,3 +127,5 @@
 - [0096-random-gauge-boundaries.md](0096-random-gauge-boundaries.md) — Rndの端点、GL/GS/GPの比較・消費・数値境界。
 
 - [0097-unused-gauge-fallback.md](0097-unused-gauge-fallback.md) — GL/GS分岐先0は現行VPで未使用、対象外へ整理。
+
+- [0098-color-and-sound-settings-inventory.md](0098-color-and-sound-settings-inventory.md) — COLORの透明度指定・使用範囲と音声メタデータの棚卸し。
