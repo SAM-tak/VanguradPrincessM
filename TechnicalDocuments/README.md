@@ -103,3 +103,5 @@
 - [0082-event-remaining-audit.md](0082-event-remaining-audit.md) — 全イベントに発火元があることと完全再現の区別、着地専用遷移・生成物命中・相殺時defending・処理順の残件
 - [0083-remaining-event-paths.md](0083-remaining-event-paths.md) — 残る4イベント経路、原作の戦闘更新順、被弾反応の予約と相打ち、FA属性ビットの補完
 - [0084-db-object-chip.md](0084-db-object-chip.md) — UnknownだったDBの復元、Oの存在時分岐・削除・depth、FAガード削り、VM対応の残件
+- [0085-command-range-repeat-charge.md](0085-command-range-repeat-charge.md) — キャラ別間合いによる近遠技の選択、連打・溜め入力と保持履歴
+- [0086-command-scan-performance.md](0086-command-scan-performance.md) — 36FPS低下の再現、旧コミット比較、入力履歴の不成立判定で安定区間75FPSへ改善

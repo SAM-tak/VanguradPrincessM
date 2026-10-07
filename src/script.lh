@@ -206,6 +206,7 @@ public^let^Script = def^{
             me.special := st.specialPer * std.math.min(st.startStock, st.stockMax)
         }
         if^d fits^t^{ settings:t^{ guardDamageRate:number^ } } { me.guardDamageRate := d.settings.guardDamageRate }
+        if^d fits^t^{ settings:t^{ closeRange:number^ } } { me.closeRange := d.settings.closeRange }
         if^d fits^t^{ commands : t^{} } {
             let^cs = d.commands
             for^c:t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{}, modes : t^{}, amounts : t^{} } in^cs {

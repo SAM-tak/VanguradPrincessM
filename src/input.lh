@@ -72,3 +72,16 @@ public^let^isDown = p^key:love.keyboard.Key-> bool^{
     }
     return^false^
 }
+
+public^let^heldButtons = p^player:number^-> number^{
+    let^layout = keys[player]
+    if^layout is^nil^ { return^0 }
+    var^mask = 0
+    var^bit = 1
+    for^i from^4 to^9 {
+        let^key = layout[i]
+        if^key != nil^ and^isDown(key) { mask += bit }
+        bit *= 2
+    }
+    return^mask
+}

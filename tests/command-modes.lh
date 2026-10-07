@@ -1,0 +1,94 @@
+module^vp.commandmodestest
+import^love.event
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+let^Fighter = vp.fighter.Fighter
+let^loadout = vp.preload.Load.new("command-modes")
+var^done = false^
+public^let^load = p^{
+    loadout.add("assets/characters/ゆい", false^)
+    loadout.add("assets/characters/はるか", false^)
+}
+let^actor = p^-> Fighter {
+    let^f = Fighter.new("assets/characters/ゆい", 500, 920)
+    f.ground := 920
+    return^f
+}
+let^run = p^{
+    let^window = actor()
+    for^i from^1 to^1200 { window.record(5, 0) }
+    if^window.entered(65, {0}, {1}, {0}, {1}) or^window.command(65, {0}, {1}) { panic^"Empty history matched" }
+    window.record(5, 1)
+    for^i from^1 to^4 { window.record(5, 0) }
+    if^!window.entered(5, {0}, {1}, {0}, {1}) or^!window.command(5, {0}, {1}) { panic^"Prefilter discarded buffered edge" }
+    window.record(5, 0)
+    if^window.entered(5, {0}, {1}, {0}, {1}) or^window.command(5, {0}, {1}) { panic^"Expired input survived" }
+    if^!window.entered(1, {0}, {0}, {0}, {1}) { panic^"Prefilter rejected direction-only command" }
+    window.record(5, 7)
+    for^mask in^{1, 2, 3, 4, 5, 6, 7} {
+        if^!window.entered(1, {0}, {mask}, {0}, {1}) or^!window.command(1, {0}, {mask}) { panic^"Simultaneous press subset lost" }
+    }
+    window.record(5, 1) window.record(5, 2)
+    if^window.entered(2, {0}, {3}, {0}, {1}) { panic^"Separate presses became simultaneous" }
+    for^i from^1 to^1024 { window.record(5, 0) }
+    if^window.command(1024, {0}, {7}) { panic^"Wrapped history reused stale press" }
+    let^f = actor() let^enemy = actor()
+    let^sc = vp.script.load("assets/characters/ゆい/script.lton")
+    if^sc is^nil^ { panic^"Missing Yui" }
+    sc.install(f)
+    if^f.closeRange != 126 { panic^"Missing interval" }
+    f.commands := {}
+    f.addCommand("near/far", 1, 13, 11, 12, 14, {0}, {1}, {0}, {1})
+    f.enemy := enemy
+    for^side in^{-1, 1} { for^distance in^{125, 126, 126.9, 127} {
+        enemy.x := f.x + side * distance
+        f.record(5, 1)
+        let^want = if^distance < 127: 11 el^: 12;
+        if^f.fromCommands(false^) != want or^f.fromCommands(true^) != 14 { panic^"Range boundary/crouch selection" }
+        f.y := 900
+        if^f.fromCommands(false^) != 13 { panic^"Air selection" }
+        f.y := 920
+    } }
+    f.enemy := nil^
+    if^f.fromCommands(false^) != 12 { panic^"No target must use far" }
+    let^c = f.commands[0]
+    if^c is^nil^ { panic^"Missing command" }
+    c.far := 0
+    if^f.fromCommands(false^) != 0 { panic^"Unavailable far must not use near" }
+    let^r = actor()
+    r.recordHeld(5, 7, 7)
+    if^r.entered(15, {0}, {7}, {1}, {5}) { panic^"Repeat accepted one press" }
+    for^i from^1 to^6 { r.recordHeld(5, 0, 7) }
+    if^r.entered(15, {0}, {7}, {1}, {5}) { panic^"Holding counted as repeated press" }
+    r.recordHeld(5, 0, 0) r.recordHeld(5, 7, 7)
+    if^!r.entered(15, {0}, {7}, {1}, {5}) { panic^"Repeat did not consume four units per press" }
+    let^partial = actor()
+    partial.recordHeld(5, 7, 7) partial.recordHeld(5, 0, 1) partial.recordHeld(5, 6, 7)
+    if^partial.entered(15, {0}, {7}, {1}, {5}) { panic^"Repeat accepted partial release" }
+    let^charge = actor()
+    charge.recordHeld(4, 1, 1) charge.recordHeld(4, 0, 1)
+    if^charge.entered(1, {6}, {1}, {2}, {3}) { panic^"Charge too short" }
+    charge.recordHeld(4, 0, 1)
+    if^!charge.entered(1, {6}, {1}, {2}, {3}) { panic^"Charge history must extend beyond search window" }
+    charge.recordHeld(4, 0, 0)
+    if^charge.entered(1, {6}, {1}, {2}, {3}) { panic^"Released button counted as charge" }
+    let^haruka = vp.script.load("assets/characters/はるか/script.lton")
+    if^haruka is^nil^ { panic^"Missing Haruka" }
+    let^h = actor() haruka.install(h)
+    for^command in^h.commands {
+        if^command.name = "cpu" { h.commands := { command } break^ }
+    }
+    h.recordHeld(5, 7, 7)
+    if^h.fromCommands(false^) = 262 { panic^"Haruka cpu command accepted one press" }
+    h.recordHeld(5, 0, 0) h.recordHeld(5, 7, 7)
+    if^h.fromCommands(false^) != 262 { panic^"Haruka real repeat command" }
+    print("PASS: near/far inclusive/truncated distance, posture/missing target, repeat release/amount, charge duration, real Haruka command")
+}
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^!done and^loadout.ready() { done := true^ run() love.event.quit() }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

@@ -40,8 +40,7 @@ public^let^Box = def^{
 # One entry of the character's command table: the input steps (FM2K direction
 # codes and button bitmasks, a = 1 ... f = 32), the frames they must fall
 # within, and the skill for each state (0: none). A step's mode: 0 a press,
-# 3 a rotation of the stick `amount` times (1 and 2, repeat and charge, are
-# not used by this game).
+# 1 repeat, 2 charge, 3 rotation. Repeat consumes four amount units per press.
 public^let^Command = def^{
     self^{
         name = "", time = 0, air = 0, stand = 0, far = 0, crouch = 0,
@@ -93,7 +92,10 @@ public^let^Fighter = def^{
         commands : t^{Command[]} = {},
         inDirs : t^{[number^]:number^|nil^} = {},    # numpad directions, forward = 6
         inPress : t^{[number^]:number^|nil^} = {},   # buttons pressed that frame
+        inHeld : t^{[number^]:number^|nil^} = {},
         inputFrame = 0,
+        lastButtonPress : t^{[number^]:number^|nil^} = {}, # newest matching press for each A-F mask
+        closeRange = 0,             # settings.interval, inclusive pixel distance
         cancelWhen = "", cancelFrom = 0, cancelTo = 0, cancelSkill = -1,
         hitConfirmed = false^,
         cancelByHit = false^,       # an FA with the "cancel" flag connected
@@ -583,10 +585,19 @@ public^let^Fighter = def^{
     # Remembers this frame's input: a numpad direction relative to the way the
     # fighter faces (6 = forward) and the buttons newly pressed.
     record = p^self^, dir:number^, pressed:number^{
+        self^.recordHeld(dir, pressed, pressed)
+    },
+    recordHeld = p^self^, dir:number^, pressed:number^, held:number^{
         self^.inputFrame += 1
         let^slot = self^.inputFrame % HISTORY
         self^.inDirs[slot] := dir
         self^.inPress[slot] := pressed
+        self^.inHeld[slot] := held
+        # Update only on an edge, not on every history scan. A multi-button
+        # edge also satisfies its subsets; this table has at most 63 entries.
+        for^mask from^1 to^std.math.min(pressed, 63) {
+            if^hasButtons(pressed, mask) { self^.lastButtonPress[mask] := self^.inputFrame }
+        }
     },
     # Scan the command's entire history window, including its final press.
     # Original 0x410719 -> 0x410863 also scans older frames on a final-step miss.
@@ -595,12 +606,40 @@ public^let^Fighter = def^{
         var^step = dirs.length^ - 1
         if^step < 0 { return^false^ }
         let^limit = std.math.min(std.math.max(time, 1), HISTORY)
+        # A normal final button step cannot match a window containing no
+        # presses. Keep the full search whenever a match is still possible;
+        # repeat/charge/rotation and direction-only steps must not use this.
+        let^lastButtons = buttons[step] ?? 0
+        if^(modes[step] ?? 0) = 0 and^lastButtons > 0 and^lastButtons <= 63 and^self^.inputFrame - (self^.lastButtonPress[lastButtons] ?? -HISTORY) >= limit { return^false^ }
         var^age = 0
+        var^repeatCount = 0
+        var^waitRelease = false^
         repeat^while^step >= 0 and^age < limit and^self^.inputFrame - age >= 1 {
             let^slot = (self^.inputFrame - age) % HISTORY
             let^d = self^.inDirs[slot] ?? 5
             let^p = self^.inPress[slot] ?? 0
-            if^(modes[step] ?? 0) = 3 {
+            let^mode = modes[step] ?? 0
+            let^need = buttons[step] ?? 0
+            if^mode = 1 {
+                let^held = self^.inHeld[slot] ?? p
+                if^waitRelease {
+                    if^held = 0 { waitRelease := false^ }
+                elseif^dirFits(dirs[step] ?? 0, d) and^hasButtons(held, need):
+                    repeatCount += 4
+                    waitRelease := true^
+                    if^repeatCount >= (amounts[step] ?? 0) { repeatCount := 0 step -= 1 }
+                }
+            elseif^mode = 2:
+                let^amount = std.math.max(amounts[step] ?? 0, 0)
+                var^charged = amount <= HISTORY and^self^.inputFrame - age >= amount
+                var^i = 0
+                repeat^while^charged and^i < amount {
+                    let^at = (self^.inputFrame - age - i) % HISTORY
+                    charged := dirFits(dirs[step] ?? 0, self^.inDirs[at] ?? 5) and^hasButtons(self^.inHeld[at] ?? 0, need)
+                    i += 1
+                }
+                if^charged { step -= 1 }
+            elseif^mode = 3:
                 # going back through the frames, collect the sides the stick visited
                 turnSeen := addSides(turnSeen, sideOf(d))
                 if^turnSeen = 15 {
@@ -628,6 +667,8 @@ public^let^Fighter = def^{
         var^step = dirs.length^ - 1
         if^step < 0 or^time <= 0 { return^false^ }
         let^limit = std.math.min(time, HISTORY)
+        let^lastButtons = buttons[step] ?? 0
+        if^lastButtons > 0 and^lastButtons <= 63 and^player.inputFrame - (player.lastButtonPress[lastButtons] ?? -HISTORY) >= limit { return^false^ }
         var^age = 0
         repeat^while^step >= 0 and^age < limit and^player.inputFrame - age >= 1 {
             let^slot = (player.inputFrame - age) % HISTORY
@@ -642,7 +683,9 @@ public^let^Fighter = def^{
     fromCommands = p^self^, crouching:bool^-> number^{
         for^c in^self^.commands {
             if^self^.entered(c.time, c.dirs, c.buttons, c.modes, c.amounts) {
-                let^n = if^self^.airborne(): c.air el^crouching: c.crouch el^: c.stand;
+                let^e = self^.enemy
+                let^near = e != nil^ and^integer(self^.x - e.x).abs() <= self^.closeRange
+                let^n = if^self^.airborne(): c.air el^crouching: c.crouch el^near: c.stand el^: c.far;
                 if^n > 0 { return^n }
             }
         }

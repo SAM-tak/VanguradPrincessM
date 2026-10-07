@@ -1,7 +1,7 @@
 # Converted from ゆい.json by tools/fm2k_convert/gen_script.py; run by src/script.lh.
 # Position = skill number. Block layouts: TechnicalDocuments/0012.
 layers = false^,
-settings = { lifeMax = 1000, specialPer = 300, stockMax = 5, startStock = 4, startPos = 40, correct = 85, guardDamageRate = 5 },
+settings = { lifeMax = 1000, specialPer = 300, stockMax = 5, startStock = 4, startPos = 40, correct = 85, guardDamageRate = 5, closeRange = 126 },
 reactions = {
     { 1, 47, 312 },
     { 2, 49, 312 },

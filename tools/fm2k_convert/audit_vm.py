@@ -136,7 +136,7 @@ def main():
     result['runtime_reviews'] = [
         'RC nonzero common-pose binding and EB nonzero colour fades (unused by current data)',
         'O shadow rendering flag (unused by current data)',
-        'Command near/far selection, repeat/charge modes, held buttons and facing changes',
+        'Command simultaneous-button edge rules, facing changes, rotation order and history consumption',
         'FA cancel priority and shared low-life damage correction',
         'SC/SF native return slots and E/SG/DS interaction',
         'M fixed-point rounding, Rnd and gauge boundaries, remaining render/sound settings',

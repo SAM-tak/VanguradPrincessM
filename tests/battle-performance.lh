@@ -1,0 +1,34 @@
+# CPU demo update/draw timing; informational, no machine-specific FPS assertion.
+module^vp.battleperformancetest
+import^love.event
+import^love.timer
+import^love.audio
+import^love.math
+require^"../main.lh"
+require^"../src/arena.lh"
+var^phase = 0
+var^samples = 0
+var^updates = 0
+var^draws = 0
+var^began = 0
+public^let^load = p^{ began := love.timer.getTime() love.math.setRandomSeed(42) vp.main.load() }
+public^let^update = p^dt:number^{
+ if^love.timer.getTime() - began > 120 { panic^"Battle performance timeout" }
+ let^at = love.timer.getTime()
+ vp.main.update(0.02)
+ if^phase = 2 { updates += love.timer.getTime() - at }
+ if^phase = 0 and^vp.arena.names() = "system / opening" {
+  vp.main.update(40) love.audio.stop() phase := 1
+ elseif^phase = 1 and^vp.main.status().attractLoaded:
+  phase := 2
+ elseif^phase = 2:
+  samples += 1
+  if^samples % 200 = 0 {
+   print($"CPU FRAME updates={updates} draws={draws} fps={love.timer.getFPS()}")
+   updates := 0 draws := 0
+   if^samples >= 600 { love.event.quit() }
+  }
+ }
+}
+public^let^draw = p^{ let^at = love.timer.getTime() vp.main.draw() if^phase = 2 { draws += love.timer.getTime() - at } }
+public^let^quit = p^-> bool^{ return^vp.main.quit() }

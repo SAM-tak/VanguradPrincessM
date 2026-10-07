@@ -377,6 +377,7 @@ def main():
         index.append("    me.lifeMax := %d" % st["lifeGaugeMax"])
         index.append("    me.life := %d" % st["lifeGaugeMax"])
         index.append("    me.guardDamageRate := %d" % st.get("hRatio", 0))
+        index.append("    me.closeRange := %d" % st.get("interval", 0))
         index.append("    me.specialPer := %d" % st["specialGaugeMax"])
         index.append("    me.stockMax := %d" % st["specialMaxStock"])
         index.append("    me.special := %d" % (st["specialGaugeMax"] * min(st["startStock"], st["specialMaxStock"])))
