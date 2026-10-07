@@ -189,13 +189,10 @@ let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, butt
     let^dx = if^forward: 1 el^back: -1 el^: 0;
     let^dy = if^up: 1 el^down: -1 el^: 0;
     p.record(5 + dx + 3 * dy, buttons)
+    if^p.stop > 0 { return^ }
 
     # The command table (buttons, motions, jumps), where the running skill allows it.
-    let^wanted = p.fromCommands(down)
-    if^wanted > 0 and^wanted != n and^p.mayStart(wanted) {
-        p.begin(wanted)
-        return^
-    }
+    if^p.takeCommand(down) { return^ }
 
     if^p.finished() {
         if^air {

@@ -86,6 +86,19 @@ let^transitions = p^{
     if^p.command(25, {2}, {2}) { panic^"COM accepted expired input" }
     print("PASS: DS same/different skill, ground/air, hitstop; SG preservation; COM time boundaries")
 }
+let^pauses = p^{
+    let^a = Fighter.new("assets/characters/ゆい", 600, 920)
+    let^d = Fighter.new("assets/characters/えり", 660, 920)
+    a.enemy := d d.enemy := a
+    a.pause(0, 10)
+    d.pause(0, 22)
+    if^a.stop != 22 or^d.stop != 10 { panic^"PS zero cancelled another script's stop" }
+    a.pause(3, 4)
+    if^a.stop != 25 or^d.stop != 14 { panic^"PS did not accumulate remaining stop" }
+    a.pause(0, 0)
+    if^a.stop != 25 or^d.stop != 14 { panic^"PS zero changed remaining stop" }
+    print("PASS: PS preserves and accumulates both players' remaining hitstop")
+}
 let^down = p^name:string^, reaction:number^{
     let^dir = $"assets/characters/{name}"
     let^sc = vp.script.load($"{dir}/script.lton")
@@ -111,11 +124,69 @@ let^down = p^name:string^, reaction:number^{
     }
     panic^"Reaction did not reach down"
 }
+let^frozenRecovery = p^{
+    let^sc = vp.script.load("assets/characters/えり/script.lton")
+    if^sc is^nil^ { panic^"Missing recovery data" }
+    let^p = Fighter.new("assets/characters/えり", 640, 500)
+    sc.install(p)
+    p.setv(128, 0)
+    p.setv(66, 11)
+    # Six-frame pose immediately before the real recovery-enabled branch.
+    p.start(159, 26)
+    p.advance()
+    let^wait = p.waitTimer
+    p.pause(12, 0)
+    for^i from^1 to^12 {
+        p.step()
+        if^p.waitTimer != wait or^p.skillNo != 159 or^p.v(128) != 0 {
+            panic^"Recovery countdown advanced during hitstop"
+        }
+    }
+    for^i from^1 to^7 { p.step() }
+    if^p.skillNo != 163 or^p.v(128) != 1 { panic^"Recovery did not resume after hitstop" }
+    p.setv(128, 0)
+    print("PASS: real recovery branch waits throughout hitstop, then resumes")
+}
+let^bufferedCommands = p^{
+    let^sc = vp.script.load("assets/characters/ゆい/script.lton")
+    if^sc is^nil^ { panic^"Missing command data" }
+    let^p = Fighter.new("assets/characters/ゆい", 640, 920)
+    sc.install(p)
+    p.begin(1)
+    p.record(2, 0) p.record(1, 0) p.record(4, 2)
+    p.stop := 5
+    for^i from^1 to^5 {
+        p.record(5, 0)
+        if^p.takeCommand(false^) { panic^"Buffered command interrupted hitstop" }
+        p.step()
+    }
+    if^!p.takeCommand(false^) or^p.skillNo != 276 { panic^"Hitstop lost buffered 214B" }
+    p.step()
+    if^p.takeCommand(false^) { panic^"Buffered command restarted an active move" }
+    # The 28-frame budget includes the motion, not just time since its button.
+    let^q = Fighter.new("assets/characters/ゆい", 640, 920)
+    sc.install(q)
+    q.record(2, 0) q.record(1, 0) q.record(4, 2)
+    for^i from^1 to^25 { q.record(5, 0) }
+    if^q.fromCommands(false^) != 276 { panic^"Motion expired before its history boundary" }
+    q.record(5, 0)
+    if^q.fromCommands(false^) = 276 { panic^"Expired motion was retained indefinitely" }
+    # Input history belongs to one fighter; COM readers retain their history.
+    let^other = Fighter.new("assets/characters/ゆい", 700, 920)
+    sc.install(other)
+    other.record(5, 0)
+    if^other.fromCommands(false^) != 0 { panic^"Buffered input leaked between players" }
+    if^!p.command(28, {0}, {2}) { panic^"Main command erased COM input history" }
+    print("PASS: buffered commands survive hitstop, expire with their motion, and keep COM history")
+}
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
     if^!done and^loadout.ready() {
         done := true^
         transitions()
+        pauses()
+        frozenRecovery()
+        bufferedCommands()
         commands("えり", 263, 51)
         commands("かえで", 262, 48)
         for^name in^{"ゆい", "えり", "かえで"} { down(name, 155) down(name, 157) down(name, 138) }

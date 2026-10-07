@@ -1,0 +1,82 @@
+# Real 6B -> 214B link, followed by 623B, with collision and camera motion.
+module^vp.yuilinktest
+import^love.event
+import^love.timer
+import^std.math
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/script.lh"
+require^"../src/fighter.lh"
+let^Fighter = vp.fighter.Fighter
+let^loadout = vp.preload.Load.new("link-test")
+var^done = false^
+var^began = 0
+let^names = {"ゆい", "はるか", "えり", "サキ", "リリス", "かえで", "カテジナ", "ルナ", "くるみ", "あやね"}
+public^let^load = p^{ began := love.timer.getTime() for^name in^names { loadout.add($"assets/characters/{name}", false^) } }
+let^probe = p^name:string^, place:number^{
+    vp.fighter.clearSystemVars()
+    let^dir = $"assets/characters/{name}"
+    let^sc = vp.script.load("assets/characters/ゆい/script.lton")
+    let^ds = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ or^ds is^nil^ { panic^"Missing combo data" }
+    let^side = if^place = -1: -1 el^: 1;
+    let^a = Fighter.new("assets/characters/ゆい", if^place = 0: 580 el^side > 0: 1170 el^: 110;, 920)
+    let^d = Fighter.new(dir, if^place = 0: 640 el^side > 0: 1230 el^: 50;, 920)
+    sc.install(a) ds.install(d)
+    a.enemy := d d.enemy := a
+    a.facing := side d.facing := -side
+    a.begin(240) d.begin(1)
+    var^cam = if^place = 0: 290 el^side > 0: 640 el^: 0;
+    var^aim = cam
+    var^hits = 0
+    var^firstHit = -1
+    var^secondStart = -1
+    var^thirdStart = -1
+    for^frame from^0 to^500 {
+        for^f in^{a, d} {
+            f.minX := std.math.max(50, cam + 50)
+            f.maxX := std.math.min(1230, cam + 590)
+            f.minXAir := f.minX f.maxXAir := f.maxX
+        }
+        # Finish 214B thirteen frames before recovery ends, then release it.
+        a.record(if^frame = 92: 2 el^frame = 93: 1 el^frame = 94: 4 el^: 5;, if^frame = 94: 2 el^: 0;)
+        if^secondStart < 0 and^a.takeCommand(false^) {
+            if^a.skillNo != 276 or^frame != 107 { panic^$"Buffered 214B started as {a.skillNo} at {frame}" }
+            secondStart := frame
+        }
+        if^hits >= 3 and^thirdStart < 0 and^(a.mayStart(267) or^a.finished()) { a.begin(267) thirdStart := frame }
+        a.step() d.step()
+        a.stepObjects() d.stepObjects()
+        if^a.finished() { a.begin(1) }
+        if^d.finished() { d.begin(1) }
+        for^slot, box in^a.hits {
+            if^box != nil^ and^a.canHit(box, d) {
+                for^hurtSlot, hurt in^d.hurts {
+                    if^hurt != nil^ and^(!hurt.body or^hurt.flags.find("damaged") != nil^) and^a.canHit(box, d) {
+                        let^al, at, aw, ah = a.rect(box)
+                        let^bl, bt, bw, bh = d.rect(hurt)
+                        if^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah {
+                            if^hits > 0 and^d.v(128) != 0 { panic^$"{name}: recoverable combo at hit {hits + 1}" }
+                            a.struck(box, d, hurt.rate, false^)
+                            hits += 1
+                            if^firstHit < 0 { firstHit := frame }
+                        }
+                    }
+                }
+            }
+        }
+        a.pushAgainst(d)
+        let^delta = (aim - cam) / 2
+        cam := (cam + if^delta < 0: delta.ceil() el^: delta.floor();).clamp(0, 640)
+        aim := (a.x + d.x) / 2 - 320
+    }
+    if^hits != 3 or^thirdStart < 0 { panic^$"{name} place={place}: expected three hits and no 623B follow-up, got {hits}; third={thirdStart}" }
+    print($"PASS: {name} place={place}: 6B -> 214B = {hits} true-combo hits, 623B misses")
+}
+public^let^update = p^dt:number^{
+ if^love.timer.getTime() - began > 120 { panic^"Combo test timeout" }
+ vp.resource.pump(0.006)
+ if^!done and^loadout.ready() { done := true^ for^name in^names { for^place in^{-1, 1} { probe(name, place) } } love.event.quit() }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

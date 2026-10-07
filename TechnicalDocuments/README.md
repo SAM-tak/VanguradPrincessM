@@ -96,3 +96,5 @@
 - [0076-variable-semantics.md](0076-variable-semantics.md) — P2実装：Vの符号付き16ビット代入・加算飽和・座標整数化・オブジェクト単位の変数寿命
 
 - [0077-afterimages-and-rp-depth.md](0077-afterimages-and-rp-depth.md) — AI残像履歴・色補間、RP優先度、RC/EBの原作でも無効な指定の確認
+- [0078-ps-additive-hitstop.md](0078-ps-additive-hitstop.md) — PSの加算式停止時間、0指定による停止解除の誤り、ゆい6B→214Bの画面端コンボ復旧
+- [0079-command-buffering.md](0079-command-buffering.md) — コマンド表の履歴窓による先行入力、硬直終了直後の受付、ヒットストップ中の受け身判定凍結と通常色コンボ検証
