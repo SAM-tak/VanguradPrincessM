@@ -92,3 +92,5 @@
 - [0074-fm2k-vm-coverage-audit.md](0074-fm2k-vm-coverage-audit.md) — VM命令・イベント・入力・衝突の横断監査、未対応箇所の自動抽出、COMとダウンFD持ち越しの診断
 
 - [0075-ds-transition-com-history.md](0075-ds-transition-com-history.md) — P0実装：DS専用初期化、技内COMの履歴窓と非消費照合、実データ回帰テスト
+
+- [0076-variable-semantics.md](0076-variable-semantics.md) — P2実装：Vの符号付き16ビット代入・加算飽和・座標整数化・オブジェクト単位の変数寿命

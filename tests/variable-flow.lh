@@ -1,0 +1,62 @@
+# V arithmetic, readback, ownership and lifetime through the real interpreter.
+module^vp.variabletest
+import^love.event
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+let^Fighter = vp.fighter.Fighter
+let^equal = p^got:number^, expected:number^{
+    if^got != expected { panic^$"V: got {got}, expected {expected}" }
+}
+public^let^load = p^{
+    let^a = Fighter.new("assets/characters/ゆい", 12.9, -12.9)
+    let^b = Fighter.new("assets/characters/えり", 0, 0)
+    for^slot in^{0, 15, 64, 79, 128, 143} {
+        a.setv(slot, 29999) a.addv(slot, 1) equal(a.v(slot), 30000)
+        a.addv(slot, 1) equal(a.v(slot), 30000)
+        a.setv(slot, -29999) a.addv(slot, -2) equal(a.v(slot), -30000)
+        a.addv(slot, 1) equal(a.v(slot), -29999)
+        a.setv(slot, 32767) equal(a.v(slot), 32767)
+        a.addv(slot, 0) equal(a.v(slot), 30000)
+        a.setv(slot, 32768) equal(a.v(slot), -32768)
+        a.addv(slot, 0) equal(a.v(slot), -30000)
+        a.setv(slot, -32769) equal(a.v(slot), 32767)
+        a.setv(slot, 65535) equal(a.v(slot), -1)
+        a.setv(slot, 0) a.addv(slot, 65535) equal(a.v(slot), -1)
+    }
+    equal(a.v(192), 12) equal(a.v(193), -12)
+    equal(a.x, 12.9) equal(a.y, -12.9)
+    vp.fighter.setView(-0.9, 0.9)
+    equal(a.v(194), 0) equal(a.v(195), 0)
+    let^child = a.makeObject(9001, 0, 2, 3, 80)
+    let^grandchild = child.makeObject(9001, 0, 0, 0, 80)
+    equal(child.v(196), 12) equal(child.v(197), -12)
+    equal(grandchild.v(196), 2) equal(grandchild.v(197), 3)
+    a.setv(0, 11) child.setv(0, 22) grandchild.setv(0, 33)
+    equal(a.v(0), 11) equal(child.v(0), 22) equal(grandchild.v(0), 33)
+    grandchild.setv(64, 123)
+    equal(a.v(64), 123) equal(child.v(64), 123) equal(b.v(64), 0)
+    child.setv(143, 321) equal(b.v(143), 321)
+    vp.fighter.clearSystemVars() equal(a.v(143), 0) equal(child.v(0), 22)
+    a.skills[9001] := p^f:Fighter, at:number^{ yield^ }
+    a.begin(9001) equal(a.v(0), 11)
+    a.jump(9001, 0) a.step() equal(a.v(0), 11)
+    a.on("landing", 9001, 0) a.fire("landing") a.step() equal(a.v(0), 11)
+    a.beginReaction(9001) equal(a.v(0), 11)
+    let^fresh = a.makeObject(9001, 0, 0, 0, 80)
+    equal(fresh.v(0), 0) equal(fresh.v(64), 123)
+    # Addition must clamp before the conditional branch in the same V block.
+    let^sc = vp.script.Script.new()
+    sc.byId[1] := { id = 1, space = "", name = "V test", level = 0, binding = nil^, media = "", blocks = {
+        {op = "V", n = {0, 2, 0, 2, 1, 30000, 2, 0}, s = "", dirs = {}, buttons = {}}
+    } }
+    sc.byId[2] := { id = 2, space = "", name = "V target", level = 0, binding = nil^, media = "", blocks = {
+        {op = "V", n = {1, 1, 1, 193, 0, 0, -1, 0}, s = "", dirs = {}, buttons = {}}
+    } }
+    sc.install(a)
+    a.setv(0, 29999) a.start(1, 0) a.step()
+    equal(a.skillNo, 2) equal(a.v(0), 30000) equal(a.v(1), -12)
+    vp.fighter.clearSystemVars()
+    print("PASS: V signed words, saturation, coordinate truncation, scope, animation lifetime and interpreter branch")
+    love.event.quit()
+}
+public^let^draw = p^{}

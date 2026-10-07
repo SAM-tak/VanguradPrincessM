@@ -208,7 +208,8 @@ public^let^Fighter = def^{
     },
 
     # Replaces the running skill, as the engine does when it picks one: attack
-    # boxes, event handlers and task variables go, and on the ground so does motion.
+    # boxes and event handlers go, and on the ground so does motion.
+    # Task variables belong to the object, not to an individual animation.
     play = p^self^, name:string^, co:Skill {
         self^.jumpSkill := -1
         self^.eventPending := false^
@@ -228,7 +229,6 @@ public^let^Fighter = def^{
         self^.onGuard := { 0, 0, 0 }
         self^.hitConfirmed := false^
         self^.cancelByHit := false^
-        for^n from^0 to^16 { self^.vars[n] := nil^}
         self^.waitTimer := 0
         if^!self^.airborne() {
             self^.vx := 0
@@ -657,7 +657,7 @@ public^let^Fighter = def^{
         self^.onBlock[event] := nil^
     },
     home = f^self^, n:number^-> t^{[number^]:number^|nil^} {
-        if^n <= 16 { return^self^.vars }
+        if^n < 64 { return^self^.vars }
         if^n >= 128 and^n < 192 { return^systemVars }
         return^(self^.owner ?? self^).vars
     },
@@ -667,12 +667,12 @@ public^let^Fighter = def^{
     v = f^self^, n:number^-> number^{
         for^n:
         when^128: self^.comboMarker ?? (self^.home(n)[n] ?? 0)
-        when^192: self^.x
-        when^193: self^.y
-        when^194: viewX
-        when^195: viewY
-        when^196: (self^.parent ?? self^).x
-        when^197: (self^.parent ?? self^).y
+        when^192: integer(self^.x)
+        when^193: integer(self^.y)
+        when^194: integer(viewX)
+        when^195: integer(viewY)
+        when^196: integer((self^.parent ?? self^).x)
+        when^197: integer((self^.parent ?? self^).y)
         when^198: (std.math.max(roundFrames - 1, 0) / 100).floor() # a frame behind the display
         when^199: roundNumber
         other^:self^.home(n)[n] ?? 0
@@ -680,11 +680,11 @@ public^let^Fighter = def^{
     },
     setv = p^self^, n:number^, value:number^{
         let^t = self^.home(n)
-        t[n] := value
+        t[n] := signedWord(value)
     },
     addv = p^self^, n:number^, value:number^{
         let^t = self^.home(n)
-        t[n] := (t[n] ?? 0) + value
+        t[n] := (signedWord(t[n] ?? 0) + signedWord(value)).clamp(-30000, 30000)
     },
     # Rnd: a roll of 0..total-1 above `above`.
     chance = p^self^, total:number^, above:number^-> bool^{
@@ -1135,10 +1135,10 @@ var^turnRounds = 0
 # Being hit
 
 # ---------------------------------------------------------------------------
-# Variables (V). 0-16 task (this skill), 64-79 character, 128-143 system,
+# Variables (V). 0-15 task (this object), 64-79 character, 128-143 system,
 # 192- read-only data.
 
-# Where a variable lives: task variables are the running skill's own (an
+# Where a variable lives: task variables are the running object's own (an
 # object's are its own), character variables are shared by a character and all
 # its objects, system variables by everyone.
 var^systemVars : t^{[number^]:number^|nil^} = {}
@@ -1200,3 +1200,12 @@ let^tintOf = f^byte:number^-> number^{
 
 # Construct through the completed definition (its sheet is initialized by new).
 let^newObjectFighter = p^dir:string^, x:number^, y:number^-> Fighter{ return^Fighter.new(dir, x, y) }
+
+# Original V: fixed-point coordinates truncate toward zero; storage and
+# operands are signed words. Only addition saturates (0x4138F0-0x41391D).
+let^integer = f^value:number^-> number^{ if^value < 0: value.ceil() el^: value.floor(); }
+let^signedWord = f^value:number^-> number^{
+    let^n = integer(value)
+    let^word = n - (n / 65536).floor() * 65536
+    return^if^word >= 32768: word - 65536 el^: word;
+}
