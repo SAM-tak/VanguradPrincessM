@@ -113,3 +113,5 @@
 - [0089-combo-damage-correction.md](0089-combo-damage-correction.md) — キャラ別コンボ補正、FD・低体力補正の順序、被弾側ヒットカウンタの寿命。
 
 - [0090-command-button-edges.md](0090-command-button-edges.md) — 通常コマンド・COMの保持履歴からの押下判定。
+
+- [0091-command-history-consumption.md](0091-command-history-consumption.md) — コマンド成立時の古い履歴消費と20フレーム境界。

@@ -93,7 +93,7 @@ public^let^Fighter = def^{
         inDirs : t^{[number^]:number^|nil^} = {},    # numpad directions, forward = 6
         inPress : t^{[number^]:number^|nil^} = {},   # buttons pressed that frame
         inHeld : t^{[number^]:number^|nil^} = {},
-        inputFrame = 0,
+        inputFrame = 0, consumedThrough = 0,
         lastButtonPress : t^{[number^]:number^|nil^} = {}, # newest matching press for each A-F mask
         closeRange = 0,             # settings.interval, inclusive pixel distance
         cancelWhen = "", cancelFrom = 0, cancelTo = 0, cancelSkill = -1,
@@ -633,13 +633,33 @@ public^let^Fighter = def^{
         self^.inputFrame += 1
         let^slot = self^.inputFrame % HISTORY
         self^.inDirs[slot] := dir
-        self^.inPress[slot] := pressed
         self^.inHeld[slot] := held
+        self^.recordPress(self^.inputFrame, pressed)
+    },
+    recordPress = p^self^, frame:number^, pressed:number^{
+        self^.inPress[frame % HISTORY] := pressed
         # Update only on an edge, not on every history scan. A multi-button
         # edge also satisfies its subsets; this table has at most 63 entries.
         for^mask from^1 to^std.math.min(pressed, 63) {
-            if^hasButtons(pressed, mask) { self^.lastButtonPress[mask] := self^.inputFrame }
+            if^hasButtons(pressed, mask) { self^.lastButtonPress[mask] := std.math.max(frame, self^.lastButtonPress[mask] ?? 0) }
         }
+    },
+    # 0x41073E: a matched table command with time > 29 clears all but the
+    # newest twenty samples, before posture/skill availability is checked.
+    consumeCommandHistory = p^self^{
+        let^cutoff = self^.inputFrame - 20
+        if^cutoff < 1 { return^ }
+        # Older cleared samples stay neutral; only clear newly expired slots.
+        let^first = std.math.max(std.math.max(self^.consumedThrough + 1, self^.inputFrame - HISTORY + 1), 1)
+        for^frame from^first to^cutoff {
+            let^slot = frame % HISTORY
+            self^.inDirs[slot] := 5
+            self^.inHeld[slot] := 0
+            self^.inPress[slot] := 0
+        }
+        self^.consumedThrough := std.math.max(self^.consumedThrough, cutoff)
+        # The oldest surviving sample now follows zero, even if it was held.
+        self^.recordPress(cutoff + 1, self^.inHeld[(cutoff + 1) % HISTORY] ?? 0)
     },
     # Scan the command's entire history window, including its final press.
     # Original 0x410719 -> 0x410863 also scans older frames on a final-step miss.
@@ -725,6 +745,7 @@ public^let^Fighter = def^{
     fromCommands = p^self^, crouching:bool^-> number^{
         for^c in^self^.commands {
             if^self^.entered(c.time, c.dirs, c.buttons, c.modes, c.amounts) {
+                if^c.time > 29 { self^.consumeCommandHistory() }
                 let^e = self^.enemy
                 let^near = e != nil^ and^integer(self^.x - e.x).abs() <= self^.closeRange
                 let^n = if^self^.airborne(): c.air el^crouching: c.crouch el^near: c.stand el^: c.far;

@@ -53,6 +53,36 @@ let^run = p^{
     if^edges.command(1, {0}, {3}) or^!edges.command(2, {0}, {3}) { panic^"Held/buffered simultaneous input" }
     let^object = actor() object.owner := edges
     if^!object.command(2, {0}, {3}) { panic^"Object did not read owner input" }
+    for^time in^{29, 30} {
+        let^history = actor()
+        history.addCommand("consume", time, 0, 0, 0, 0, {0}, {2}, {0}, {1})
+        for^i from^1 to^1050 { history.record(5, 0) }
+        history.record(6, 1)
+        for^i from^1 to^20 { history.record(5, 0) }
+        history.record(5, 2)
+        if^!history.command(30, {0}, {1}) { panic^"COM consumed history" }
+        history.fromCommands(false^)
+        if^history.command(30, {0}, {1}) != (time = 29) { panic^"History consumption threshold or unavailable skill" }
+        if^!history.command(1, {0}, {2}) { panic^"Latest press consumed" }
+        if^history.command(30, {2}, {0}) != (time = 29) { panic^"Consumed direction survived" }
+        if^time = 30 {
+            for^i from^1 to^1030 { history.record(5, 0) }
+            history.record(6, 1)
+            for^i from^1 to^20 { history.record(5, 0) }
+            history.record(5, 2) history.fromCommands(false^)
+            if^history.command(30, {0}, {1}) { panic^"Consumption after ring wrap" }
+        }
+    }
+    let^boundary = actor()
+    boundary.record(5, 1)
+    for^i from^1 to^20 { boundary.record(5, 1) }
+    if^boundary.command(20, {0}, {1}) { panic^"Held edge appeared before consumption" }
+    boundary.consumeCommandHistory()
+    if^!boundary.command(20, {0}, {1}) or^boundary.command(19, {0}, {1}) { panic^"Oldest surviving sample must follow neutral" }
+    boundary.consumeCommandHistory()
+    if^!boundary.command(20, {0}, {1}) { panic^"Repeated consumption changed boundary" }
+    boundary.record(5, 1) boundary.consumeCommandHistory()
+    if^!boundary.command(20, {0}, {1}) { panic^"Sliding consumed boundary" }
     let^f = actor() let^enemy = actor()
     let^sc = vp.script.load("assets/characters/ゆい/script.lton")
     if^sc is^nil^ { panic^"Missing Yui" }
@@ -103,7 +133,7 @@ let^run = p^{
     if^h.fromCommands(false^) = 262 { panic^"Haruka cpu command accepted one press" }
     h.recordHeld(5, 0) h.recordHeld(5, 7)
     if^h.fromCommands(false^) != 262 { panic^"Haruka real repeat command" }
-    print("PASS: 4032 native button transitions, buffered edges and owner COM; near/far inclusive/truncated distance, posture/missing target, repeat release/amount, charge duration, real Haruka command")
+    print("PASS: 4032 native button transitions, history consumption/boundary/wrap, buffered edges and owner COM; near/far inclusive/truncated distance, posture/missing target, repeat release/amount, charge duration, real Haruka command")
 }
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
