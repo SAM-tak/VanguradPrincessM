@@ -1,0 +1,44 @@
+module^vp.scriptcallstest
+import^love.event
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/scriptdata.lh"
+let^equal = p^got:number^, want:number^{ if^got != want { panic^$"Calls: {got}, expected {want}" } }
+public^let^load = p^{
+ let^data = vp.scriptdata.parse({
+  {id=9000,name="caller",level=0,blocks={{"SC",9001,0,1},{"V",0,2,0,100,0,0,-1,0},{"E"}}},
+  {id=9001,name="jump from call",level=0,blocks={{"SG",9002,0}}},
+  {id=9002,name="return",level=0,blocks={{"V",0,2,0,1,0,0,-1,0},{"E"}}},
+  {id=9003,name="nested outer",level=0,blocks={{"SC",9004,0,1},{"V",0,2,0,1000,0,0,-1,0},{"E"}}},
+  {id=9004,name="nested inner",level=0,blocks={{"SC",9002,0,1},{"V",0,2,0,10,0,0,-1,0},{"E"}}},
+  {id=9005,name="repeat",level=0,blocks={{"SF",9001,0,3},{"V",0,2,0,100,0,0,-1,0},{"E"}}},
+  {id=9006,name="repeat with call",level=0,blocks={{"SF",9004,0,2},{"V",0,2,0,100,0,0,-1,0},{"E"}}},
+  {id=9007,name="interrupted",level=0,blocks={{"SC",9008,0,1},{"V",0,2,0,100,0,0,-1,0},{"E"}}},
+  {id=9008,name="wait",level=0,blocks={{"I",8191,30,0,0,""},{"E"}}},
+  {id=9010,name="implicit end caller",level=0,blocks={{"SC",9011,0,1},{"V",0,2,0,100,0,0,-1,0},{"E"}}},
+  {id=9011,name="implicit end",level=0,blocks={{"V",0,2,0,1,0,0,-1,0}}},
+  {id=9009,name="zero",level=0,blocks={{"SF",9002,0,0},{"SC",0,0,1},{"V",0,2,0,10,0,0,-1,0},{"E"}}},
+ })
+ let^sc = vp.script.Script.new()
+ for^sk in^data.skills { sc.byId[sk.id] := sk }
+ let^f = vp.fighter.Fighter.new("",0,0) sc.install(f)
+ for^pair in^{{9000,101},{9003,11},{9005,103},{9006,122},{9009,10},{9010,101}} {
+  f.setv(0,0) f.begin(pair[0])
+  for^i from^1 to^4 { f.stepScript() }
+  equal(f.v(0),pair[1])
+  if^!f.finished() { panic^"Call did not finish" }
+ }
+ f.setv(0,0) f.begin(9007) f.stepScript()
+ f.on("wallHitting",9002,0) f.fire("wallHitting") f.stepScript()
+ equal(f.v(0),1) equal(f.callReturn,-1)
+ f.setv(0,0) f.begin(9007) f.stepScript() f.beginReaction(9002) f.stepScript()
+ equal(f.v(0),1) equal(f.callReturn,-1)
+ f.setv(0,0) f.begin(9007) f.stepScript()
+ f.on("landing",9002,0) f.land() f.stepScript()
+ equal(f.v(0),101)
+ let^o = vp.fighter.Fighter.new("",0,0) o.owner := f sc.install(o)
+ o.begin(9000) o.stepScript() equal(o.v(0),1)
+ print("PASS: SC through SG, overwrite instead of nesting, SF repeat and SC priority, disabled calls, DS/reaction reset, landing preservation, object E")
+ love.event.quit()
+}
+public^let^draw = p^{}

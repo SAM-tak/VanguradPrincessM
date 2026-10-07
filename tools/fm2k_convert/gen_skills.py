@@ -81,7 +81,8 @@ class SkillWriter:
         self.blocks = skill["blocks"]
         local = {b for blk in self.blocks for (s, b) in jump_refs(blk) if s == number and blk["type"] in
                  ("SG", "Rnd", "COM", "GL", "GS", "V")}
-        self.labels = sorted(({0} | local | entries.get(number, set())) & set(range(len(self.blocks))) | {0})
+        returns = {i + 1 for i, blk in enumerate(self.blocks) if blk["type"] in ("SC", "SF")}
+        self.labels = sorted(({0} | local | returns | entries.get(number, set())) & set(range(len(self.blocks))) | {0})
         self.dispatch = self.labels != [0]
         if self.dispatch:
             # lhat leaks registers on next^ inside if^ (about 60 per loop), so the
@@ -98,7 +99,7 @@ class SkillWriter:
     def goto(self, ref):
         n, b = ref
         if n == self.n and b >= len(self.blocks):
-            return ["return^"]          # past the last block: the skill ends
+            return ["me.returnFromScript()", "return^"]  # implicit end can return to SC/SF
         if n == self.n:
             if self.dispatch:
                 return ["pc := %d" % b]
@@ -154,7 +155,7 @@ class SkillWriter:
         if t == "E":
             # A stage layer that ends with E is gone; one that runs past its
             # last block keeps showing its last image.
-            return (["me.vanish()"] if SkillWriter.stage else []) + ["return^"], True
+            return ["if^me.returnFromScript() { return^ }"] + (["me.vanish()"] if SkillWriter.stage else []) + ["return^"], True
         if t == "SG":
             ref = target(b["skill"])
             return (self.goto(ref), True) if ref else (["# SG to nothing"], False)
@@ -162,10 +163,11 @@ class SkillWriter:
             ref = target(b["skill"])
             if not ref:
                 return ["# %s to nothing" % t], False
-            line = "await^me.call(%d, %d)" % ref
-            if t == "SC":
-                return [line], False
-            return ["for^k from^1 to^%d {" % b["loop"], "    " + line, "}"], False
+            repeats = b["loop"] if t == "SF" else 1
+            if repeats <= 0:
+                return ["# SF with zero repeats"], False
+            return ["me.scriptCall(%d, %d, %d, %d, %d, %s)" %
+                    (self.n, i + 1, ref[0], ref[1], repeats, "true^" if t == "SF" else "false^"), "return^"], True
         if t == "V":
             lines = []
             operand = "me.v(%d)" % b["useEvenVar"] if b["useEven"] else "%d" % b["value"]
@@ -285,11 +287,13 @@ class SkillWriter:
             suspends = any("await^" in x or "yield^" in x for x in lines)
             if self.loops:
                 body.append("repeat^while^me.alive {")
-                inner = ([] if suspends else guard) + lines + ([] if ends else ["return^"])
+                inner = ([] if suspends else guard) + lines + ([] if ends else ["me.returnFromScript()", "return^"])
                 body += ["    " + s for s in inner]
                 body.append("}")
             else:
                 body += lines
+                if not ends:
+                    body += ["me.returnFromScript()", "return^"]
                 if not suspends:
                     body.insert(0, "_yield^")
         else:
@@ -303,6 +307,7 @@ class SkillWriter:
                     if k + 1 < len(segs):
                         body.append("        pc := %d" % segs[k + 1][0])
                     else:
+                        body.append("        me.returnFromScript()")
                         body.append("        return^")
                 body.append("    }")
             body.append("    if^pc < 0 { return^ }")

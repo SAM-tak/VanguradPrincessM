@@ -88,6 +88,9 @@ public^let^Fighter = def^{
         skillNo = -1,               # FM2K number of the running skill (-1: not a generated one)
         skill : Skill|nil^= nil^,
         jumpSkill = -1, jumpBlock = 0, eventPending = false^,
+        callReturn = -1, callReturnBlock = 0,
+        repeatReturn = -1, repeatReturnBlock = 0,
+        repeatTarget = -1, repeatBlock = 0, repeatLeft = 0,
         levels : t^{[number^]:number^|nil^} = {},
         commands : t^{Command[]} = {},
         inDirs : t^{[number^]:number^|nil^} = {},    # numpad directions, forward = 6
@@ -294,6 +297,7 @@ public^let^Fighter = def^{
     play = p^self^, name:string^, co:Skill {
         self^.jumpSkill := -1
         self^.eventPending := false^
+        self^.clearCalls()
         self^.skillName := name
         self^.skillNo := -1
         self^.skill := co
@@ -403,6 +407,7 @@ public^let^Fighter = def^{
             self^.jumpSkill := -1
             if^self^.eventPending {
                 self^.eventPending := false^
+                self^.clearCalls()
                 self^.hurts := {}
                 self^.hits := {}
                 self^.attackConnected := false^
@@ -556,7 +561,36 @@ public^let^Fighter = def^{
         self^.jumpSkill := n
         self^.jumpBlock := b
     },
-    # SC / SF: another skill as a subroutine. `await^ call(me, n, b)`.
+    # Native SC has one return slot; SF has a separate repeat slot, not a stack.
+    clearCalls = p^self^{ self^.callReturn := -1 self^.repeatLeft := 0 },
+    scriptCall = p^self^, source:number^, next:number^, target:number^, at:number^, repeats:number^, repeated:bool^{
+        if^repeated {
+            self^.repeatReturn := source self^.repeatReturnBlock := next
+            self^.repeatTarget := target self^.repeatBlock := at
+            self^.repeatLeft := repeats
+        else^:
+            self^.callReturn := source self^.callReturnBlock := next
+        }
+        self^.jump(target, at)
+    },
+    returnFromScript = p^self^-> bool^{
+        # E only consults these slots on a main actor (native kind 0).
+        if^self^.owner != nil^ or^self^.system { return^false^ }
+        if^self^.callReturn >= 0 {
+            let^target = self^.callReturn
+            self^.callReturn := -1
+            self^.jump(target, self^.callReturnBlock)
+            return^true^
+        }
+        if^self^.repeatLeft > 0 {
+            self^.repeatLeft -= 1
+            if^self^.repeatLeft > 0 { self^.jump(self^.repeatTarget, self^.repeatBlock)
+            else^: self^.jump(self^.repeatReturn, self^.repeatReturnBlock) }
+            return^true^
+        }
+        return^false^
+    },
+    # L^ helper for hand-written skills. Native SC/SF use scriptCall instead.
     call = p^self^, n:number^, b:number^-> c^{p^-> nil^} {
         let^proc = self^.skills[n]
         if^proc != nil^ { return^proc(self^, b) }

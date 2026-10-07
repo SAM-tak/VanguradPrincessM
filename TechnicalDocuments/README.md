@@ -119,3 +119,5 @@
 - [0092-command-rotation-order.md](0092-command-rotation-order.md) — 回転入力の順序と斜め入力の扱い。
 
 - [0093-input-facing-audit.md](0093-input-facing-audit.md) — VPは記録時に相対方向化。向き変更の実装変更不要を確認。
+
+- [0094-script-return-slots.md](0094-script-return-slots.md) — SC/SFの固定復帰先とE・SG・DSの相互作用。

@@ -45,7 +45,7 @@ public^let^Script = def^{
             if^s = n {
                 if^b >= count {
                     # past the end: a stage's or demo's layer starts over, anything else ends
-                    if^!self^.loops { return^false^ }
+                    if^!self^.loops { me.returnFromScript() return^false^ }
                     pc := count            # the loop below starts it over
                     return^true^
                 }
@@ -61,7 +61,7 @@ public^let^Script = def^{
                 # A stage's or demo's layer that runs off its end starts over;
                 # only E ends it (the title screen's flash, #4 of モードセレクト,
                 # repeats so). A character's or the system's skill ends.
-                if^!self^.loops { return^}
+                if^!self^.loops { me.returnFromScript() return^}
                 # A layer that showed nothing on its way round (only a Settings
                 # block, such as プレーヤー位置) waits a frame before it goes
                 # round again, instead of going round 300 times a frame.
@@ -127,11 +127,13 @@ public^let^Script = def^{
             elseif^op = "SG":
                 if^a0 >= 0 and^!go(a0, a1) { return^}
             elseif^op = "E":
+                if^me.returnFromScript() { return^ }
                 if^self^.layers { me.vanish() }
                 return^
             elseif^op = "SC" or^op = "SF":
-                if^a0 >= 0 {
-                    for^k from^1 to^a2 { await^me.call(a0, a1) }
+                if^a0 > 0 and^(op = "SC" or^a2 > 0) {
+                    me.scriptCall(n, pc, a0, a1, a2, op = "SF")
+                    return^
                 }
             elseif^op = "Rnd":
                 if^a2 >= 0 and^me.chance(a0, a1) and^!go(a2, a3) { return^}
