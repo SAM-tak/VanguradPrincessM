@@ -1,0 +1,118 @@
+# O management/branching and FA guard chip, through the interpreter too.
+module^vp.objectvmtest
+import^love.event
+import^love.timer
+import^std.math
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/scriptdata.lh"
+let^Fighter = vp.fighter.Fighter
+let^loadout = vp.preload.Load.new("object-vm-test")
+var^done = false^
+public^let^load = p^{ loadout.add("assets/characters/ゆい", false^) }
+let^actor = p^-> Fighter {
+    let^f = Fighter.new("assets/characters/ゆい", 500, 920)
+    f.ground := 920
+    f.skills[9001] := p^me:Fighter, at:number^{ me.image := at yield^ }
+    return^f
+}
+let^run = p^{
+    let^db = actor()
+    for^air in^{false^, true^} { for^dir from^1 to^9 {
+        db.y := if^air: 900 el^: 920;
+        db.record(dir, 0)
+        let^expected = { false^, !air, !air and^dir > 3, !air and^dir <= 3,
+            (dir = 3 or^dir = 6 or^dir = 9), (dir = 1 or^dir = 4 or^dir = 7),
+            dir >= 7, dir <= 3, (dir = 5) }
+        for^condition from^0 to^8 {
+            let^met = expected[condition]
+            if^db.basicCondition(condition, false^, false^) != met or^db.basicCondition(condition, true^, false^) = met { panic^"DB condition/inversion" }
+            if^db.basicCondition(condition, false^, true^) or^!db.basicCondition(condition, true^, true^) { panic^"DB disabled condition" }
+        }
+    } }
+    let^dbData = vp.scriptdata.parse({
+        { id = 9000, name = "DB", level = 0, blocks = {
+            { "DB", 5, 0, 0, 9000, 3 }, { "I", 11, 1, 0, 0, "" }, { "E" },
+            { "I", 22, 1, 0, 0, "" }, { "E" },
+        } },
+    })
+    let^dbScript = vp.script.Script.new()
+    for^sk in^dbData.skills { dbScript.byId[sk.id] := sk }
+    dbScript.install(db)
+    for^dir in^{4, 6} {
+        db.record(dir, 0) db.begin(9000) db.stepScript()
+        if^db.image != (if^dir = 4: 22 el^: 11;) { panic^"DB interpreter branch" }
+    }
+    let^f = actor()
+    f.spawn(9001, 0, 0, 0, 3, 0, 0, 0, "")
+    let^old = f.slots[3]
+    if^old is^nil^ { panic^"O did not create managed object" }
+    if^!f.spawn(9001, 0, 0, 0, 3, 0, 9002, 4, "") or^!old.alive or^f.slots[3] != old { panic^"Occupied O must branch without replacing" }
+    f.spawn(0, 0, 0, 0, 3, 0, 0, 0, "unCond")
+    if^!old.alive { panic^"Unconditional O touched managed slot" }
+    f.spawn(0, 0, 0, 0, 3, 0, 0, 0, "")
+    if^old.alive or^f.slots[3] != nil^ { panic^"O zero must delete" }
+    if^f.spawn(9001, 0, 0, 0, 3, 0, 9002, 4, "") { panic^"Empty O branched" }
+    f.stepObjectScripts() f.stepObjectScripts()
+    if^f.slots[3] != nil^ { panic^"Finished object retained occupied slot" }
+    let^child = f.makeObject(9001, 0, 500, 920, 80)
+    child.spawn(9001, 0, 0, 0, 3, 0, 0, 0, "")
+    if^f.slots[3] is^nil^ { panic^"Child O must share character slots" }
+    child.spawn(0, 0, 0, 0, 3, 0, 0, 0, "")
+    if^f.slots[3] != nil^ { panic^"Child deletion failed" }
+    for^depth in^{0, 80, 127} {
+        f.depth := depth
+        f.spawn(9001, 0, 0, 0, 0, 22, 0, 0, "out")
+        let^o = f.slots[0]
+        if^o is^nil^ or^o.depth != std.math.min(depth + 1, 127) { panic^"O out depth" }
+        f.spawn(9001, 0, 0, 0, 0, 22, 0, 0, "")
+        let^i = f.slots[0]
+        if^i is^nil^ or^i.depth != std.math.max(depth - 1, 10) { panic^"O in depth" }
+    }
+    let^data = vp.scriptdata.parse({
+        { id = 9000, name = "caller", level = 0, blocks = {
+            { "O", 9001, 0, 0, 0, 3, 0, 9000, 3, "" },
+            { "I", 11, 1, 0, 0, "" }, { "E" },
+            { "I", 22, 1, 0, 0, "" }, { "E" },
+        } },
+        { id = 9001, name = "object", level = 0, blocks = { { "I", 33, 100, 0, 0, "" } } },
+    })
+    let^sc = vp.script.Script.new()
+    sc.skills := data.skills
+    for^sk in^data.skills { sc.byId[sk.id] := sk }
+    let^p = actor() sc.install(p)
+    p.begin(9000) p.stepScript()
+    if^p.image != 11 { panic^"Empty slot must continue caller" }
+    p.begin(9000) p.stepScript()
+    if^p.image != 22 { panic^"Occupied O same-skill branch lost" }
+    let^images = sc.imagesFrom(9000)
+    if^images.length^ != 3 { panic^"O branch media traversal" }
+    let^real = vp.script.load("assets/characters/ゆい/script.lton")
+    if^real is^nil^ { panic^"Missing Yui" }
+    real.install(f)
+    if^f.guardDamageRate != 5 { panic^"hRatio not loaded" }
+    for^power in^{0, 1, 101} { for^rate in^{25, 100} { for^chip in^{false^, true^} {
+        let^a = actor() let^d = actor()
+        a.guardDamageRate := 5
+        a.reactions(1, 1, 1, 2, 2, 2)
+        d.reactHit[2] := 9001 d.guarding := true^
+        a.fa(0, 0, 0, 10, 10, power, if^chip: "halfed" el^: "";)
+        let^b = a.hits[0]
+        if^b is^nil^ { panic^"Missing FA" }
+        let^guarded, spark = a.struck(b, d, rate, false^, "damaged")
+        let^damage = if^chip and^power > 0: std.math.max((power * 5 / 100).floor(), 1) el^: 0;
+        if^!guarded or^d.life != 1000 - damage { panic^"Guard chip ratio/rounding/FD rate" }
+        d.life := 1
+        a.struck(b, d, rate, false^, "damaged")
+        if^damage > 0 and^d.life != 0 { panic^"Chip KO" }
+    } } }
+    print("PASS: DB conditions/inversion/interpreter; O delete/replace/occupied branch/child slots/cleanup/depth; media traversal; guard chip")
+}
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^!done and^loadout.ready() { done := true^ run() love.event.quit() }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

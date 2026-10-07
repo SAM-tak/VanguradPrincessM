@@ -43,7 +43,7 @@ let^attack = p^dir:string^, name:string^, expected:number^, damage:number^{
         p.step()
         let^box = p.hits[0]
         if^box != nil^ and^p.canHit(box, def) {
-            p.struck(box, def, 100, false^)
+            p.struck(box, def, 100, false^, "") p.finishHitEvents()
             hits += 1
         }
     }
@@ -56,7 +56,7 @@ let^attack = p^dir:string^, name:string^, expected:number^, damage:number^{
         p.step()
         let^box = p.hits[0]
         if^box != nil^ and^p.canHit(box, def) {
-            p.struck(box, def, 100, false^)
+            p.struck(box, def, 100, false^, "") p.finishHitEvents()
             hits += 1
             break^
         }
@@ -78,7 +78,7 @@ let^guard = p^{
         p.fa(0, 0, 0, 10, 10, 100, "combo")
         let^box = p.hits[0]
         if^box is^nil^ or^!p.canHit(box, def) { panic^"Explicit next hit was suppressed" }
-        let^blocked, spark = p.struck(box, def, 100, false^)
+        let^blocked, spark = p.struck(box, def, 100, false^, "") p.finishHitEvents()
         if^!blocked or^def.life != 1000 { panic^"Held guard failed during blockstun" }
         if^p.canHit(box, def) { panic^"Persistent multi-hit box connected twice" }
         def.updateGuard(true^, false^, false^)
@@ -97,13 +97,13 @@ let^guard = p^{
     p.fa(0, 0, 0, 10, 10, 100, "combo")
     let^low = p.hits[0]
     if^low is^nil^ { panic^"Missing low" }
-    let^lowGuarded, spark = p.struck(low, def, 100, false^)
+    let^lowGuarded, spark = p.struck(low, def, 100, false^, "") p.finishHitEvents()
     if^!lowGuarded { panic^"Crouch guard posture was lost in blockstun" }
     def.updateGuard(true^, false^, false^)
     p.fa(0, 0, 0, 10, 10, 100, "combo")
     let^next = p.hits[0]
     if^next is^nil^ { panic^"Missing low" }
-    let^standing, spark2 = p.struck(next, def, 100, false^)
+    let^standing, spark2 = p.struck(next, def, 100, false^, "") p.finishHitEvents()
     if^standing or^def.blocking or^def.life != 900 { panic^"Low did not break standing guard" }
     def.updateGuard(true^, false^, false^)
     if^def.guarding { panic^"Hitstun incorrectly allows guard" }
@@ -118,7 +118,7 @@ let^guard = p^{
     let^a = p.hits[0]
     let^b = p.hits[1]
     if^a is^nil^ or^b is^nil^ { panic^"Missing grouped boxes" }
-    p.struck(a, def, 100, false^)
+    p.struck(a, def, 100, false^, "") p.finishHitEvents()
     if^p.canHit(b, def) { panic^"Overlapping group hit twice" }
     p.hit(0, 0, 0, 20, 10, 10)
     let^updated = p.hits[0]
@@ -134,7 +134,7 @@ let^guard = p^{
     if^newGroup is^nil^ or^!p.canHit(newGroup, def) { panic^"Empty FA group did not release its hit allowance" }
     if^!p.hitConfirmed { panic^"Ending FA group erased C hit-confirm" }
     p.on("attacking", 9001, 0)
-    p.struck(newGroup, def, 100, false^)
+    p.struck(newGroup, def, 100, false^, "") p.finishHitEvents()
     if^p.jumpSkill != 9001 { panic^"Late DS handler did not fire" }
     p.jumpSkill := -1
     p.landed(newGroup)
@@ -165,7 +165,7 @@ let^melt = p^{
         if^box != nil^ {
             if^beam.canHit(box, def) {
                 let^before = def.life
-                beam.struck(box, def, 100, false^)
+                beam.struck(box, def, 100, false^, "") beam.finishHitEvents()
                 damage += before - def.life
                 hits += 1
             elseif^!box.connected and^box.flags.find("duringReceipt") != nil^ and^def.receiving:
@@ -181,6 +181,9 @@ let^melt = p^{
     late.advance()
     let^box = late.hits[0]
     if^box is^nil^ { panic^"Missing late beam box" }
+    # Landing now clears the main actor's hit-reaction bit as in FM2K.
+    # Establish an active reaction instead of assuming it survives 90 frames.
+    def.beginReaction(138) def.receiving := true^
     if^late.canHit(box, def) { panic^"Late beam hit a stunned target" }
     def.start(138, 0)
     if^!def.receiving { panic^"Script jump discarded hitstun" }
@@ -188,7 +191,7 @@ let^melt = p^{
     if^def.receiving or^!late.canHit(box, def) { panic^"Late beam cannot hit a recovered target" }
     late.reactions(47, 47, 47, 96, 97, 98)
     let^before = def.life
-    late.struck(box, def, 100, false^)
+    late.struck(box, def, 100, false^, "") late.finishHitEvents()
     if^before - def.life != 131 { panic^"Late beam lost its own damage" }
     # State filters are independent of the attack's consumed-hit history.
     let^probe = vp.fighter.Box.new(0, 0, 10, 10)
@@ -234,7 +237,7 @@ let^yuiSuper = p^{
         if^def.finished() { def.begin(1) }
         let^box = p.hits[0]
         if^box != nil^ and^p.canHit(box, def) {
-            p.struck(box, def, 100, false^)
+            p.struck(box, def, 100, false^, "") p.finishHitEvents()
             hits += 1
             print($"super contact {hits}: skill={p.skillNo} power={box.power}")
             if^p.skillNo = 236 and^box.power = 255 { finisher := true^ }
@@ -327,13 +330,13 @@ let^sweepSuper = p^{
         for^slot, box in^p.hits {
             if^box != nil^ and^!contact and^p.canHit(box, def) {
                 for^hurtSlot, hurt in^def.hurts {
-                    if^hurt != nil^ and^!contact and^(!hurt.body or^hurt.flags.find("damaged") != nil^) {
+                    if^hurt != nil^ and^!contact and^hurt.vulnerable {
                         let^al, at, aw, ah = p.rect(box)
                         let^bl, bt, bw, bh = def.rect(hurt)
                         if^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah {
                             contact := true^
                             let^skill = p.skillNo
-                            p.struck(box, def, hurt.rate, false^)
+                            p.struck(box, def, hurt.rate, false^, hurt.flags) p.finishHitEvents()
                             hits += 1
                             print($"sweep-super {hits}: skill={skill} power={box.power} x={p.x:%.0f}/{def.x:%.0f} y={def.y:%.0f}")
                             if^skill = 236 and^box.power = 255 { finisher := true^ }
@@ -562,13 +565,13 @@ let^yuiForwardB = p^{
             for^slot, box in^a.hits {
                 if^box != nil^ and^a.canHit(box, d) {
                     for^hurtSlot, hurt in^d.hurts {
-                        if^hurt != nil^ and^(!hurt.body or^hurt.flags.find("damaged") != nil^) and^a.canHit(box, d) {
+                        if^hurt != nil^ and^hurt.vulnerable and^a.canHit(box, d) {
                             let^al, at, aw, ah = a.rect(box)
                             let^bl, bt, bw, bh = d.rect(hurt)
                             if^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah {
-                                a.struck(box, d, hurt.rate, false^)
+                                a.struck(box, d, hurt.rate, false^, hurt.flags) a.finishHitEvents()
                                 hits += 1
-                                if^d.skillNo != 155 { panic^"6B selected the wrong reaction" }
+                                if^d.jumpSkill != 155 or^!d.eventPending { panic^"6B queued the wrong reaction" }
                             }
                         }
                     }

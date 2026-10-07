@@ -26,6 +26,7 @@ let^probe = p^name:string^, place:number^{
     a.enemy := d d.enemy := a
     a.facing := side d.facing := -side
     a.begin(240) d.begin(1)
+    a.castShadow(28) d.castShadow(28)
     var^cam = if^place = 0: 290 el^side > 0: 640 el^: 0;
     var^aim = cam
     var^hits = 0
@@ -45,19 +46,21 @@ let^probe = p^name:string^, place:number^{
             secondStart := frame
         }
         if^hits >= 3 and^thirdStart < 0 and^(a.mayStart(267) or^a.finished()) { a.begin(267) thirdStart := frame }
-        a.step() d.step()
-        a.stepObjects() d.stepObjects()
+        a.stepScript() d.stepScript()
+        a.stepObjectScripts() d.stepObjectScripts()
+        a.resetHitEvents() d.resetHitEvents()
+        a.offsetTeamAgainst(d)
         if^a.finished() { a.begin(1) }
         if^d.finished() { d.begin(1) }
         for^slot, box in^a.hits {
             if^box != nil^ and^a.canHit(box, d) {
                 for^hurtSlot, hurt in^d.hurts {
-                    if^hurt != nil^ and^(!hurt.body or^hurt.flags.find("damaged") != nil^) and^a.canHit(box, d) {
+                    if^hurt != nil^ and^hurt.vulnerable and^a.canHit(box, d) {
                         let^al, at, aw, ah = a.rect(box)
                         let^bl, bt, bw, bh = d.rect(hurt)
                         if^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah {
                             if^hits > 0 and^d.v(128) != 0 { panic^$"{name}: recoverable combo at hit {hits + 1}" }
-                            a.struck(box, d, hurt.rate, false^)
+                            a.struck(box, d, hurt.rate, false^, hurt.flags)
                             hits += 1
                             if^firstHit < 0 { firstHit := frame }
                         }
@@ -65,7 +68,10 @@ let^probe = p^name:string^, place:number^{
                 }
             }
         }
+        a.moveStep() d.moveStep()
+        a.moveObjects() d.moveObjects()
         a.pushAgainst(d)
+        a.finishHitEvents() d.finishHitEvents()
         let^delta = (aim - cam) / 2
         cam := (cam + if^delta < 0: delta.ceil() el^: delta.floor();).clamp(0, 640)
         aim := (a.x + d.x) / 2 - 320

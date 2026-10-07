@@ -39,12 +39,12 @@ let^run = p^name:string^, target:string^, pose:number^{
         for^slot, box in^p.hits {
             if^box != nil^ and^!hit and^p.canHit(box, d) {
                 for^hs, hurt in^d.hurts {
-                    if^hurt != nil^ and^!hit and^(!hurt.body or^hurt.flags.find("damaged") != nil^) {
+                    if^hurt != nil^ and^!hit and^hurt.vulnerable {
                         let^ax, ay, aw, ah = p.rect(box)
                         let^bx, by, bw, bh = d.rect(hurt)
                         if^ax < bx + bw and^bx < ax + aw and^ay < by + bh and^by < ay + ah {
                             if^d.skillNo = 164 { panic^$"Sweep hit downed target: {name} -> {target}, pose={pose}, frame={frame}, FD={hs}" }
-                            p.struck(box, d, hurt.rate, false^) hit := true^ count += 1
+                            p.struck(box, d, hurt.rate, false^, hurt.flags) p.finishHitEvents() hit := true^ count += 1
                         }
                     }
                 }

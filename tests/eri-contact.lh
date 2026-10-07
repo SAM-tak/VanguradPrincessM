@@ -1,0 +1,112 @@
+# Eri 214A uses FA/FA contact with the opponent's shadow, not a push-box test.
+module^vp.ericontacttest
+import^love.event
+import^love.timer
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/script.lh"
+require^"../src/fighter.lh"
+let^Fighter = vp.fighter.Fighter
+let^loadout = vp.preload.Load.new("eri-contact-test")
+var^done = false^
+var^began = 0
+public^let^load = p^{
+    began := love.timer.getTime()
+    for^name in^{"えり", "ゆい"} { loadout.add($"assets/characters/{name}", false^) }
+}
+let^probe = p^side:number^, player:number^, shadow:bool^{
+    vp.fighter.clearSystemVars()
+    let^sc = vp.script.load("assets/characters/えり/script.lton")
+    let^ds = vp.script.load("assets/characters/ゆい/script.lton")
+    if^sc is^nil^ or^ds is^nil^ { panic^"Missing contact data" }
+    let^a = Fighter.new("assets/characters/えり", 640 - side * 100, 920)
+    let^d = Fighter.new("assets/characters/ゆい", 640, 920)
+    sc.install(a) ds.install(d)
+    a.enemy := d d.enemy := a
+    a.facing := side d.facing := -side
+    a.begin(1) d.begin(1)
+    a.castShadow(28)
+    if^shadow { d.castShadow(28) }
+    for^frame from^0 to^30 { a.step() d.step() a.stepObjects() d.stepObjects() }
+    a.begin(278)
+    var^contact = false^
+    var^crossed = false^
+    var^sobat = false^
+    var^restored = false^
+    var^hits = 0
+    for^frame from^0 to^180 {
+        a.stepScript() d.stepScript() a.stepObjectScripts() d.stepObjectScripts()
+        a.resetHitEvents() d.resetHitEvents()
+        if^player = 1 { a.offsetTeamAgainst(d) else^: d.offsetTeamAgainst(a) }
+        if^a.eventPending and^a.jumpSkill = 278 and^a.jumpBlock = 52 { contact := true^ }
+        if^(a.x - d.x) * side > 0 { crossed := true^ }
+        for^slot, b in^a.hits {
+            if^b != nil^ and^b.power = 75 and^!sobat {
+                sobat := true^
+                let^left, top, width, height = a.rect(b)
+                if^!(left < d.x + 40 and^left + width > d.x - 40) { panic^"Sobat faces away from opponent" }
+                for^hs, h in^a.hurts { if^h != nil^ and^h.body and^h.w > 0 { restored := true^ } }
+                if^d.life != d.lifeMax { panic^"Contact detector damaged opponent" }
+            }
+            if^b != nil^ and^a.canHit(b, d) {
+                for^hs, h in^d.hurts {
+                    if^h != nil^ and^h.vulnerable and^a.canHit(b, d) {
+                        let^al, at, aw, ah = a.rect(b)
+                        let^bl, bt, bw, bh = d.rect(h)
+                        if^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah {
+                            a.struck(b, d, h.rate, false^, h.flags)
+                            hits += 1
+                        }
+                    }
+                }
+            }
+        }
+        a.moveStep() d.moveStep() a.moveObjects() d.moveObjects()
+        a.pushAgainst(d)
+        a.finishHitEvents() d.finishHitEvents()
+    }
+    if^shadow {
+        if^!contact or^!crossed or^!sobat or^!restored or^hits != 1 { panic^$"Eri branch failed: contact={contact}, crossed={crossed}, sobat={sobat}, restored={restored}, hits={hits}" }
+    elseif^contact or^crossed or^sobat: panic^"Push contact alone must not trigger the FA detector" }
+    print($"PASS Eri 214A: side={side}, player={player}, shadow={shadow}, contact={contact}, crossed={crossed}, sobat={sobat}")
+}
+let^clashes = p^{
+    for^power in^{0, 1} {
+        let^a = Fighter.new("assets/characters/えり", 0, 0)
+        let^b = Fighter.new("assets/characters/ゆい", 0, 0)
+        a.hit(0, 0, 0, 10, 10, 0) b.hit(0, 0, 0, 10, 10, power)
+        a.on("offsetWay", 278, 52) b.on("offsetWay", 9001, 0)
+        a.offsetAgainst(b)
+        if^a.hits[0] != nil^ or^b.hits[0] != nil^ { panic^"Clash left active attack slots" }
+        if^a.eventPending != (power != 0) or^b.eventPending != (power != 0) { panic^"Clash event power test failed" }
+        if^power != 0 and^(a.onSkill["offsetWay"] != nil^ or^b.onSkill["offsetWay"] != nil^) { panic^"Clash did not consume DS" }
+    }
+    let^a = Fighter.new("assets/characters/えり", 0, 0)
+    let^b = Fighter.new("assets/characters/ゆい", 0, 0)
+    a.hit(0, 0, 0, 10, 10, 10) b.hit(0, 0, 0, 10, 10, 10)
+    a.offsetAgainst(b)
+    if^a.hits[0] is^nil^ or^b.hits[0] is^nil^ { panic^"Ordinary attacks cancelled without DS" }
+    a.on("offsetWay", 278, 52)
+    b.owner := a
+    a.offsetAgainst(b)
+    if^a.eventPending { panic^"Clash with own object" }
+    b.owner := nil^ b.x := 20
+    a.offsetAgainst(b)
+    if^a.eventPending { panic^"Touching rectangle edges must not count" }
+    b.x := 0 b.onScreen := true^
+    a.offsetAgainst(b)
+    if^a.eventPending { panic^"Clash across coordinate spaces" }
+    print("PASS: clash cancellation, DS consumption, ownership and rectangle boundaries")
+}
+public^let^update = p^dt:number^{
+    if^love.timer.getTime() - began > 120 { panic^"Contact test timeout" }
+    vp.resource.pump(0.006)
+    if^!done and^loadout.ready() {
+        done := true^
+        clashes()
+        for^side in^{-1, 1} { for^player in^{1, 2} { for^shadow in^{false^, true^} { probe(side, player, shadow) } } }
+        love.event.quit()
+    }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

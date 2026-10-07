@@ -189,7 +189,7 @@ let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, butt
     let^dx = if^forward: 1 el^back: -1 el^: 0;
     let^dy = if^up: 1 el^down: -1 el^: 0;
     p.record(5 + dx + 3 * dy, buttons)
-    if^p.stop > 0 { return^ }
+    if^p.stop > 0 or^p.eventPending { return^ }
 
     # The command table (buttons, motions, jumps), where the running skill allows it.
     if^p.takeCommand(down) { return^ }
@@ -226,7 +226,7 @@ let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, butt
 # Turning: on the ground and free to move, a fighter faces the other one. The
 # FM2K turn skills (#16, #17) are empty, so turning is just the flip.
 let^face = p^p:Fighter, other:Fighter{
-    if^p.airborne() or^!groundIdle(p.skillNo) { return^}
+    if^p.eventPending or^p.airborne() or^!groundIdle(p.skillNo) { return^}
     if^other.x > p.x + 1 { p.facing := 1 }
     if^other.x < p.x - 1 { p.facing := -1 }
 }
@@ -242,10 +242,15 @@ let^overlaps = p^a:Fighter, ba:vp.fighter.Box, b:Fighter, bb:vp.fighter.Box-> bo
 let^strike = p^a:Fighter, b:Fighter{
     for^s1, atk in^a.hits {
         if^atk fits^vp.fighter.Box {
-            for^s2, hurt in^b.hurts {
+            for^s2 from^0 to^19 {
+                let^hurt = b.hurts[s2]
                 if^hurt fits^vp.fighter.Box {
-                    if^!hurt.body or^hurt.flags.find("damaged") != nil^ {
+                    if^hurt.vulnerable and^hurt.w > 0 and^hurt.h > 0 {
                         if^a.canHit(atk, b) and^overlaps(a, atk, b, hurt) {
+                            if^b.owner != nil^ {
+                                a.struck(atk, b, hurt.rate, false^, hurt.flags)
+                                return^
+                            }
                             # the spark goes where the two boxes meet
                             let^al, at, aw, ah = a.rect(atk)
                             let^bl, bt, bw, bh = b.rect(hurt)
@@ -256,7 +261,7 @@ let^strike = p^a:Fighter, b:Fighter{
                             let^cx = b.x + hurt.x * b.facing
                             let^cy = b.y + hurt.y
                             let^comboMarker = b.v(128)
-                            let^guarded, spark = a.struck(atk, b, hurt.rate, endsCrouched(b, b.skillNo))
+                            let^guarded, spark = a.struck(atk, b, hurt.rate, endsCrouched(b, b.skillNo), hurt.flags)
                             if^!guarded {
                                 b.combo += 1
                                 if^b.combo >= 2 { flow.showCombo(b.combo, cx, cy, comboMarker) }
@@ -272,6 +277,11 @@ let^strike = p^a:Fighter, b:Fighter{
             }
         }
     }
+}
+
+let^strikeTeam = p^a:Fighter, b:Fighter{
+    strike(a, b)
+    for^target in^b.objects { strike(a, target) }
 }
 
 # Puts a fighter where a round starts: its objects (and so its part of the
@@ -344,11 +354,13 @@ let^stepFighters = p^{
         p.maxX := std.math.min(WORLD_W - WALL_GROUND, camX + VIEW_W - VIEW_EDGE)
         p.minXAir := p.minX
         p.maxXAir := p.maxX
+        p.wallMinX := camX + VIEW_EDGE
+        p.wallMaxX := camX + VIEW_W - VIEW_EDGE
     }
-    me.step()
-    foe.step()
-    me.stepObjects()
-    foe.stepObjects()
+    me.stepScript()
+    foe.stepScript()
+    me.stepObjectScripts()
+    foe.stepObjectScripts()
     # a combo is over once its target is free to move again
     for^p in^{ me, foe } {
         if^groundIdle(p.skillNo) or^airIdle(p.skillNo) {
@@ -357,11 +369,16 @@ let^stepFighters = p^{
             p.blocking := false^
         }
     }
-    strike(me, foe)
-    strike(foe, me)
-    for^o in^me.objects { strike(o, foe) }
-    for^o in^foe.objects { strike(o, me) }
+    me.resetHitEvents() foe.resetHitEvents()
+    me.offsetTeamAgainst(foe)
+    strikeTeam(me, foe)
+    strikeTeam(foe, me)
+    for^o in^me.objects { strikeTeam(o, foe) }
+    for^o in^foe.objects { strikeTeam(o, me) }
+    me.moveStep() foe.moveStep()
+    me.moveObjects() foe.moveObjects()
     me.pushAgainst(foe)
+    me.finishHitEvents() foe.finishHitEvents()
     # Keep both fighters inside the current world and camera bounds.
     for^p in^{ me, foe } {
         if^p.airborne() { p.x := p.x.clamp(p.minXAir, p.maxXAir) else^: p.x := p.x.clamp(p.minX, p.maxX) }

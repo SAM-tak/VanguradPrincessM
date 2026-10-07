@@ -1,0 +1,201 @@
+# DS collision events: main actors resolve after the whole hit pass.
+module^vp.eventstest
+import^love.event
+import^love.timer
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/script.lh"
+require^"../src/fighter.lh"
+let^Fighter = vp.fighter.Fighter
+let^loadout = vp.preload.Load.new("events-test")
+var^done = false^
+var^began = 0
+public^let^load = p^{
+    began := love.timer.getTime()
+    loadout.add("assets/characters/かえで", false^)
+}
+let^actor = p^-> Fighter{
+    let^f = Fighter.new("assets/characters/かえで", 500, 920)
+    f.skills[9001] := p^me:Fighter, at:number^{ me.image := at yield^ }
+    f.skills[9002] := p^me:Fighter, at:number^{ me.image := at yield^ }
+    f.skills[9003] := p^me:Fighter, at:number^{ me.image := at yield^ }
+    f.begin(9001)
+    return^f
+}
+let^run = p^{
+    # Throw-only FD is a contact target even when it is also a push box.
+    let^fd = actor()
+    for^flags in^{"", "collide", "damaged", "throw", "collide throw", "damaged collide throw"} {
+        fd.fd(0, 0, 0, 10, 10, flags, 100)
+        let^b = fd.hurts[0]
+        if^b is^nil^ { panic^"Missing FD" }
+        let^expected = flags.find("damaged") != nil^ or^flags.find("throw") != nil^
+        if^b.vulnerable != expected { panic^"FD contact mask is incorrect" }
+    }
+    for^guard in^{false^, true^} {
+        for^throwFD in^{false^, true^} {
+            let^a = actor() let^b = actor()
+            a.enemy := b b.enemy := a
+            a.on("attacking", 9001, 11)
+            a.on("defending", 9002, 22)
+            a.on("whileThrowDo", 9003, 33)
+            a.reactions(1, 1, 1, 2, 2, 2)
+            b.reactHit[1] := 9001 b.reactHit[2] := 9001
+            b.updateGuard(guard, false^, true^)
+            a.hit(0, 0, 0, 10, 10, 10)
+            let^box = a.hits[0]
+            if^box is^nil^ { panic^"Missing FA" }
+            a.struck(box, b, 100, false^, if^throwFD: "throw" el^: "damaged";)
+            if^!guard and^a.eventPending { panic^"Main hit DS fired before collision pass ended" }
+            a.finishHitEvents()
+            let^expected = if^guard: 9002 el^throwFD: 9003 el^: 9001;
+            if^a.jumpSkill != expected { panic^$"Wrong DS: guard={guard}, throw={throwFD}, got={a.jumpSkill}" }
+            if^guard and^a.frameThrow { panic^"Guard produced a throw hit" }
+            a.step()
+            let^shown = a.image
+            a.finishHitEvents() a.step()
+            if^a.image != shown { panic^"Consumed event repeated" }
+            a.resetHitEvents() b.resetHitEvents()
+            if^a.frameAttack or^a.frameThrow or^b.frameReceived or^a.hitEventTarget != nil^ { panic^"Frame state survived reset" }
+        }
+    }
+    # Trades and a prior landing/wall/clash DS must not be overwritten.
+    for^trade in^{false^, true^} {
+        let^a = actor() let^b = actor()
+        a.on("attacking", 9001, 11) a.on("whileThrowDo", 9003, 33)
+        a.hit(0, 0, 0, 10, 10, 1) b.hit(0, 0, 0, 10, 10, 1)
+        let^ab = a.hits[0] let^bb = b.hits[0]
+        if^ab is^nil^ or^bb is^nil^ { panic^"Missing FA" }
+        a.struck(ab, b, 100, false^, "throw")
+        if^trade { b.struck(bb, a, 100, false^, "damaged")
+        else^: a.on("landing", 9002, 22) a.fire("landing") }
+        a.finishHitEvents() b.finishHitEvents()
+        if^trade {
+            if^a.eventPending or^b.eventPending { panic^"Trade generated a main hit event" }
+        else^:
+            if^a.jumpSkill != 9002 { panic^"Hit event overwrote landing" }
+        }
+    }
+    # Object hit events belong to the object, not the main actor.
+    let^a = actor() let^b = actor() let^o = actor()
+    o.owner := a
+    a.on("attacking", 9001, 11) o.on("attacking", 9002, 22)
+    o.hit(0, 0, 0, 10, 10, 1)
+    let^box = o.hits[0]
+    if^box is^nil^ { panic^"Missing FA" }
+    o.struck(box, b, 100, false^, "damaged")
+    a.finishHitEvents()
+    if^o.jumpSkill != 9002 or^a.eventPending { panic^"Object hit routed to wrong actor" }
+    a.resetHitEvents() b.resetHitEvents()
+    a.on("whileThrowDo", 9003, 33)
+    o.struck(box, b, 100, false^, "collide throw")
+    a.finishHitEvents()
+    if^a.jumpSkill != 9003 { panic^"Object throw contact did not notify its owner" }
+    # Exercise the sole stored whileThrowDo handler without moving dead data.
+    let^sc = vp.script.load("assets/characters/かえで/script.lton")
+    if^sc is^nil^ { panic^"Missing Kaede data" }
+    let^sk = sc.byId[264]
+    if^sk is^nil^ { panic^"Missing skill" }
+    let^endBlock = sk.blocks[56]
+    if^endBlock is^nil^ or^endBlock.op != "E" { panic^"Recheck handler reachability" }
+    let^k = actor() let^d = actor()
+    sc.install(k)
+    k.start(264, 57) k.step()
+    if^k.onSkill["whileThrowDo"] != 265 or^k.onBlock["whileThrowDo"] != 46 { panic^"Stored handler did not register" }
+    k.hit(0, 0, 0, 10, 10, 1)
+    let^kb = k.hits[0]
+    if^kb is^nil^ { panic^"Missing FA" }
+    k.struck(kb, d, 100, false^, "throw") k.finishHitEvents()
+    if^k.jumpSkill != 265 or^k.jumpBlock != 46 { panic^"Stored throw DS did not fire" }
+    k.step()
+    if^k.skillNo != 265 or^k.vy >= 0 { panic^"Stored throw DS did not run its rebound" }
+    print("PASS: hit/guard/throw DS, priority, trade, consumption, frame reset, object ownership, real Kaede handler")
+}
+let^remaining = p^{
+    for^reverse in^{false^, true^} {
+        let^a = actor() let^b = actor()
+        a.reactions(1, 1, 1, 0, 0, 0) b.reactions(1, 1, 1, 0, 0, 0)
+        a.reactHit[1] := 9003 b.reactHit[1] := 9003
+        a.on("attacking", 9002, 22) b.on("attacking", 9002, 22)
+        a.hit(0, 0, 0, 10, 10, 10) b.hit(0, 0, 0, 10, 10, 10)
+        let^ab = a.hits[0] let^bb = b.hits[0]
+        if^ab is^nil^ or^bb is^nil^ { panic^"Missing trade FA" }
+        if^reverse {
+            b.struck(bb, a, 100, false^, "damaged")
+            if^a.hits[0] is^nil^ or^!a.canHit(ab,b) { panic^"First hit erased simultaneous attack" }
+            a.struck(ab, b, 100, false^, "damaged")
+        else^:
+            a.struck(ab, b, 100, false^, "damaged")
+            if^b.hits[0] is^nil^ or^!b.canHit(bb,a) { panic^"First hit erased simultaneous attack" }
+            b.struck(bb, a, 100, false^, "damaged")
+        }
+        a.finishHitEvents() b.finishHitEvents()
+        if^a.jumpSkill != 9003 or^b.jumpSkill != 9003 or^a.life != 990 or^b.life != 990 { panic^"Trade DS/result differs by order" }
+        if^a.mayStart(9002) or^b.takeCommand(false^) { panic^"Input can overwrite pending reaction" }
+        a.updateGuard(true^, false^, true^)
+        if^a.guarding { panic^"Old idle skill allowed guard during pending hit reaction" }
+        a.stepScript() b.stepScript()
+        if^a.image != 0 or^b.image != 0 { panic^"Trade ran attack DS instead of reaction" }
+    }
+    for^object in^{false^, true^} {
+        let^a = actor() let^root = actor()
+        if^object { a.owner := root }
+        a.y := 922 a.vy := 2 a.vx := 3
+        a.receiving := true^
+        a.on("landing", 9002, 22) a.on("attacking", 9003, 33)
+        a.cancelWhen := "always" a.onHit[0] := 7 a.onGuard[0] := 8
+        a.waitTimer := 120
+        a.hurt(0, 0, 0, 20, 20) a.hit(0, 0, 0, 20, 20, 1)
+        a.stepScript()
+        if^a.image != 22 or^a.y != 920 or^a.vx != 0 or^a.vy != 0 { panic^"Landing movement/entry" }
+        if^a.hurts[0] != nil^ or^a.hits[0] != nil^ or^a.waitTimer != 0 { panic^"Landing failed to clear boxes/wait" }
+        if^a.onSkill["attacking"] != 9003 or^a.onSkill["landing"] != nil^ or^a.cancelWhen != "always" or^a.onHit[0] != 7 or^a.onGuard[0] != 8 { panic^"Landing cleared unrelated DS/C/R" }
+        if^a.receiving != object { panic^"Landing main/object reaction state" }
+    }
+    let^pending = actor()
+    pending.on("landing", 9002, 22) pending.on("wallHitting", 9003, 33)
+    pending.y := 922 pending.vy := 3 pending.stop := 5
+    pending.fire("wallHitting") pending.stepScript()
+    if^pending.image != 33 or^pending.y != 922 or^pending.stop != 5 { panic^"Pending DS must precede hitstop and landing" }
+    for^wall in^{false^, true^} {
+        let^a = actor()
+        a.minX := 50 a.maxX := 1230 a.wallMinX := 300 a.wallMaxX := 900
+        a.x := 950
+        if^wall { a.on("wallHitting", 9002, 22) }
+        a.moveStep()
+        if^a.x != (if^wall: 900 el^: 950;) or^a.eventPending != wall { panic^"World/view wall selection" }
+    }
+    # A collision event wins over landing on the following script phase;
+    # wall contact in the movement phase can replace the collision event.
+    let^a = actor() let^root = actor() let^target = actor()
+    target.owner := root
+    a.on("attacking", 9002, 22) a.on("wallHitting", 9003, 33)
+    a.hit(0, 0, 0, 10, 10, 50)
+    let^box = a.hits[0]
+    if^box is^nil^ { panic^"Missing FA" }
+    let^oldLife = target.life
+    a.struck(box, target, 100, false^, "damaged")
+    if^a.jumpSkill != 9002 or^target.life != oldLife or^root.life != oldLife or^target.receiving or^a.canHit(box,target) { panic^"Object hit must notify without damage/reaction" }
+    a.minX := 50 a.maxX := 590 a.x := 600
+    a.moveStep() a.finishHitEvents()
+    if^a.jumpSkill != 9003 { panic^"Movement wall DS lost collision precedence" }
+    # Projectile cancel: exactly one zero-power FA, bit15 on either side.
+    for^leftPower in^{0, 1} { for^rightPower in^{0, 1} { for^flag in^{"", "halfed", "projectileCancel"} {
+        let^l = actor() let^r = actor() let^lr = actor() let^rr = actor()
+        l.owner := lr r.owner := rr
+        l.on("defending", 9002, 22) r.on("defending", 9003, 33)
+        l.fa(0, 0, 0, 10, 10, leftPower, flag) r.hit(0, 0, 0, 10, 10, rightPower)
+        l.offsetAgainst(r)
+        let^expected = leftPower != rightPower and^flag = "projectileCancel"
+        if^l.eventPending != expected or^r.eventPending != expected { panic^"Projectile defending condition" }
+        if^expected and^(l.hits[0] != nil^ or^r.hits[0] != nil^) { panic^"Cancelled FA survived" }
+    } } }
+    print("PASS: dedicated landing, pending DS before stop/landing, wall boundary and priority, object hits, projectile defending")
+}
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^!done and^loadout.ready() { done := true^ run() remaining() love.event.quit() }
+    if^love.timer.getTime() - began > 120 { panic^"Events test timeout" }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

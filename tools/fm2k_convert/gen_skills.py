@@ -21,7 +21,7 @@ from pathlib import Path
 
 PER_FILE = 100
 
-CONDITIONAL = ("Rnd", "COM", "GL", "GS", "V")
+CONDITIONAL = ("Rnd", "COM", "GL", "GS", "V", "DB")
 DS_EVENTS = {1: "landing", 2: "attacking", 3: "defending", 4: "wallHitting", 5: "offsetWay", 6: "whileThrowDo"}
 DIRECTIONS = ["Free", "Point", "Right", "DownRight", "Down", "DownLeft", "Left", "UpLeft", "Up", "UpRight",
               "UpLeftDown", "UpLeftRight", "UpRightDown", "DownLeftRight"]
@@ -44,7 +44,7 @@ def jump_refs(b):
     t = b["type"]
     keys = {"SG": ["skill"], "SC": ["skill"], "SF": ["skill"], "Rnd": ["skill"], "COM": ["skill"],
             "GL": ["skill"], "GS": ["skill"], "DS": ["skill"], "V": ["multiCondSkill"],
-            "O": ["skill", "outSkill"]}.get(t, [])
+            "O": ["skill", "outSkill"], "DB": ["skill"]}.get(t, [])
     out = [target(b.get(k)) for k in keys]
     if t == "V" and not (b["itsTheSame"] or b["itsAbove"] or b["itsBelow"]):
         out = []
@@ -140,7 +140,7 @@ class SkillWriter:
             if b["width"] == 0 and b["height"] == 0:
                 return ["me.noHit(%d)" % b["number"]], False
             f = flags(b, ["cancel", "noDetection", "combo", "noSkyDetection", "guardFail", "duringGuard",
-                          "duringReceipt", "halfed"])
+                          "duringReceipt", "halfed", "projectileCancel"])
             args = (b["number"], b["x"], b["y"], b["width"], b["height"], b["power"])
             if not f:
                 return ["me.hit(%d, %d, %d, %d, %d, %d)" % args], False
@@ -209,7 +209,13 @@ class SkillWriter:
             ref = target(b["skill"]) or (0, 0)
             out = target(b["outSkill"]) or (0, 0)
             f = flags(b, ["out", "point", "unCond", "shadow", "parent", "picXY"])
-            return ["me.spawn(%d, %d, %d, %d, %d, %d, %d, %d, %s)" % (ref + (b["x"], b["y"], b["number"], b["depth"]) + out + (q(f),))], False
+            call = "me.spawn(%d, %d, %d, %d, %d, %d, %d, %d, %s)" % (ref + (b["x"], b["y"], b["number"], b["depth"]) + out + (q(f),))
+            return (self.branch(call, out) if out[0] else [call]), False
+        if t == "DB":
+            ref = target(b["skill"])
+            cond = "me.basicCondition(%d, %s, %s)" % (b["condition"],
+                    "true^" if b["inverted"] else "false^", "true^" if b["disabled"] else "false^")
+            return (self.branch(cond, ref) if ref else ["# DB to nothing"]), False
         if t == "C":
             when = "hits" if b["hits"] else "uncond" if b["uncond"] else "fails"
             n = b["skill"]["number"] if b["skillCancelCondition"] else -1
@@ -370,6 +376,7 @@ def main():
         st = d["settings"]
         index.append("    me.lifeMax := %d" % st["lifeGaugeMax"])
         index.append("    me.life := %d" % st["lifeGaugeMax"])
+        index.append("    me.guardDamageRate := %d" % st.get("hRatio", 0))
         index.append("    me.specialPer := %d" % st["specialGaugeMax"])
         index.append("    me.stockMax := %d" % st["specialMaxStock"])
         index.append("    me.special := %d" % (st["specialGaugeMax"] * min(st["startStock"], st["specialMaxStock"])))

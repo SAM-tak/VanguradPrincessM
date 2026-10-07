@@ -37,6 +37,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=ROOT / 'data')
     parser.add_argument('--json-dir', type=Path)
+    parser.add_argument('--player-dir', type=Path, help='restore DB/FA omitted by the JSON parser from matching .player files')
     parser.add_argument('--out', type=Path, default=ROOT / 'build/fm2k-vm-audit.json')
     args = parser.parse_args()
     blocks = list(inventory(args.data))
@@ -52,8 +53,10 @@ def main():
                 flags[f'{op}.{flag}'] += 1
         if op == 'DS' and b[1] >= 0:
             events[b[-1]] += 1
-            if b[-1] in ('offsetWay', 'whileThrowDo'):
-                gaps['event_never_fired'].append(row)
+            if b[-1] == 'whileThrowDo':
+                handled['DS_throw_contact'].append(row)
+            elif b[-1] == 'offsetWay':
+                handled['DS_FA_contact'].append(row)
         if op == 'Nop':
             gaps['Nop_origin_review_not_necessarily_missing'].append(row)
         if op in ('AI', 'RC'):
@@ -71,19 +74,21 @@ def main():
                 gaps['EB_colour_fade_ignored'].append(row)
         if op == 'O':
             if b[7] > 0:
-                gaps['O_outSkill_ignored'].append(row)
+                handled['O_occupied_slot_branch'].append(row)
             if 'shadow' in b[-1].split():
                 gaps['O_shadow_flag_ignored'].append(row)
             if b[1] == 0:
-                gaps['O_zero_skill_early_return_review'].append(row)
+                handled['O_zero_skill_delete'].append(row)
         if op == 'FA' and 'halfed' in b[-1].split():
-            gaps['FA_halfed_ignored'].append(row)
+            handled['FA_guard_chip'].append(row)
         if op == 'FD' and 'throw' in b[-1].split():
-            gaps['FD_throw_flag_not_tested'].append(row)
+            handled['FD_throw_contact'].append(row)
         if op == 'RP' and set(b[-1].split()) & {'in', 'out'}:
             handled['RP_depth_flags'].append(row)
         if op == 'COM':
-            gaps['COM_polling_window_review'].append(row)
+            handled['COM_history_window'].append(row)
+        if op == 'DB':
+            handled['DB_basic_condition'].append(row)
         if op == 'V' and b[2] == 2:
             handled['V_add_saturation'].append(row)
     raw_ops, lost = Counter(), []
@@ -102,14 +107,20 @@ def main():
             if modes and any(int(n) in (1, 2) for n in modes[1].split(',')):
                 commands['repeat_charge_mode'].append(row)
     if args.json_dir:
-        from gen_script import block as convert_block
+        from gen_script import block as convert_block, restore_fa_flags
         for path in sorted(args.json_dir.glob('*.json')):
             data = json.loads(path.read_text(encoding='utf-8-sig'))
+            if args.player_dir:
+                restore_fa_flags(args.player_dir / (path.stem + '.player'), data)
             for n, skill in enumerate(data.get('skills', [])):
                 for i, b in enumerate(skill['blocks']):
                     raw_ops[b['type']] += 1
                     if convert_block(b)[0] == 'Nop':
-                        lost.append(dict(file=str(path), skill=n, name=skill['name'], block=i, raw=b))
+                        row = dict(file=str(path), skill=n, name=skill['name'], block=i, raw=b)
+                        if b['type'] == 'DS' and b['when'] == 0:
+                            handled['DS_zero_original_noop'].append(row)
+                        else:
+                            lost.append(row)
     source_hashes = {p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest()
                      for p in ['src/fighter.lh', 'src/afterimage.lh', 'src/script.lh', 'main.lh',
                                'tools/fm2k_convert/gen_script.py']}
@@ -121,6 +132,15 @@ def main():
                   findings={k: dict(count=len(v), locations=v) for k, v in gaps.items()},
                   raw_operations=dict(raw_ops), conversion_nops=lost, source_sha256=source_hashes,
                   command_findings=dict(commands))
+    # A zero missing_dispatch count does not mean complete FM2K compatibility.
+    result['runtime_reviews'] = [
+        'RC nonzero common-pose binding and EB nonzero colour fades (unused by current data)',
+        'O shadow rendering flag (unused by current data)',
+        'Command near/far selection, repeat/charge modes, held buttons and facing changes',
+        'FA cancel priority and shared low-life damage correction',
+        'SC/SF native return slots and E/SG/DS interaction',
+        'M fixed-point rounding, Rnd and gauge boundaries, remaining render/sound settings',
+    ]
     dispatch = set(re.findall(r'op = "([A-Za-z]+)"', (ROOT / 'src/script.lh').read_text(encoding='utf-8')))
     result['missing_dispatch'] = {op: count for op, count in ops.items() if op not in dispatch and op != 'Nop'}
     args.out.parent.mkdir(parents=True, exist_ok=True)

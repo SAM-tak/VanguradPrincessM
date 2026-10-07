@@ -51,7 +51,7 @@ let^transitions = p^{
                 p.advance()
                 p.hurt(0, 0, -40, 20, 40)
                 p.hit(0, 0, -40, 20, 40, 10)
-                p.on("landing", if^same: 9001 el^: 9002;, 7)
+                p.on("wallHitting", if^same: 9001 el^: 9002;, 7)
                 p.on("attacking", 9001, 3)
                 p.cancelWhen := "always"
                 p.waitTimer := 30
@@ -61,10 +61,10 @@ let^transitions = p^{
                 p.vx := 3
                 if^air { p.y := 800 }
                 if^frozen { p.stop := 5 }
-                p.fire("landing")
+                p.fire("wallHitting")
                 p.step()
                 if^p.image != 7 or^p.hurts[0] != nil^ or^p.hits[0] != nil^ or^p.onSkill["attacking"] != nil^ or^p.cancelWhen != "" or^p.waitTimer != 0 { panic^"DS did not reset animation state" }
-                if^p.vars[0] != 42 or^p.onHit[0] != 54 or^!p.receiving { panic^"DS discarded reaction or task state" }
+                if^p.vars[0] != 42 or^p.onHit[0] != 0 or^!p.receiving { panic^"DS R reset / reaction / task state mismatch" }
                 if^p.vx != (if^air: 3 el^: 0;) { panic^"DS motion reset mismatch" }
             }
         }

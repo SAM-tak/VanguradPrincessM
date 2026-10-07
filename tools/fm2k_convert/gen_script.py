@@ -51,7 +51,7 @@ def block(b):
     if t == "FA":
         return ["FA", b["number"], b["x"], b["y"], b["width"], b["height"], b["power"],
                 flags(b, ["cancel", "noDetection", "combo", "noSkyDetection", "guardFail", "duringGuard",
-                          "duringReceipt", "halfed"])]
+                          "duringReceipt", "halfed", "projectileCancel"])]
     if t == "M":
         return ["M", b["moveX"], b["moveY"], b["gravityX"], b["gravityY"],
                 flags(b, ["add", "stopMoveX", "stopMoveY", "stopGravityX", "stopGravityY"],
@@ -71,6 +71,8 @@ def block(b):
                 cmp, b["multiCondValue"]] + ref(b["multiCondSkill"])
     if t == "Rnd":
         return ["Rnd", b["randomNum"], b["whenItsAbove"]] + ref(b["skill"])
+    if t == "DB":
+        return ["DB", b["condition"], int(b["inverted"]), int(b["disabled"])] + ref(b["skill"])
     if t == "COM":
         dirs, buttons = steps_of(b["steps"])
         d = json.loads(dirs.replace("{", "[").replace("}", "]"))
@@ -118,6 +120,36 @@ def block(b):
     return ["Nop"]
 
 
+def restore_fa_flags(player, data):
+    """Restore DB and FA bit 15, omitted by fm2ndparser (halfed is bit 2)."""
+    raw = player.read_bytes()
+    count = struct.unpack_from('<I', raw, 0x110)[0]
+    blocks = 0x114 + 39 * count
+    block_count = struct.unpack_from('<I', raw, blocks)[0]
+    if count != len(data['skills']) or blocks + 4 + 16 * block_count > len(raw):
+        raise ValueError(f'{player}: skill/block table does not match parser data')
+    for skill_id, skill in enumerate(data['skills']):
+        start = struct.unpack_from('<H', raw, 0x114 + 39 * skill_id + 32)[0]
+        for index, block in enumerate(skill['blocks']):
+            if block['type'] == 'Unknown':
+                offset = blocks + 4 + 16 * (start + index)
+                if start + index >= block_count:
+                    raise ValueError(f'{player}: unknown block outside table')
+                if raw[offset] == 22:
+                    block.update(type='DB', condition=raw[offset + 7],
+                                 inverted=bool(raw[offset + 1] & 1),
+                                 disabled=bool(raw[offset + 1] & 2),
+                                 skill=dict(number=struct.unpack_from('<H', raw, offset + 2)[0],
+                                            block=raw[offset + 4]))
+            if block['type'] != 'FA':
+                continue
+            offset = blocks + 4 + 16 * (start + index)
+            expected = (24, block['x'], block['y'], block['width'], block['height'], block['number'])
+            if start + index >= block_count or struct.unpack_from('<BhhhhB', raw, offset) != expected:
+                raise ValueError(f'{player}: FA mismatch at {skill_id}:{index}')
+            block['projectileCancel'] = bool(raw[offset + 11] & 0x80)
+
+
 def raw_command_steps(player, commands):
     """Each command's steps as (mode, amount) for its active steps, read from
     the .player file itself: fm2ndparser drops the step's mode bits (0xC000 of
@@ -153,13 +185,15 @@ def main():
     ap.add_argument("json", type=Path)
     ap.add_argument("out", type=Path, help="the converted asset folder, e.g. assets/characters/ゆい")
     ap.add_argument("--player", type=Path, default=None,
-                    help="the character's .player file, for the command steps' modes (rotation, charge)")
+                    help="the character's .player file, for command modes, DB and FA flags omitted by the JSON parser")
     ap.add_argument("--layers", action="store_true",
                     help="a script that ends with E hides its image (stages, the system file's HUD scripts)")
     args = ap.parse_args()
     args.out = metadata_path(args.out)
 
     d = json.loads(args.json.read_text(encoding="utf-8-sig"))
+    if args.player:
+        restore_fa_flags(args.player, d)
     patches.apply(args.json, d)     # the port's deliberate changes (patches/)
     skills = d["skills"]
     lines = ["# Converted from %s by tools/fm2k_convert/gen_script.py; run by src/script.lh." % args.json.name,
@@ -170,9 +204,9 @@ def main():
         st = d["settings"]
         # Retain source settings even where their FM2K runtime meaning has not
         # yet been implemented; an update must not silently discard them.
-        lines.append("settings = { lifeMax = %d, specialPer = %d, stockMax = %d, startStock = %d, startPos = %d, correct = %d },"
+        lines.append("settings = { lifeMax = %d, specialPer = %d, stockMax = %d, startStock = %d, startPos = %d, correct = %d, guardDamageRate = %d },"
                      % (st["lifeGaugeMax"], st["specialGaugeMax"], st["specialMaxStock"], st["startStock"],
-                        st.get("startPos", 0), st.get("correct", 0)))
+                        st.get("startPos", 0), st.get("correct", 0), st.get("hRatio", 0)))
     # Reaction number (the attacker's R block) -> this character's hit skill and spark.
     reactions = []
     for i, r in enumerate(d.get("hitJunctionsSkills", [])):

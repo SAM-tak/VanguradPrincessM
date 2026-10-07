@@ -137,6 +137,8 @@ public^let^Script = def^{
                 if^a2 >= 0 and^me.chance(a0, a1) and^!go(a2, a3) { return^}
             elseif^op = "COM":
                 if^a1 >= 0 and^me.command(a0, b.dirs, b.buttons) and^!go(a1, a2) { return^}
+            elseif^op = "DB":
+                if^a3 > 0 and^me.basicCondition(a0, a1 != 0, a2 != 0) and^!go(a3, a4) { return^ }
             elseif^op = "GL":
                 # the gauge procedures answer whether the condition FAILED
                 if^a2 >= 0 and^me.lifeGauge(a0 = 1, a1) and^!go(a2, a3) { return^}
@@ -145,7 +147,7 @@ public^let^Script = def^{
             elseif^op = "DS":
                 if^a0 >= 0 { me.on(b.s, a0, a1) else^: me.off(b.s) }
             elseif^op = "O":
-                me.spawn(a0, a1, a2, a3, a4, a5, a6, a7, b.s)
+                if^me.spawn(a0, a1, a2, a3, a4, a5, a6, a7, b.s) and^!go(a6, a7) { return^ }
             elseif^op = "C":
                 me.cancel(b.s, a0, a1, a2)
             elseif^op = "R":
@@ -203,6 +205,7 @@ public^let^Script = def^{
             me.stockMax := st.stockMax
             me.special := st.specialPer * std.math.min(st.startStock, st.stockMax)
         }
+        if^d fits^t^{ settings:t^{ guardDamageRate:number^ } } { me.guardDamageRate := d.settings.guardDamageRate }
         if^d fits^t^{ commands : t^{} } {
             let^cs = d.commands
             for^c:t^{ name : string^, time : number^, skills : t^{}, directions : t^{}, buttons : t^{}, modes : t^{}, amounts : t^{} } in^cs {
@@ -273,6 +276,10 @@ public^let^Script = def^{
                         todo.push^(tb)
                     }
                 }
+                if^blk.op = "O" and^(blk.n[6] ?? 0) > 0 {
+                    todo.push^(blk.n[6] ?? 0)
+                    todo.push^(blk.n[7] ?? 0)
+                }
                 if^blk.op = "E" or^blk.op = "SG" { break^}
                 at += 1
             }
@@ -337,5 +344,5 @@ let^numbers = p^list:t^{}-> t^{number^[]}{
 # SC / SF calls, an O's object).
 let^TARGETS : t^{[string^]:t^{number^[]}|nil^} = {
     SG = { 0, 1 }, V = { 6, 7 }, Rnd = { 2, 3 }, COM = { 1, 2 }, GL = { 2, 3 },
-    GS = { 3, 4 }, DS = { 0, 1 }, SC = { 0, 1 }, SF = { 0, 1 }, O = { 0, 1 },
+    GS = { 3, 4 }, DS = { 0, 1 }, SC = { 0, 1 }, SF = { 0, 1 }, O = { 0, 1 }, DB = { 3, 4 },
 }

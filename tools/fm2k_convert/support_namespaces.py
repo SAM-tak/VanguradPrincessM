@@ -18,7 +18,7 @@ def ref_positions(b):
     if b[0] == 'O':
         return [1, 7]
     return {'SG': [1], 'SC': [1], 'SF': [1], 'Rnd': [3], 'COM': [2],
-            'GL': [3], 'GS': [4], 'DS': [1], 'C': [3]}.get(b[0], [])
+            'GL': [3], 'GS': [4], 'DS': [1], 'C': [3], 'DB': [4]}.get(b[0], [])
 
 
 def relocate(skill, mapping):

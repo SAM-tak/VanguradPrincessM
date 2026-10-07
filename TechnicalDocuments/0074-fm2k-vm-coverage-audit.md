@@ -1,5 +1,11 @@
 # FM2K VM・イベント・入力・衝突処理の再現監査
 
+現状の追記：イベント残件は[0083](0083-remaining-event-paths.md)、DB・O管理分岐・ガード削りは[0084](0084-db-object-chip.md)で対応。下記の件数・未実装表は初回監査時点の記録。
+
+追記：offsetWayのFA接触による発火は[0080](0080-fa-contact-offset-event.md)で追加。以下の表は当初の監査時点の記録。
+
+追記：whileThrowDo、命中イベント確定、FDのthrow属性は[0081](0081-throw-and-hit-events.md)で実装。全6イベントに発火元が揃った。
+
 追記（2026-10-07）：以下は修正前の監査記録。P0のDS初期化・COM履歴窓は[0075](0075-ds-transition-com-history.md)で実装・検証済み。P2のV演算・読み取り・寿命は[0076](0076-variable-semantics.md)で実装。AI/RPの修正とRC/EBの無効指定の確認は[0077](0077-afterimages-and-rp-depth.md)。
 
 2026-10-06。個々の技の報告に依存せず、命令の変換、実行、イベント発生、状態遷移を横断して確認する。今回追加したものは監査ツールと診断。ゲーム本体の修正は行っていない。
