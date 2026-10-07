@@ -108,6 +108,7 @@ public^let^Fighter = def^{
         life = 1000, lifeMax = 1000,
         guardDamageRate = 0,        # attacker settings.hRatio, percent of FA power
         lowLifeThreshold = 0, lowLifeRate = 100,
+        comboRate = 0, damageHits = 0,
         # The special gauge: `special` points, `specialPer` to a stock (one
         # level), at most `stockMax` stocks.
         special = 0, specialPer = 300, stockMax = 5,
@@ -458,6 +459,7 @@ public^let^Fighter = def^{
         if^self^.eventPending and^self^.jumpSkill >= 0 {
             self^.dispatch()
             self^.captureTrail()
+            self^.finishDamageChain()
             return^
         }
         if^self^.stop > 0 {
@@ -469,6 +471,7 @@ public^let^Fighter = def^{
             elseif^co fits^c^{p^-> nil^ -> -}:
                 if^!co.started() { self^.advance() }
             }
+            self^.finishDamageChain()
             return^
         }
         if^self^.y >= self^.ground and^self^.vy > 0 and^(self^.owner is^nil^ or^self^.onSkill["landing"] != nil^) { self^.land() }
@@ -478,6 +481,14 @@ public^let^Fighter = def^{
         self^.captureTrail()
         if^self^.jumpSkill < 0 { self^.advance() }
         self^.dispatch()
+        self^.finishDamageChain()
+    },
+
+    # Native actor termination resets DF01; SG/DS and subroutine returns do not.
+    finishDamageChain = p^self^{
+        if^self^.damageHits > 0 and^self^.owner is^nil^ and^!self^.system and^self^.finished() {
+            self^.damageHits := 0
+        }
     },
 
     captureTrail = p^self^{
@@ -832,7 +843,11 @@ public^let^Fighter = def^{
         def.blocking := guarded
         def.receiving := !guarded and^skill > 0
         if^!guarded {
-            if^box.power != 0 { def.addLife(-std.math.max((box.power * rate / 100).floor(), 1)) }
+            if^box.power != 0 {
+                let^scaled = std.math.max(box.power - (box.power * self^.charOf().comboRate * def.damageHits / 100).floor(), 1)
+                def.addLife(-std.math.max((scaled * rate / 100).floor(), 1))
+                def.damageHits += 1
+            }
         elseif^box.power > 0 and^box.flags.find("halfed") != nil^:
             # 0x40F6AE: guard chip uses the attacker's hRatio, not FD rate.
             let^damage = std.math.max((box.power * self^.charOf().guardDamageRate / 100).floor(), 1)

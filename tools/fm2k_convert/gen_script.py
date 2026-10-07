@@ -204,9 +204,9 @@ def main():
         st = d["settings"]
         # Retain source settings even where their FM2K runtime meaning has not
         # yet been implemented; an update must not silently discard them.
-        lines.append("settings = { lifeMax = %d, specialPer = %d, stockMax = %d, startStock = %d, startPos = %d, correct = %d, guardDamageRate = %d, closeRange = %d },"
+        lines.append("settings = { lifeMax = %d, specialPer = %d, stockMax = %d, startStock = %d, startPos = %d, correct = %d, guardDamageRate = %d, closeRange = %d, comboRate = %d },"
                      % (st["lifeGaugeMax"], st["specialGaugeMax"], st["specialMaxStock"], st["startStock"],
-                        st.get("startPos", 0), st.get("correct", 0), st.get("hRatio", 0), st.get("interval", 0)))
+                        st.get("startPos", 0), st.get("correct", 0), st.get("hRatio", 0), st.get("interval", 0), st.get("combo", 0)))
     # Reaction number (the attacker's R block) -> this character's hit skill and spark.
     reactions = []
     for i, r in enumerate(d.get("hitJunctionsSkills", [])):

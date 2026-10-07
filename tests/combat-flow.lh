@@ -177,6 +177,7 @@ let^melt = p^{
         panic^$"Melt Shot: hits={hits}, life={def.life}, excluded={excluded}"
     }
     # A late part can still catch an opponent who missed the initial blast.
+    def.damageHits := 0
     let^late = owner.makeObject(227, 34, 193, -200, 127)
     late.advance()
     let^box = late.hits[0]
@@ -592,7 +593,8 @@ public^let^update = p^dt:number^{
     if^!done and^loadout.ready() {
         done := true^
         attack("assets/characters/カテジナ", "足払い", 1, 120)
-        attack("assets/characters/カテジナ", "けつ昇竜", 2, 131)
+        # 100 + (31 - floor(31 * 8 / 100)), before FD/low-life multipliers.
+        attack("assets/characters/カテジナ", "けつ昇竜", 2, 129)
         guard()
         melt()
         yuiSuper()

@@ -307,6 +307,7 @@ let^place = p^p:Fighter, x:number^, facing:number^{
     p.baseDepth := if^facing = 1: 80 el^: 70;
     p.depth := p.baseDepth
     p.combo := 0
+    p.damageHits := 0
     # A round starts clean: the character's variables (its objects and its
     # support read them; kept, the support stood frozen in last round's
     # win / loss pose) and whatever it left on the stage.

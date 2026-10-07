@@ -206,6 +206,7 @@ public^let^Script = def^{
             me.special := st.specialPer * std.math.min(st.startStock, st.stockMax)
         }
         if^d fits^t^{ settings:t^{ guardDamageRate:number^ } } { me.guardDamageRate := d.settings.guardDamageRate }
+        if^d fits^t^{ settings:t^{ comboRate:number^ } } { me.comboRate := d.settings.comboRate }
         if^d fits^t^{ settings:t^{ startPos:number^, correct:number^ } } {
             me.lowLifeThreshold := d.settings.startPos me.lowLifeRate := d.settings.correct
         }

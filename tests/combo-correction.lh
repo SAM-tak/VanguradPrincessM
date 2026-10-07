@@ -1,0 +1,52 @@
+# Combo scaling precedes FD and low-life scaling; counters belong to victims.
+module^vp.combocorrectiontest
+import^love.event
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/scriptdata.lh"
+let^Fighter = vp.fighter.Fighter
+let^equal = p^got:number^, want:number^{ if^got != want { panic^$"Combo: {got}, expected {want}" } }
+public^let^load = p^{
+ let^a = Fighter.new("", 0, 0) let^b = Fighter.new("", 0, 0)
+ a.comboRate := 8 b.lifeMax := 10000 b.life := 10000
+ let^box = vp.fighter.Box.new(0, 0, 10, 10) box.power := 100
+ for^damage in^{100,92,84,76,68,60,52,44,36,28,20,12,4,1,1} {
+  let^old = b.life
+  a.struck(box, b, 100, false^, "damaged")
+  equal(old - b.life, damage)
+ }
+ equal(b.damageHits, 15) equal(a.damageHits, 0)
+ b.life := 1000 b.damageHits := 1 box.power := 101
+ a.struck(box, b, 150, false^, "damaged") equal(b.life, 861)
+ b.lifeMax := 1000 b.life := 400 b.lowLifeThreshold := 40 b.lowLifeRate := 85 b.damageHits := 1
+ a.struck(box, b, 150, false^, "damaged") equal(b.life, 282)
+ box.power := 0 b.damageHits := 0
+ a.struck(box, b, 100, false^, "damaged") equal(b.damageHits, 0) equal(b.life, 282)
+ a.reactions(1,1,1,2,2,2) a.guardDamageRate := 5
+ b.guarding := true^ box.power := 100 box.flags := "halfed" b.damageHits := 10
+ a.struck(box, b, 100, false^, "damaged") equal(b.life, 278) equal(b.damageHits, 10)
+ b.guarding := false^ b.life := 1000 b.damageHits := 1
+ let^o = Fighter.new("",0,0) o.owner := a o.comboRate := 99
+ o.struck(box,b,100,false^,"damaged") equal(b.life,908)
+ let^target = Fighter.new("",0,0) target.owner := b
+ a.struck(box,target,100,false^,"damaged") equal(b.damageHits,2)
+ let^data = vp.scriptdata.parse({
+  {id=9000,name="caller",level=0,blocks={{"SC",9001,0,1},{"I",8191,2,0,0,""},{"E"}}},
+  {id=9001,name="return",level=0,blocks={{"E"}}},
+  {id=9002,name="jump",level=0,blocks={{"SG",9003,0}}},
+  {id=9003,name="wait",level=0,blocks={{"I",8191,2,0,0,""},{"E"}}},
+ })
+ let^sc = vp.script.Script.new()
+ for^sk in^data.skills { sc.byId[sk.id] := sk }
+ sc.install(b)
+ b.damageHits := 5 b.begin(9000) b.stepScript() equal(b.damageHits,5)
+ for^i from^1 to^5 { b.stepScript() }
+ equal(b.damageHits,0)
+ b.damageHits := 5 b.begin(9002) b.stepScript() equal(b.damageHits,5)
+ b.on("wallHitting",9003,0) b.fire("wallHitting") b.stepScript() equal(b.damageHits,5)
+ for^i from^1 to^5 { b.stepScript() }
+ equal(b.damageHits,0)
+ print("PASS: linear combo scaling, floor at one, staged rounding, low-life order, guard/zero/object exclusions, projectile owner, E/SC/SG/DS lifetime")
+ love.event.quit()
+}
+public^let^draw = p^{}

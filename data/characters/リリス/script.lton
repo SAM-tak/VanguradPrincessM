@@ -1,7 +1,7 @@
 # Converted from リリス.json by tools/fm2k_convert/gen_script.py; run by src/script.lh.
 # Position = skill number. Block layouts: TechnicalDocuments/0012.
 layers = false^,
-settings = { lifeMax = 1000, specialPer = 400, stockMax = 5, startStock = 4, startPos = 45, correct = 80, guardDamageRate = 0, closeRange = 138 },
+settings = { lifeMax = 1000, specialPer = 400, stockMax = 5, startStock = 4, startPos = 45, correct = 80, guardDamageRate = 0, closeRange = 138, comboRate = 10 },
 reactions = {
     { 1, 47, 312 },
     { 2, 49, 312 },
