@@ -1,0 +1,44 @@
+module^vp.sierrastart
+import^love.event
+import^love.timer
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+let^loadout = vp.preload.Load.new("sierra-start")
+var^done = false^
+public^let^load = p^{ loadout.character("assets/characters/ゆい",102) }
+public^let^update = p^dt:number^{
+ vp.resource.pump(0.006)
+ if^done or^!loadout.ready() { return^ }
+ done := true^
+ let^sc = vp.script.loadFor("assets/characters/ゆい/script.lton",102)
+ if^sc is^nil^ { panic^"missing" }
+ if^sc.byId[40402] != nil^ { panic^"Unselected Kanae package was loaded" }
+ for^round in^{1,2} {
+  for^i,direction in^{5,2,3,6,4} {
+   let^p = vp.fighter.Fighter.new("assets/characters/ゆい",300,920)
+   sc.install(p)
+   p.setv(73,102) p.setv(71,100) p.setv(65,0) p.setv(64,0) p.setv(138,0)
+   vp.fighter.setRound(6000,round)
+   let^hud = p.makeObject(403,0,0,0,100)
+   for^tick from^0 to^1000 {
+    p.record(direction,if^tick % 40 = 0: 8 el^: 0;)
+    hud.step()
+   }
+   let^expected = {101,150,130,110,102}[i] ?? 0
+   if^p.v(76) != expected { panic^$"Sierra round={round} dir={direction}: request={p.v(76)} hud={hud.skillNo}" }
+   let^actor = p.makeObject(20530,0,300,920,80)
+   actor.advance()
+   let^target = sc.byId[actor.jumpSkill]
+   if^target is^nil^ { panic^"Sierra attack target is missing" }
+   let^expectedName = {"サポート弱攻撃","爆撃","リフレクター本体","待機","サポガード"}[i] ?? ""
+   if^target.name != expectedName { panic^$"Sierra wrong attack: {target.name}" }
+  }
+ }
+ print("PASS: Sierra-only preload, real HUD startup, rounds 1/2, all five inputs and attack entries")
+ love.event.quit()
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }
+

@@ -135,3 +135,7 @@
 - [0100-layer-scroll-rounding.md](0100-layer-scroll-rounding.md) — レイヤーの整数スクロール、使用中のループ指定と実ステージ描画検証。
 
 - [0101-blend-audit-completion.md](0101-blend-audit-completion.md) — 5合成方式のGPU画素検証、了承済み描画差と0074の対象範囲完了。
+
+- [0102-hit-reaction-facing.md](0102-hit-reaction-facing.md) — 命中位置ではなく攻撃オブジェクトの向きに基づくヒット・ガード反応。
+
+- [0103-sierra-startup-routing.md](0103-sierra-startup-routing.md) — シエラの初期化を選択パッケージへ接続、単独ロードでの全入力回帰。

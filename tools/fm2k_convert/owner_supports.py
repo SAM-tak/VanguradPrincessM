@@ -63,6 +63,7 @@ def split(skills, owner):
     mapping = {n: BANKS[name]+n for name, ns in groups.items() for n in ns}
     core = set(mapping)
     packages = {}
+    package_maps = {}
     for name, ns in groups.items():
         entries = []
         for n in ns:
@@ -76,6 +77,7 @@ def split(skills, owner):
         reachable = helper_blocks(skills, set(ns), entries)
         helpers = {n for n, _ in reachable}
         local = {**mapping, **{n: BANKS[name]+n for n in helpers}}
+        package_maps[name] = {n: local[n] for n in set(ns) | helpers}
         result = []
         for n in sorted(set(ns) | helpers):
             sk = deepcopy(skills[n])
@@ -96,9 +98,15 @@ def split(skills, owner):
             continue
         sk = deepcopy(source)
         for b in sk['blocks']:
+            # A support-selection branch can enter a shared owner's helper,
+            # not only a support's primary range (Yui's Sierra HUD is #403:10).
+            # Enter its package copy so subsequent helper calls stay local.
+            selected = next((name for name, spec in SUPPORTS.items()
+                             if b[0] == 'V' and b[1] == 73 and b[5:7] == [1, spec[0]]), None)
+            links = package_maps[selected] if selected else mapping
             for k in ref_positions(b):
                 if b[k] > 0:
-                    b[k] = mapping.get(b[k], b[k])
+                    b[k] = links.get(b[k], mapping.get(b[k], b[k]))
         body.append((n, sk))
     return body, packages
 

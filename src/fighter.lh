@@ -914,7 +914,9 @@ public^let^Fighter = def^{
         let^guarded = def.guarding and^guardable
         let^reaction = if^guarded: onGuard el^: onHit;
         let^skill = def.reactHit[reaction] ?? 0
-        def.facing := if^self^.x < def.x: -1 el^: 1;
+        # Native 0x40F67E/0x40F73C invert the attacking actor's facing.
+        # A projectile behind the victim must not reverse recoil just by position.
+        def.facing := -self^.facing
         if^skill > 0 { def.queueReaction(skill) }
         def.blocking := guarded
         def.receiving := !guarded and^skill > 0

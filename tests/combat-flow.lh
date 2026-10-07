@@ -588,6 +588,35 @@ let^yuiForwardB = p^{
     }
 }
 
+let^reactionFacing = p^{
+    for^side in^{1,-1} {
+        for^location in^{100,300,500} {
+            for^blocking in^{false^,true^} {
+                let^owner = Fighter.new("",300-side*200,0)
+                owner.facing := side
+                let^a = Fighter.new("",location,0)
+                a.owner := owner a.facing := side
+                a.onHit[0] := 1 a.onGuard[0] := 2
+                let^d = Fighter.new("",300,0)
+                d.facing := -side d.enemy := owner
+                d.skills[9001] := p^f:Fighter, at:number^{ f.move(-600,0) yield^ }
+                d.reactHit[1] := 9001 d.reactHit[2] := 9001
+                d.updateGuard(blocking,false^,true^)
+                let^box = vp.fighter.Box.new(0,0,10,10)
+                let^guarded,spark = a.struck(box,d,100,false^,"")
+                if^guarded != blocking or^d.facing != -side { panic^"Projectile position reversed hit/guard facing" }
+                d.stepScript()
+                if^d.vx * side <= 0 { panic^"Reaction moved toward projectile owner" }
+                # An explicitly reversed projectile follows its own facing, not its owner.
+                a.facing := -side
+                a.struck(box,d,100,false^,"")
+                if^d.facing != side { panic^"Reaction ignored attacking actor facing" }
+            }
+        }
+    }
+    print("PASS: projectile hit/guard facing and recoil, both sides, front/back/same pivot, reversed actor")
+}
+
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
     if^!done and^loadout.ready() {
@@ -596,6 +625,7 @@ public^let^update = p^dt:number^{
         # 100 + (31 - floor(31 * 8 / 100)), before FD/low-life multipliers.
         attack("assets/characters/カテジナ", "けつ昇竜", 2, 129)
         guard()
+        reactionFacing()
         melt()
         yuiSuper()
         landingAndPush()
