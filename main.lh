@@ -885,7 +885,8 @@ public^let^status = f^{
             for^o in^p.objects { if^o.onScreen and^o.depth = 117 { duplicatePortraits += 1 } }
         }
     }
-    return^{ duplicatePortraits = duplicatePortraits, introPortraits = flow.portraits.length^, introMusicPlaying = matchIntro and^flow.music != nil^ and^flow.music.isPlaying(),
+    return^{
+        duplicatePortraits = duplicatePortraits, introPortraits = flow.portraits.length^, introMusicPlaying = matchIntro and^flow.music != nil^ and^flow.music.isPlaying(),
         phase = if^matchIntro: "match-intro" el^selecting != nil^: "select" el^st != nil^: st.phase el^scene != nil^: "title" el^: "battle";,
         backgroundOnly = flow.backgroundOnly(), presentationFrames = flow.presentationFrames, introCatchup = introCatchup,
         waitingFrames = flow.waitingFrames,
@@ -907,7 +908,8 @@ public^let^status = f^{
         supportSkill = if^support != nil^: support.skillNo el^: -1;,
         wins = flow.wins1, losses = flow.wins2,
         difficulty = if^st != nil^: st.difficulty el^: -1;,
-        event = if^st != nil^: st.at el^: -1; }
+        event = if^st != nil^: st.at el^: -1;
+    }
 }
 
 # One fixed simulation tick for the current scene.

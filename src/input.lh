@@ -12,7 +12,7 @@ let^keys : t^{t^{love.keyboard.Key[]}[]} = {
     {Key.up, Key.left, Key.down, Key.right, Key.z, Key.x, Key.c, Key.a, Key.s, Key.d, Key.escape, Key.return},
     {Key.u, Key.h, Key.j, Key.k, Key.l, Key.semicolon, Key.quote, Key.o, Key.p, Key.leftbracket, Key.escape, Key.return},
 }
-let^buttons = {Button.a, Button.b, Button.x, Button.y, Button.leftshoulder, Button.rightshoulder, Button.back, Button.start}
+let^buttons = {Button.a, Button.x, Button.y, Button.b, Button.rightshoulder, Button.leftshoulder, Button.back, Button.start}
 
 # Keep occupied slots stable when another controller disconnects.
 public^let^poll = p^-> t^{love.keyboard.Key[]} {
