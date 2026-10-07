@@ -111,3 +111,5 @@
 - [0088-life-and-cancel-rules.md](0088-life-and-cancel-rules.md) — 通常命中・削り・GPの低体力補正、FA確認とCの移行先制限、VP未使用機能の対象外化。
 
 - [0089-combo-damage-correction.md](0089-combo-damage-correction.md) — キャラ別コンボ補正、FD・低体力補正の順序、被弾側ヒットカウンタの寿命。
+
+- [0090-command-button-edges.md](0090-command-button-edges.md) — 通常コマンド・COMの保持履歴からの押下判定。

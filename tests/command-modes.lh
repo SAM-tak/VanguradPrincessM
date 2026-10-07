@@ -34,6 +34,25 @@ let^run = p^{
     if^window.entered(2, {0}, {3}, {0}, {1}) { panic^"Separate presses became simultaneous" }
     for^i from^1 to^1024 { window.record(5, 0) }
     if^window.command(1024, {0}, {7}) { panic^"Wrapped history reused stale press" }
+    # Exhaust all requested masks and predecessor masks, for both scanners.
+    let^edges = actor()
+    for^previous from^0 to^63 { for^need from^1 to^63 {
+        edges.recordHeld(5, previous)
+        edges.recordHeld(5, need)
+        var^overlap = false^
+        var^bit = 1
+        repeat^while^bit <= 32 {
+            if^(previous / bit).floor() % 2 = 1 and^(need / bit).floor() % 2 = 1 { overlap := true^ }
+            bit *= 2
+        }
+        if^edges.entered(1, {0}, {need}, {0}, {1}) = overlap or^edges.command(1, {0}, {need}) = overlap {
+            panic^"Native button edge mismatch"
+        }
+    } }
+    edges.recordHeld(5, 0) edges.recordHeld(5, 3) edges.recordHeld(5, 3)
+    if^edges.command(1, {0}, {3}) or^!edges.command(2, {0}, {3}) { panic^"Held/buffered simultaneous input" }
+    let^object = actor() object.owner := edges
+    if^!object.command(2, {0}, {3}) { panic^"Object did not read owner input" }
     let^f = actor() let^enemy = actor()
     let^sc = vp.script.load("assets/characters/ゆい/script.lton")
     if^sc is^nil^ { panic^"Missing Yui" }
@@ -44,7 +63,7 @@ let^run = p^{
     f.enemy := enemy
     for^side in^{-1, 1} { for^distance in^{125, 126, 126.9, 127} {
         enemy.x := f.x + side * distance
-        f.record(5, 1)
+        f.record(5, 0) f.record(5, 1)
         let^want = if^distance < 127: 11 el^: 12;
         if^f.fromCommands(false^) != want or^f.fromCommands(true^) != 14 { panic^"Range boundary/crouch selection" }
         f.y := 900
@@ -58,21 +77,21 @@ let^run = p^{
     c.far := 0
     if^f.fromCommands(false^) != 0 { panic^"Unavailable far must not use near" }
     let^r = actor()
-    r.recordHeld(5, 7, 7)
+    r.recordHeld(5, 7)
     if^r.entered(15, {0}, {7}, {1}, {5}) { panic^"Repeat accepted one press" }
-    for^i from^1 to^6 { r.recordHeld(5, 0, 7) }
+    for^i from^1 to^6 { r.recordHeld(5, 7) }
     if^r.entered(15, {0}, {7}, {1}, {5}) { panic^"Holding counted as repeated press" }
-    r.recordHeld(5, 0, 0) r.recordHeld(5, 7, 7)
+    r.recordHeld(5, 0) r.recordHeld(5, 7)
     if^!r.entered(15, {0}, {7}, {1}, {5}) { panic^"Repeat did not consume four units per press" }
     let^partial = actor()
-    partial.recordHeld(5, 7, 7) partial.recordHeld(5, 0, 1) partial.recordHeld(5, 6, 7)
+    partial.recordHeld(5, 7) partial.recordHeld(5, 1) partial.recordHeld(5, 7)
     if^partial.entered(15, {0}, {7}, {1}, {5}) { panic^"Repeat accepted partial release" }
     let^charge = actor()
-    charge.recordHeld(4, 1, 1) charge.recordHeld(4, 0, 1)
+    charge.recordHeld(4, 1) charge.recordHeld(4, 1)
     if^charge.entered(1, {6}, {1}, {2}, {3}) { panic^"Charge too short" }
-    charge.recordHeld(4, 0, 1)
+    charge.recordHeld(4, 1)
     if^!charge.entered(1, {6}, {1}, {2}, {3}) { panic^"Charge history must extend beyond search window" }
-    charge.recordHeld(4, 0, 0)
+    charge.recordHeld(4, 0)
     if^charge.entered(1, {6}, {1}, {2}, {3}) { panic^"Released button counted as charge" }
     let^haruka = vp.script.load("assets/characters/はるか/script.lton")
     if^haruka is^nil^ { panic^"Missing Haruka" }
@@ -80,11 +99,11 @@ let^run = p^{
     for^command in^h.commands {
         if^command.name = "cpu" { h.commands := { command } break^ }
     }
-    h.recordHeld(5, 7, 7)
+    h.recordHeld(5, 7)
     if^h.fromCommands(false^) = 262 { panic^"Haruka cpu command accepted one press" }
-    h.recordHeld(5, 0, 0) h.recordHeld(5, 7, 7)
+    h.recordHeld(5, 0) h.recordHeld(5, 7)
     if^h.fromCommands(false^) != 262 { panic^"Haruka real repeat command" }
-    print("PASS: near/far inclusive/truncated distance, posture/missing target, repeat release/amount, charge duration, real Haruka command")
+    print("PASS: 4032 native button transitions, buffered edges and owner COM; near/far inclusive/truncated distance, posture/missing target, repeat release/amount, charge duration, real Haruka command")
 }
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)

@@ -616,11 +616,20 @@ public^let^Fighter = def^{
         return^met != inverted
     },
     # Remembers this frame's input: a numpad direction relative to the way the
-    # fighter faces (6 = forward) and the buttons newly pressed.
-    record = p^self^, dir:number^, pressed:number^{
-        self^.recordHeld(dir, pressed, pressed)
+    # fighter faces (6 = forward) and the held buttons. Edges are sampled here.
+    record = p^self^, dir:number^, held:number^{
+        self^.recordHeld(dir, held)
     },
-    recordHeld = p^self^, dir:number^, pressed:number^, held:number^{
+    recordHeld = p^self^, dir:number^, held:number^{
+        # Native 0x4102BC / 0x410C07: all requested buttons must be held now,
+        # and none may have been held in the preceding simulation frame.
+        let^previous = self^.inHeld[self^.inputFrame % HISTORY] ?? 0
+        var^pressed = 0
+        var^bit = 1
+        repeat^while^bit <= 32 {
+            if^(held / bit).floor() % 2 = 1 and^(previous / bit).floor() % 2 = 0 { pressed += bit }
+            bit *= 2
+        }
         self^.inputFrame += 1
         let^slot = self^.inputFrame % HISTORY
         self^.inDirs[slot] := dir
