@@ -66,8 +66,8 @@ let^drawLayer = p^l:Fighter, camX:number^, camY:number^{
     if^!l.alive { return^}             # ended with E
     let^w, h = l.sheet.size(l.image)
     if^w = 0 { return^}
-    var^x = l.x + l.ix + camX * (1 - l.scrollX)
-    var^y = l.y + l.iy + camY * (1 - l.scrollY)
+    var^x = layerCoordinate(l.x, l.ix, camX, l.scrollX)
+    var^y = layerCoordinate(l.y, l.iy, camY, l.scrollY)
     var^countX = 1
     var^countY = 1
     if^l.loopX {
@@ -90,4 +90,13 @@ let^drawLayer = p^l:Fighter, camX:number^, camY:number^{
         }
     }
     vp.sprite.resetBlend()
+}
+
+# Native 0x40DA79/0x40DAD0 truncate motion and percentage scrolling separately.
+# The caller already translated by -camera, so return a world coordinate.
+# Keep integer percentages until multiplication to avoid 116% becoming 115.999... .
+public^let^layerCoordinate = f^position:number^, offset:number^, camera:number^, percent:number^-> number^{
+    let^motion = if^position < 0: position.ceil() el^: position.floor();
+    let^scroll = camera * percent / 100
+    return^camera + motion + offset - if^scroll < 0: scroll.ceil() el^: scroll.floor();
 }

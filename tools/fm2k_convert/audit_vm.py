@@ -51,6 +51,10 @@ def main():
         op = b[0]
         if op == 'S' and b[1] == 0:
             handled['S_zero_type_global_stop'].append(row)
+        if op == 'Layer':
+            handled['Layer_scroll_and_repeat'].append(row)
+            if (b[1] < 0 and 'scrollX' in b[-1].split()) or (b[2] < 0 and 'scrollY' in b[-1].split()):
+                gaps['Layer_negative_enabled_scroll'].append(row)
         if op == 'COLOR':
             color_modes[b[1]] += 1
             for values, value in zip(color_values, b[2:6]):
@@ -164,7 +168,7 @@ def main():
         raw_color_alpha_flags=dict(color_alpha_flags), sound_options=dict(sound_options))
     # A zero missing_dispatch count does not mean complete FM2K compatibility.
     result['runtime_reviews'] = [
-        'Used render pixel blending/layer behavior (COLOR operands reviewed in 0098; sound S playback reviewed and type 0 stop implemented in 0099)',
+        'Used render pixel blending (COLOR operands reviewed in 0098, sound in 0099, layer scroll/repeat in 0100)',
     ]
     result['out_of_scope_unused'] = [
         'RC nonzero common-pose binding', 'EB nonzero colour fades', 'O shadow rendering flag',

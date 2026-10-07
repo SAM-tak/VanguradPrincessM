@@ -131,3 +131,5 @@
 - [0098-color-and-sound-settings-inventory.md](0098-color-and-sound-settings-inventory.md) — COLORの透明度指定・使用範囲と音声メタデータの棚卸し。
 
 - [0099-sound-stop-semantics.md](0099-sound-stop-semantics.md) — Sの音源種別0による全音声停止と通常再生の照合。
+
+- [0100-layer-scroll-rounding.md](0100-layer-scroll-rounding.md) — レイヤーの整数スクロール、使用中のループ指定と実ステージ描画検証。

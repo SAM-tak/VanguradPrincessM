@@ -1,0 +1,32 @@
+module^vp.stagescrolltest
+import^love.event
+require^"../src/stage.lh"
+require^"../src/fighter.lh"
+let^equal = p^got:number^, expected:number^{
+    if^got != expected { panic^$"Layer coordinate {got}, expected {expected}" }
+}
+public^let^load = p^{
+    # Original integer oracle: fixed-point motion truncates before the I offset;
+    # camera displacement uses integer percent multiplication then signed division.
+    for^rate in^{0,4,5,8,10,11,12,14,18,25,35,40,60,70,100,116,120,130} {
+        for^camera from^0 to^640 {
+            let^product = camera * rate
+            let^displacement = (product - product % 100) / 100
+            equal(vp.stage.layerCoordinate(-1.75, 7, camera, rate) - camera, 6 - displacement)
+            equal(vp.stage.layerCoordinate(1.75, -7, camera, rate) - camera, -6 - displacement)
+        }
+    }
+    # 116%/120% school foreground at the lower-right camera limit.
+    equal(vp.stage.layerCoordinate(0,0,640,116) - 640, -742)
+    equal(vp.stage.layerCoordinate(0,789,480,120) - 480, 213)
+    let^layer = vp.fighter.Fighter.new("",0,0)
+    layer.layer(-16,14,"scrollY loopX")
+    equal(layer.scrollX,0) equal(layer.scrollY,14)
+    if^!layer.loopX or^layer.loopY { panic^"Layer flags" }
+    layer.layer(116,120,"scrollX scrollY loopY")
+    equal(layer.scrollX,116) equal(layer.scrollY,120)
+    if^layer.loopX or^!layer.loopY { panic^"Layer flags not replaced" }
+    print("PASS: 23076 native integer layer coordinates, school boundaries, disabled scroll and loop replacement")
+    love.event.quit()
+}
+public^let^draw = p^{}

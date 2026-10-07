@@ -70,7 +70,7 @@ public^let^Fighter = def^{
         trail : vp.afterimage.Trail|nil^ = nil^,
         blend = 0, alpha = 1,       # COLOR: 0 normal, 1 half, 2 add, 3 subtract, 4 custom alpha
         tintR = 0, tintG = 0, tintB = 0,    # COLOR: added to each channel (-1..1)
-        scrollX = 1, scrollY = 1,   # stage layers: how far they move with the camera
+        scrollX = 100, scrollY = 100, # stage camera scroll percentages, kept as integers
         loopX = false^, loopY = false^,
         level = 0,
         hurts : t^{[number^]:Box|nil^} = {},
@@ -1392,8 +1392,8 @@ public^let^Fighter = def^{
     # ("scrollX" / "scrollY" on, else it stays put on screen), and whether its
     # image repeats ("loopX" / "loopY").
     layer = p^self^, x:number^, y:number^, flags:string^{
-        self^.scrollX := if^flags.find("scrollX") != nil^: x / 100 el^: 0;
-        self^.scrollY := if^flags.find("scrollY") != nil^: y / 100 el^: 0;
+        self^.scrollX := if^flags.find("scrollX") != nil^: x el^: 0;
+        self^.scrollY := if^flags.find("scrollY") != nil^: y el^: 0;
         self^.loopX := flags.find("loopX") != nil^
         self^.loopY := flags.find("loopY") != nil^
     },
