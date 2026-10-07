@@ -1108,14 +1108,14 @@ public^let^Fighter = def^{
     # "keepAX" / "keepAY" leave that one as it is.
     motion = p^self^, vx:number^, vy:number^, ax:number^, ay:number^, flags:string^{
         let^add = flags.find("add") != nil^
-        let^dvx = vx * SPEED * self^.facing
-        let^dvy = vy * SPEED
-        let^dax = ax * GRAVITY * self^.facing
-        let^day = ay * GRAVITY
-        if^flags.find("keepVX") is^nil^{ self^.vx := if^add: self^.vx + dvx el^: dvx; }
-        if^flags.find("keepVY") is^nil^{ self^.vy := if^add: self^.vy + dvy el^: dvy; }
-        if^flags.find("keepAX") is^nil^{ self^.ax := if^add: self^.ax + dax el^: dax; }
-        if^flags.find("keepAY") is^nil^{ self^.ay := if^add: self^.ay + day el^: day; }
+        let^dvx = signedWord(vx) * SPEED * self^.facing
+        let^dvy = signedWord(vy) * SPEED
+        let^dax = signedWord(ax) * GRAVITY * self^.facing
+        let^day = signedWord(ay) * GRAVITY
+        if^flags.find("keepVX") is^nil^{ self^.vx := fixedRange(if^add: self^.vx + dvx el^: dvx;) }
+        if^flags.find("keepVY") is^nil^{ self^.vy := fixedRange(if^add: self^.vy + dvy el^: dvy;) }
+        if^flags.find("keepAX") is^nil^{ self^.ax := fixedRange(if^add: self^.ax + dax el^: dax;) }
+        if^flags.find("keepAY") is^nil^{ self^.ay := fixedRange(if^add: self^.ay + day el^: day;) }
     },
     # M — horizontal speed and gravity only (the hand-written sample's form).
     move = p^self^, vx:number^, ax:number^{
@@ -1548,4 +1548,11 @@ let^signedWord = f^value:number^-> number^{
     let^n = integer(value)
     let^word = n - (n / 65536).floor() * 65536
     return^if^word >= 32768: word - 65536 el^: word;
+}
+
+# M stores signed 32-bit 16.16 values. Binary fractions are already exact;
+# only overflow needs normalization, never per-frame decimal rounding.
+let^fixedRange = f^value:number^-> number^{
+    if^value >= -32768 and^value < 32768 { return^value }
+    return^value - ((value + 32768) / 65536).floor() * 65536
 }
