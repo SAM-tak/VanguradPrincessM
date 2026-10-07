@@ -19,12 +19,17 @@ public^let^poll = p^-> t^{love.keyboard.Key[]} {
     var^events : t^{love.keyboard.Key[]} = {}
     for^s in^slots {
         let^pad = s.pad
-        if^pad != nil^ and^!pad.isConnected() { s.pad := nil^ s.held := {} }
+        if^pad? and^!pad.isConnected() { s.pad := nil^ s.held := {} }
     }
     for^pad in^love.joystick.getJoysticks() {
         if^pad.isGamepad() {
             var^assigned = false^
-            for^s in^slots { let^other = s.pad if^other != nil^ and^other.getID() = pad.getID() { assigned := true^ } }
+            for^s in^slots {
+                let^other = s.pad
+                if^other? and^other.getID() = pad.getID() {
+                    assigned := true^
+                }
+            }
             if^!assigned {
                 for^s in^slots { if^s.pad is^nil^ { s.pad := pad s.held := {} break^ } }
             }
@@ -58,7 +63,11 @@ public^let^isDown = p^key:love.keyboard.Key-> bool^{
     for^i, s in^slots {
         let^layout = keys[i]
         if^layout != nil^ {
-            for^k, value in^layout { if^value = key and^(s.held[k] ?? false^) { return^true^ } }
+            for^k, value in^layout {
+                if^value = key and^(s.held[k] ?? false^) {
+                    return^true^
+                }
+            }
         }
     }
     return^false^
