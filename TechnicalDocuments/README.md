@@ -107,3 +107,5 @@
 - [0086-command-scan-performance.md](0086-command-scan-performance.md) — 36FPS低下の再現、旧コミット比較、入力履歴の不成立判定で安定区間75FPSへ改善
 
 - [0087-decoration-collision-performance.md](0087-decoration-collision-performance.md) — 演出オブジェクト増加時の接触・被弾判定負荷削減と計測。
+
+- [0088-life-and-cancel-rules.md](0088-life-and-cancel-rules.md) — 通常命中・削り・GPの低体力補正、FA確認とCの移行先制限、VP未使用機能の対象外化。

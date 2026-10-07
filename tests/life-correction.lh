@@ -1,0 +1,43 @@
+# Low-life correction: native 0x40E7C0, used by hits, guard chip and GP.
+module^vp.lifecorrectiontest
+import^love.event
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+let^Fighter = vp.fighter.Fighter
+let^equal = p^got:number^, want:number^{ if^got != want { panic^$"Life: {got}, expected {want}" } }
+public^let^load = p^{
+    let^a = Fighter.new("", 0, 0)
+    let^b = Fighter.new("", 0, 0)
+    let^sc = vp.script.Script.new()
+    sc.raw := { settings = { startPos = 40, correct = 85 } }
+    sc.install(b)
+    equal(b.lowLifeThreshold, 40) equal(b.lowLifeRate, 85)
+    b.life := 401 b.addLife(-100) equal(b.life, 301)
+    b.life := 400 b.addLife(-100) equal(b.life, 315)
+    b.life := 399 b.addLife(-3) equal(b.life, 397)
+    b.life := 1 b.addLife(-1) equal(b.life, 0)
+    b.life := 400 b.addLife(100) equal(b.life, 500)
+    b.life := 990 b.addLife(100) equal(b.life, 1000)
+    b.lifeMax := 999 b.life := 399 b.addLife(-100) equal(b.life, 314)
+    b.life := 400 b.addLife(-100) equal(b.life, 300)
+    b.lifeMax := 1000 b.life := 300 b.lowLifeRate := 0
+    b.addLife(-100) equal(b.life, 299)
+    b.addLife(0) equal(b.life, 299)
+    b.lowLifeRate := 85
+    a.enemy := b
+    a.gauges(0, 0, -100, 0) equal(b.life, 214)
+    b.life := 400
+    a.hit(0, 0, 0, 10, 10, 3)
+    let^box : vp.fighter.Box = a.hits[0] ?? vp.fighter.Box.new(0, 0, 0, 0)
+    a.struck(box, b, 150, false^, "damaged") equal(b.life, 397)
+    b.life := 400 box.power := 0
+    a.struck(box, b, 100, false^, "damaged") equal(b.life, 400)
+    box.power := 101 box.flags := "halfed"
+    a.guardDamageRate := 5 a.reactions(1, 1, 1, 2, 2, 2)
+    b.guarding := true^
+    a.struck(box, b, 200, false^, "damaged") equal(b.life, 396)
+    b.life := 1 a.struck(box, b, 100, false^, "damaged") equal(b.life, 0)
+    print("PASS: low-life boundary, integer rounding, minimum loss, recovery, GP, normal hit, zero power and chip KO")
+    love.event.quit()
+}
+public^let^draw = p^{}

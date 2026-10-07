@@ -98,7 +98,7 @@ public^let^Fighter = def^{
         closeRange = 0,             # settings.interval, inclusive pixel distance
         cancelWhen = "", cancelFrom = 0, cancelTo = 0, cancelSkill = -1,
         hitConfirmed = false^,
-        cancelByHit = false^,       # an FA with the "cancel" flag connected
+        cancelArmed = false^, cancelByHit = false^,
         # Being hit: reaction number -> own hit skill / spark skill (the .player
         # table), and the running attack's R block (stand, crouch, air) x (hit, guard).
         reactHit : t^{[number^]:number^|nil^} = {},
@@ -107,6 +107,7 @@ public^let^Fighter = def^{
         onGuard : t^{number^[]} = { 0, 0, 0 },
         life = 1000, lifeMax = 1000,
         guardDamageRate = 0,        # attacker settings.hRatio, percent of FA power
+        lowLifeThreshold = 0, lowLifeRate = 100,
         # The special gauge: `special` points, `specialPer` to a stock (one
         # level), at most `stockMax` stocks.
         special = 0, specialPer = 300, stockMax = 5,
@@ -226,7 +227,10 @@ public^let^Fighter = def^{
                                 if^self^.owner != nil^ { self^.fire("defending") }
                                 if^other.owner != nil^ { other.fire("defending") }
                             }
-                            if^empty or^mine or^theirs or^cancel { return^ }
+                            if^empty or^mine or^theirs or^cancel {
+                                self^.confirmCancel() other.confirmCancel()
+                                return^
+                            }
                         }
                     }
                 }
@@ -305,6 +309,7 @@ public^let^Fighter = def^{
         self^.onGuard := { 0, 0, 0 }
         self^.hitConfirmed := false^
         self^.cancelByHit := false^
+        self^.cancelArmed := false^
         self^.waitTimer := 0
         if^!self^.airborne() {
             self^.vx := 0
@@ -719,34 +724,34 @@ public^let^Fighter = def^{
         }
         return^false^
     },
-    # Whether skill n may start now (the FM2002 compendium's reading of C):
+    # Whether skill n may start now (original 0x411922-0x4119E1):
     #   - the running skill is level 0 (a basic move), or
     #   - the last C block allows it: "uncond" any time, "hits" once an attack has
     #     connected; into skill `cancelSkill`, or any skill of level from..to.
     #     "fails" means not cancellable at all.
-    #   - an FA with the "cancel" flag connected, and n is of a higher level.
-    #     (Assumption: which skills an FA cancel allows is not documented.)
+    # FA cancel arms C's hit condition; it never bypasses the C destination.
     mayStart = p^self^, n:number^-> bool^{
         if^self^.stop > 0 or^self^.eventPending { return^false^ }
         if^self^.finished() { return^true^ }
         let^current = self^.skillLevel(self^.skillNo)
         if^current = 0 { return^true^ }
-        if^self^.cancelByHit and^self^.skillLevel(n) > current { return^true^ }
         let^when = self^.cancelWhen
-        let^met = when = "uncond" or^(when = "hits" and^self^.hitConfirmed)
+        let^met = when = "uncond" or^(when = "hits" and^self^.cancelByHit)
         if^!met { return^false^ }
-        if^self^.cancelSkill >= 0 { return^n = self^.cancelSkill }
-        if^self^.cancelFrom = 0 and^self^.cancelTo = 0 { return^false^ }
+        if^self^.cancelSkill >= 0 { return^self^.cancelSkill > 0 and^n = self^.cancelSkill }
         let^lv = self^.skillLevel(n)
         return^lv >= self^.cancelFrom and^lv <= self^.cancelTo
     },
     # An attack box of this fighter's connected.
     landed = p^self^, box:Box{
-        if^box.flags.find("cancel") != nil^ { self^.cancelByHit := true^ }
         self^.hitConfirmed := true^
         # Main-actor DS waits for the entire collision pass; objects dispatch
         # immediately. C hit-confirm remains sticky across frames.
         if^self^.owner != nil^ { self^.fire("attacking") }
+    },
+    confirmCancel = p^self^{
+        let^root = self^.charOf()
+        if^root.cancelArmed { root.cancelByHit := true^ }
     },
     resetHitEvents = p^self^{
         self^.frameAttack := false^ self^.frameThrow := false^ self^.frameReceived := false^
@@ -814,6 +819,7 @@ public^let^Fighter = def^{
             self^.fire("attacking")
             return^false^, 0
         }
+        self^.confirmCancel()
         let^pose = def.posture(if^def.guarding: def.guardCrouched el^: crouched;)
         let^onHit = self^.onHit[pose] ?? 0
         let^onGuard = self^.onGuard[pose] ?? 0
@@ -826,11 +832,11 @@ public^let^Fighter = def^{
         def.blocking := guarded
         def.receiving := !guarded and^skill > 0
         if^!guarded {
-            def.life := std.math.max(def.life - box.power * rate / 100, 0)
+            if^box.power != 0 { def.addLife(-std.math.max((box.power * rate / 100).floor(), 1)) }
         elseif^box.power > 0 and^box.flags.find("halfed") != nil^:
             # 0x40F6AE: guard chip uses the attacker's hRatio, not FD rate.
             let^damage = std.math.max((box.power * self^.charOf().guardDamageRate / 100).floor(), 1)
-            def.life := std.math.max(def.life - damage, 0)
+            def.addLife(-damage)
         }
         self^.attackConnected := true^
         for^slot, active in^self^.hits {
@@ -984,6 +990,9 @@ public^let^Fighter = def^{
         let^b = Box.new(x, y, w, h)
         b.power := power
         self^.hits[slot] := b
+        if^self^.owner is^nil^ and^!self^.system and^w > 0 and^h > 0 {
+            self^.cancelArmed := false^ self^.cancelByHit := false^
+        }
     },
     # FA with its flags ("cancel combo guardFail ...").
     fa = p^self^, slot:number^, x:number^, y:number^, w:number^, h:number^, power:number^, flags:string^{
@@ -991,6 +1000,9 @@ public^let^Fighter = def^{
         b.power := power
         b.flags := flags
         self^.hits[slot] := b
+        if^self^.owner is^nil^ and^!self^.system and^w > 0 and^h > 0 {
+            self^.cancelArmed := flags.find("cancel") != nil^ self^.cancelByHit := false^
+        }
     },
     noHit = p^self^, slot:number^{
         self^.hits[slot] := nil^
@@ -1238,8 +1250,17 @@ public^let^Fighter = def^{
     },
     # GP — add to this character's and the opponent's life and special gauge
     # (special in points; a stock is `specialPer` of them).
+    # Original 0x40E7C0: use the recipient's HP before applying the delta.
+    # The whole loss is scaled at/below the threshold; recovery is not scaled.
+    addLife = p^self^, delta:number^{
+        var^amount = integer(delta)
+        if^amount < 0 and^self^.life <= (self^.lifeMax * self^.lowLifeThreshold / 100).floor() {
+            amount := -std.math.max((-amount * self^.lowLifeRate / 100).floor(), 1)
+        }
+        self^.life := (self^.life + amount).clamp(0, self^.lifeMax)
+    },
     addGauges = p^self^, life:number^, special:number^{
-        self^.life := (self^.life + life).clamp(0, self^.lifeMax)
+        self^.addLife(life)
         self^.special := (self^.special + special).clamp(0, self^.specialPer * self^.stockMax)
     },
     gauges = p^self^, life:number^, special:number^, enemyLife:number^, enemySpecial:number^{

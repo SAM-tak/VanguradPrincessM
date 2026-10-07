@@ -1,0 +1,48 @@
+# FA arming and C destination constraints, including guard and projectile hits.
+module^vp.cancelrulestest
+import^love.event
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/scriptdata.lh"
+let^Fighter = vp.fighter.Fighter
+public^let^load = p^{
+ let^data = vp.scriptdata.parse({ { id = 9000, name = "busy", level = 50, blocks = { { "I", 8191, 100, 0, 0, "" } } } })
+ let^sc = vp.script.Script.new()
+ for^sk in^data.skills { sc.byId[sk.id] := sk }
+ let^a = Fighter.new("", 0, 0) let^b = Fighter.new("", 0, 0)
+ sc.install(a) a.begin(9000) a.stepScript()
+ a.levels[9001] := 80 a.levels[9002] := 100
+ a.cancel("hits", 80, 80, -1)
+ a.fa(0, 0, 0, 10, 10, 1, "cancel")
+ if^a.mayStart(9001) { panic^"Whiff satisfied C hits" }
+ let^box : vp.fighter.Box = a.hits[0] ?? vp.fighter.Box.new(0, 0, 0, 0)
+ a.struck(box, b, 100, false^, "damaged")
+ if^!a.mayStart(9001) or^a.mayStart(9002) { panic^"FA bypassed C range" }
+ a.noHit(0)
+ if^!a.mayStart(9001) { panic^"Clearing FA erased confirmation" }
+ a.cancel("fails", 0, 0, -1)
+ if^a.mayStart(9002) { panic^"Higher level bypassed C fails" }
+ a.cancel("hits", 0, 0, 9002)
+ if^!a.mayStart(9002) or^a.mayStart(9001) { panic^"C explicit destination" }
+ a.hit(1, 0, 0, 10, 10, 1)
+ if^a.mayStart(9002) { panic^"New FA without cancel did not disarm" }
+ a.cancel("uncond", 80, 100, -1)
+ if^!a.mayStart(9001) or^!a.mayStart(9002) { panic^"C uncond range" }
+ a.cancel("uncond", 0, 0, -1)
+ if^!a.mayStart(9003) or^a.mayStart(9001) { panic^"C zero-level inclusive range" }
+ a.fa(0, 0, 0, 10, 10, 1, "cancel")
+ a.cancel("hits", 80, 80, -1)
+ a.reactions(1, 1, 1, 2, 2, 2) b.guarding := true^
+ a.struck(box, b, 100, false^, "damaged")
+ if^!a.mayStart(9001) { panic^"Guard contact did not confirm" }
+ a.fa(0, 0, 0, 10, 10, 1, "cancel")
+ if^a.mayStart(9001) { panic^"New FA retained old confirmation" }
+ let^o = Fighter.new("", 0, 0) o.owner := a
+ o.struck(box, b, 100, false^, "damaged")
+ if^!a.mayStart(9001) { panic^"Projectile did not confirm armed owner" }
+ a.begin(9000) a.stepScript()
+ if^a.cancelArmed or^a.cancelByHit { panic^"Begin retained FA confirmation" }
+ print("PASS: FA arms C, whiff/hit/guard, range and explicit target, fails, FA removal/replacement, projectile ownership")
+ love.event.quit()
+}
+public^let^draw = p^{}

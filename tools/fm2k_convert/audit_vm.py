@@ -134,12 +134,13 @@ def main():
                   command_findings=dict(commands))
     # A zero missing_dispatch count does not mean complete FM2K compatibility.
     result['runtime_reviews'] = [
-        'RC nonzero common-pose binding and EB nonzero colour fades (unused by current data)',
-        'O shadow rendering flag (unused by current data)',
         'Command simultaneous-button edge rules, facing changes, rotation order and history consumption',
-        'FA cancel priority and shared low-life damage correction',
+        'Settings.combo damage scaling and native hit-counter lifetime',
         'SC/SF native return slots and E/SG/DS interaction',
         'M fixed-point rounding, Rnd and gauge boundaries, remaining render/sound settings',
+    ]
+    result['out_of_scope_unused'] = [
+        'RC nonzero common-pose binding', 'EB nonzero colour fades', 'O shadow rendering flag',
     ]
     dispatch = set(re.findall(r'op = "([A-Za-z]+)"', (ROOT / 'src/script.lh').read_text(encoding='utf-8')))
     result['missing_dispatch'] = {op: count for op, count in ops.items() if op not in dispatch and op != 'Nop'}
