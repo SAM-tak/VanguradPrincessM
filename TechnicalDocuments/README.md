@@ -94,3 +94,5 @@
 - [0075-ds-transition-com-history.md](0075-ds-transition-com-history.md) — P0実装：DS専用初期化、技内COMの履歴窓と非消費照合、実データ回帰テスト
 
 - [0076-variable-semantics.md](0076-variable-semantics.md) — P2実装：Vの符号付き16ビット代入・加算飽和・座標整数化・オブジェクト単位の変数寿命
+
+- [0077-afterimages-and-rp-depth.md](0077-afterimages-and-rp-depth.md) — AI残像履歴・色補間、RP優先度、RC/EBの原作でも無効な指定の確認

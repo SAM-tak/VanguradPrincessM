@@ -43,6 +43,7 @@ def main():
     ops = Counter(b['instruction'][0] for b in blocks)
     flags, events = Counter(), Counter()
     gaps = defaultdict(list)
+    handled = defaultdict(list)
     for row in blocks:
         b = row['instruction']
         op = b[0]
@@ -57,9 +58,17 @@ def main():
             gaps['Nop_origin_review_not_necessarily_missing'].append(row)
         if op in ('AI', 'RC'):
             # Zero-count AI is a disable instruction; report separately.
-            gaps[f'{op}_active' if op != 'AI' or b[1] > 0 else 'AI_disable'].append(row)
+            if op == 'AI':
+                handled['AI_active' if b[1] > 0 else 'AI_disable'].append(row)
+            elif b[1] == 0:
+                handled['RC_zero_original_noop'].append(row)
+            else:
+                gaps['RC_nonzero_not_implemented'].append(row)
         if op == 'EB' and any(b[1:7]):
-            gaps['EB_colour_fade_ignored'].append(row)
+            if b[1] == 0:
+                handled['EB_colour_disabled_by_mode_zero'].append(row)
+            else:
+                gaps['EB_colour_fade_ignored'].append(row)
         if op == 'O':
             if b[7] > 0:
                 gaps['O_outSkill_ignored'].append(row)
@@ -72,11 +81,11 @@ def main():
         if op == 'FD' and 'throw' in b[-1].split():
             gaps['FD_throw_flag_not_tested'].append(row)
         if op == 'RP' and set(b[-1].split()) & {'in', 'out'}:
-            gaps['RP_depth_flags_ignored'].append(row)
+            handled['RP_depth_flags'].append(row)
         if op == 'COM':
             gaps['COM_polling_window_review'].append(row)
         if op == 'V' and b[2] == 2:
-            gaps['V_add_saturation_missing'].append(row)
+            handled['V_add_saturation'].append(row)
     raw_ops, lost = Counter(), []
     commands = defaultdict(list)
     for path in sorted((args.data / 'characters').glob('*/script.lton')):
@@ -102,10 +111,11 @@ def main():
                     if convert_block(b)[0] == 'Nop':
                         lost.append(dict(file=str(path), skill=n, name=skill['name'], block=i, raw=b))
     source_hashes = {p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest()
-                     for p in ['src/fighter.lh', 'src/script.lh', 'main.lh',
+                     for p in ['src/fighter.lh', 'src/afterimage.lh', 'src/script.lh', 'main.lh',
                                'tools/fm2k_convert/gen_script.py']}
     result = dict(scope='Emitted data except _conversion; static definitions, reachability not inferred',
                   files=len({b['file'] for b in blocks}), blocks=len(blocks),
+                  handled_sites=dict(handled),
                   operations=dict(ops.most_common()), flags=dict(flags.most_common()),
                   registered_events=dict(events),
                   findings={k: dict(count=len(v), locations=v) for k, v in gaps.items()},

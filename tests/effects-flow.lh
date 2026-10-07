@@ -1,0 +1,91 @@
+module^vp.effectstest
+import^love.event
+import^love.timer
+import^love.graphics
+require^"../src/fighter.lh"
+require^"../src/afterimage.lh"
+require^"../src/script.lh"
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+let^Fighter = vp.fighter.Fighter
+let^loadout = vp.preload.Load.new("effects-test")
+var^began = 0
+var^done = false^
+var^drawn = false^
+let^p = Fighter.new("assets/characters/ゆい", 350, 400)
+public^let^load = p^{ began := love.timer.getTime() loadout.add(p.dir, false^) }
+let^check = p^{
+    let^sc = vp.script.load($"{p.dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing effects script" }
+    sc.install(p)
+    var^tested = false^
+    for^id, sk in^sc.byId {
+        if^sk != nil^ {
+            for^index, b in^sk.blocks {
+                if^b.op = "AI" and^(b.n[0] ?? 0) > 0 and^!tested {
+                    p.start(id, index) p.advance()
+                    if^p.trail is^nil^ { panic^"Real AI did not execute" }
+                    tested := true^
+                }
+            }
+        }
+    }
+    if^!tested { panic^"No real AI tested" }
+    p.afterimage(3, 2, 4, 2, 10, 236, 236, 32)
+    let^maybe = p.trail
+    if^maybe is^nil^ { panic^"Missing trail" }
+    let^trail : vp.afterimage.Trail = maybe
+    trail.capture(1, 10, 20, -1, 1)
+    if^trail.cursor != 1 or^trail.timer != 2 { panic^"AI first capture" }
+    trail.capture(2, 30, 40, 1, -1)
+    trail.capture(3, 50, 60, 1, 1)
+    if^trail.cursor != 1 { panic^"AI interval too short" }
+    trail.capture(4, 70, 80, 1, 1)
+    if^trail.cursor != 2 or^trail.poses[0]?.image != 1 or^trail.poses[0]?.sx != -1 { panic^"AI pose history mutated" }
+    if^(trail.weight(0) - 0.67).abs() > 0.001 or^trail.weight(2) != 0 { panic^"AI colour interpolation" }
+    for^i from^0 to^999 { trail.capture(i, i, 0, 1, 1) }
+    if^trail.poses.length^ != 100 { panic^"AI history grew without limit" }
+    p.afterimage(0, 0, 0, 0, 0, 0, 0, 0)
+    if^trail.count != 0 or^trail.poses[0]?.image != -1 { panic^"AI did not clear" }
+    p.afterimage(2, 3, 2, 2, 0, 0, 0, 0)
+    p.stop := 5 p.step()
+    if^trail.cursor != 1 { panic^"AI froze during hitstop" }
+    p.afterimage(2, 0, 2, 2, 0, 0, 0, 0)
+    if^trail.count != 0 { panic^"AI time zero did not disable" }
+    let^target = Fighter.new(p.dir, 0, 0)
+    p.enemy := target target.enemy := p
+    p.baseDepth := 80 target.baseDepth := 70
+    target.reactHit[1] := 9001
+    target.skills[9001] := p^f:Fighter, at:number^{ yield^ }
+    for^direction in^{1, -1} {
+        p.facing := direction
+        p.hurt(0, 0, 0, 10, 10) p.hit(0, 0, 0, 10, 10, 1)
+        p.hitJunction(1, 20, -30, "in")
+        if^p.depth != 81 or^target.depth != 69 or^target.x != p.x + direction * 20 or^target.y != p.y - 30 or^target.facing != -direction { panic^"RP in placement/depth" }
+        if^p.hurts[0] != nil^ or^p.hits[0] != nil^ { panic^"RP retained caller boxes" }
+        p.hitJunction(1, 20, -30, "out turnX")
+        if^p.depth != 79 or^target.depth != 71 or^target.facing != direction { panic^"RP out placement/depth" }
+    }
+    let^before = target.x
+    p.commonImage(0, 100, 200, "in")
+    if^target.x != before { panic^"RC zero must do nothing" }
+    p.afterimage(3, 3, 4, 2, 10, 236, 236, 32)
+    p.image := 125 p.ix := 0 p.iy := 0 p.facing := 1 p.turnX := false^ p.turnY := false^
+    p.color(0, 0, 0, 0, 0)
+    for^i from^0 to^11 { p.x := 150 + i * 15 p.captureTrail() }
+    print("PASS: real AI dispatch, pose ring, interval, blend interpolation, reset, hitstop, RP flags and RC zero")
+}
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^!done and^loadout.ready() { check() done := true^ }
+    if^drawn { love.event.quit() }
+    if^love.timer.getTime() - began > 120 { panic^"Effects timeout" }
+}
+public^let^draw = p^{
+    if^done {
+        love.graphics.clear(0.25, 0.25, 0.25, 1)
+        p.draw()
+        drawn := true^
+    }
+}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

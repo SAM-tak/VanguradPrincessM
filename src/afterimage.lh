@@ -1,0 +1,66 @@
+# FM2K AI: bounded pose history; textures remain owned by the existing Sheet.
+module^vp.afterimage
+import^love.math
+require^"sprite.lh"
+let^Pose = def^{ self^{ image = -1, x = 0, y = 0, sx = 1, sy = 1 } }
+public^let^Trail = def^{
+    self^{
+        poses : t^{Pose[]} = {},
+        count = 0, interval = 0, timer = 0, cursor = 0,
+        option = 0, fading = 0, r = 0, g = 0, b = 0, a = 0, frame = 0,
+    },
+    configure = p^self^, count:number^, time:number^, option:number^, fading:number^, r:number^, g:number^, b:number^, a:number^{
+        self^.count := if^time > 0: count.clamp(0, 100) el^: 0;
+        self^.interval := time
+        self^.timer := 0
+        self^.cursor := 0
+        self^.option := option
+        self^.fading := fading
+        self^.r := signed(r) self^.g := signed(g) self^.b := signed(b) self^.a := signed(a)
+        if^self^.count > 0 and^self^.poses.length^ = 0 {
+            for^i from^0 to^99 { self^.poses.push^(Pose.new()) }
+        }
+        for^pose in^self^.poses { pose.image := -1 }
+    },
+    capture = p^self^, image:number^, x:number^, y:number^, sx:number^, sy:number^{
+        if^self^.count <= 0 { return^ }
+        self^.frame += 1
+        self^.timer -= 1
+        if^self^.timer >= 0 { return^ }
+        self^.timer := self^.interval
+        let^entry = self^.poses[self^.cursor]
+        if^entry is^nil^ { return^ }
+        let^pose : Pose = entry
+        pose.image := image pose.x := x pose.y := y pose.sx := sx pose.sy := sy
+        self^.cursor := (self^.cursor + 1) % 100
+    },
+    # Integer percent and channel truncation match original 0x40CEDA.
+    weight = p^self^, index:number^-> number^{
+        if^self^.fading = 0 { return^0 }
+        if^self^.fading = 1 { return^1 }
+        if^self^.fading = 3 and^self^.frame % 2 = 1 { return^1 }
+        if^self^.fading = 4 { return^love.math.random(0, 99) / 100 }
+        return^1 - ((self^.interval * index + self^.timer) * 100 / (self^.count * self^.interval)).floor() / 100
+    },
+    draw = p^self^, sheet:vp.sprite.Sheet, palette:number^, ox:number^, oy:number^, r:number^, g:number^, b:number^, a:number^{
+        if^self^.count <= 0 { return^ }
+        for^i from^0 to^self^.count - 1 {
+            let^pose = self^.poses[(self^.cursor - self^.count + 100 + i) % 100]
+            if^pose != nil^ and^pose.image >= 0 {
+                let^w = self^.weight(i)
+                let^alpha = if^self^.option = 1: 0.5 el^: (32 - mix(a, self^.a, w)).clamp(0, 32) / 32;
+                vp.sprite.setBlend(self^.option, alpha)
+                sheet.draw(pose.image, ox + pose.x, oy + pose.y, palette, pose.sx, pose.sy,
+                    mix(r * 32, self^.r, w).clamp(-32, 32) / 32,
+                    mix(g * 32, self^.g, w).clamp(-32, 32) / 32,
+                    mix(b * 32, self^.b, w).clamp(-32, 32) / 32)
+            }
+        }
+        vp.sprite.resetBlend()
+    },
+}
+let^signed = f^n:number^-> number^{ if^n >= 128: n - 256 el^: n; }
+let^mix = f^a:number^, b:number^, w:number^-> number^{
+    let^v = a * (1 - w) + b * w
+    return^if^v < 0: v.ceil() el^: v.floor();
+}

@@ -294,6 +294,9 @@ let^place = p^p:Fighter, x:number^, facing:number^{
     p.hits := {}
     p.stop := 0
     p.cornerPush := 0
+    p.trail := nil^
+    p.baseDepth := if^facing = 1: 80 el^: 70;
+    p.depth := p.baseDepth
     p.combo := 0
     # A round starts clean: the character's variables (its objects and its
     # support read them; kept, the support stood frozen in last round's
@@ -1235,8 +1238,7 @@ public^let^draw = p^{
     roundBetween(0, 70)
     foe.drawObjects(false^)
     me.drawObjects(false^)
-    foe.draw()
-    me.draw()
+    if^foe.depth <= me.depth { foe.draw() me.draw() else^: me.draw() foe.draw() }
     foe.drawObjects(true^)
     me.drawObjects(true^)
     roundBetween(70, 100)

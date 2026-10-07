@@ -28,6 +28,7 @@ import^std.math
 require^"arena.lh"
 require^"sprite.lh"
 require^"shake.lh"
+require^"afterimage.lh"
 
 public^let^Box = def^{
     self^{ x = 0, y = 0, w = 0, h = 0, power = 0, body = false^, rate = 100, flags = "", connected = false^ },
@@ -67,6 +68,7 @@ public^let^Fighter = def^{
         facing = 1,
         image = -1, ix = 0, iy = 0, # current I block (-1: none yet)
         turnX = false^, turnY = false^, fixed = false^,   # its flags (fixed: ignoreDirection)
+        trail : vp.afterimage.Trail|nil^ = nil^,
         blend = 0, alpha = 1,       # COLOR: 0 normal, 1 half, 2 add, 3 subtract, 4 custom alpha
         tintR = 0, tintG = 0, tintB = 0,    # COLOR: added to each channel (-1..1)
         scrollX = 1, scrollY = 1,   # stage layers: how far they move with the camera
@@ -121,6 +123,7 @@ public^let^Fighter = def^{
         owner : Fighter|nil^= nil^,
         objects : t^{Fighter[]} = {},
         slots : t^{[number^]:Fighter|nil^} = {},    # managed numbers 0-9
+        baseDepth = 75,             # main actor depth before RP +/- 1
         depth = 75,                 # draw order: characters are 70-80, below is behind them
         parent : Fighter|nil^= nil^,   # what spawned it (the character or another object)
         follow = false^,            # "parent": moves with its parent
@@ -340,6 +343,7 @@ public^let^Fighter = def^{
     step = p^self^{
         if^self^.stop > 0 {
             self^.confineMotion()
+            self^.captureTrail()
             self^.stop -= 1
             if^self^.eventPending and^self^.jumpSkill >= 0 {
                 self^.spins := 0
@@ -392,9 +396,18 @@ public^let^Fighter = def^{
             }
         }
 
+        self^.captureTrail()
         self^.spins := 0
         if^self^.jumpSkill < 0 { self^.advance() }
         self^.dispatch()
+    },
+
+    captureTrail = p^self^{
+        let^trail = self^.trail
+        if^trail is^nil^ { return^ }
+        let^face = if^self^.fixed: 1 el^: self^.facing;
+        trail.capture(self^.image, self^.x + self^.ix * self^.facing, self^.y + self^.iy,
+            if^self^.turnX: -face el^: face;, if^self^.turnY: -1 el^: 1;)
     },
 
     # The image faces the fighter's way unless the I block says ignoreDirection;
@@ -406,6 +419,10 @@ public^let^Fighter = def^{
         let^sy = if^self^.turnY: -1 el^: 1;
         let^ox = if^self^.onScreen: viewX el^: 0;
         let^oy = if^self^.onScreen: viewY el^: 0;
+        let^trail = self^.trail
+        if^trail != nil^ {
+            trail.draw(self^.sheet, self^.palette, ox, oy, self^.tintR, self^.tintG, self^.tintB, (1 - self^.alpha) * 32)
+        }
         vp.sprite.setBlend(self^.blend, self^.alpha)
         self^.sheet.draw(self^.image,
             ox + self^.x + self^.ix * self^.facing,
@@ -1025,6 +1042,9 @@ public^let^Fighter = def^{
     },
     # AI — afterimages.
     afterimage = p^self^, count:number^, time:number^, option:number^, fading:number^, r:number^, g:number^, b:number^, a:number^{
+        if^self^.trail is^nil^ and^count > 0 and^time > 0 { self^.trail := vp.afterimage.Trail.new() }
+        let^trail = self^.trail
+        if^trail != nil^ { trail.configure(count, time, option, fading, r, g, b, a) }
     },
     # COLOR — how this is blended: 0 normal, 1 half transparent, 2 additive,
     # 3 subtractive, 4 alpha (32 - a) / 32; r g b are added to the colour.
@@ -1049,27 +1069,33 @@ public^let^Fighter = def^{
     vanish = p^self^{
         self^.alive := false^
     },
-    # RC — overlay a common image.
+    # RC 0 is explicitly ignored by the original (0x412EA1). All current
+    # data uses 0. Nonzero common-pose definitions are not yet imported.
     commonImage = p^self^, n:number^, x:number^, y:number^, flags:string^{
     },
     # RP — hit junction: puts the opponent into its own skill for reaction n
     # (its hit-junction table), standing at (x, y) from `me` (x mirrored by me's
     # facing) and facing me ("turnX": the other way). How throws work: the
     # throw's #250 sends the opponent to "throw start" (#71) in front of the
-    # thrower, then to the throw's own reaction. "in" / "out" is not whom it acts
-    # on (リリス's throw has "in" and throws the opponent): probably whether the
-    # opponent is drawn behind or in front of the thrower (not done yet).
+    # thrower, then to the throw's own reaction. Depth is base +/- 1
+    # (original 0x413065); the flag does not change who receives the reaction.
     hitJunction = p^self^, n:number^, x:number^, y:number^, flags:string^{
+        if^self^.owner != nil^ or^self^.system { return^ }
         let^root = self^.charOf()
         let^who = root.enemy
         if^who is^nil^ { return^}
         let^target : Fighter = who
         let^skill = target.reactHit[n] ?? 0
-        if^skill <= 0 { return^}
+        let^inward = flags.find("in") != nil^
+        self^.depth := self^.baseDepth + (if^inward: 1 el^: -1;)
+        target.depth := target.baseDepth + (if^inward: -1 el^: 1;)
         target.x := self^.x + x * self^.facing
         target.y := self^.y + y
         target.facing := if^flags.find("turnX") != nil^: self^.facing el^: -self^.facing;
-        target.beginReaction(skill)
+        # RP clears the caller's collision slots, not just the target's pose.
+        self^.hurts := {} self^.hits := {} self^.attackConnected := false^
+        if^skill > 0 { target.beginReaction(skill) }
+        target.stop := 0
         target.receiving := true^
     },
 }
