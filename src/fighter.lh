@@ -617,6 +617,8 @@ public^let^Fighter = def^{
     },
     # Remembers this frame's input: a numpad direction relative to the way the
     # fighter faces (6 = forward) and the held buttons. Edges are sampled here.
+    # VP clears native settings bit 0x08: input is mirrored at capture, not
+    # reinterpreted on lookup after a turn (0x41435E / 0x4101A7).
     record = p^self^, dir:number^, held:number^{
         self^.recordHeld(dir, held)
     },

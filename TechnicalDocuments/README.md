@@ -117,3 +117,5 @@
 - [0091-command-history-consumption.md](0091-command-history-consumption.md) — コマンド成立時の古い履歴消費と20フレーム境界。
 
 - [0092-command-rotation-order.md](0092-command-rotation-order.md) — 回転入力の順序と斜め入力の扱い。
+
+- [0093-input-facing-audit.md](0093-input-facing-audit.md) — VPは記録時に相対方向化。向き変更の実装変更不要を確認。

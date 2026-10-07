@@ -99,6 +99,23 @@ let^run = p^{
     let^twice = actor()
     for^d in^{6, 2, 4, 8, 6, 2, 4, 8} { twice.record(d, 0) }
     if^!twice.entered(8, {0}, {0}, {3}, {2}) or^twice.entered(7, {0}, {0}, {3}, {2}) { panic^"Two-rotation window boundary" }
+    # VP records facing-relative directions; turning must not rewrite history.
+    for^side in^{1, -1} {
+        let^turn = actor() turn.facing := side
+        turn.record(2, 0) turn.record(3, 0)
+        turn.facing := -side
+        turn.record(6, 1)
+        if^!turn.entered(3, {4, 3, 2}, {0, 0, 1}, {0, 0, 0}, {1, 1, 1}) or^!turn.command(3, {4, 3, 2}, {0, 0, 1}) {
+            panic^"Facing change reinterpreted earlier relative input"
+        }
+        if^turn.command(3, {4, 5, 2}, {0, 0, 1}) { panic^"Past down-forward became down-back" }
+        let^object = actor() object.owner := turn object.facing := side
+        if^!object.command(3, {4, 3, 2}, {0, 0, 1}) { panic^"Object facing changed owner history" }
+        let^chargeTurn = actor() chargeTurn.facing := side
+        chargeTurn.record(4, 1) chargeTurn.facing := -side
+        chargeTurn.record(4, 1) chargeTurn.record(4, 1)
+        if^!chargeTurn.entered(1, {6}, {1}, {2}, {3}) { panic^"Relative charge lost across turn" }
+    }
     let^f = actor() let^enemy = actor()
     let^sc = vp.script.load("assets/characters/ゆい/script.lton")
     if^sc is^nil^ { panic^"Missing Yui" }
