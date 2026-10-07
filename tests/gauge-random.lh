@@ -1,0 +1,51 @@
+module^vp.gaugerandomtest
+import^love.event
+import^love.math
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/scriptdata.lh"
+let^equal = p^got:number^, want:number^{ if^got != want { panic^$"Gauge: {got}, expected {want}" } }
+public^let^load = p^{
+ let^f = vp.fighter.Fighter.new("",0,0)
+ for^maximum in^{0,1,10,32767,65535} {
+  for^threshold in^{0,1,9,10,32767,65535} {
+   love.math.setRandomSeed(1234)
+   let^expected : t^{bool^[]} = {}
+   for^i from^1 to^100 { expected.push^(love.math.random(0,32767) % (maximum+1) > threshold) }
+   love.math.setRandomSeed(1234)
+   for^want in^expected { if^f.chance(maximum,threshold) != want { panic^"Rnd range or strict comparison" } }
+  }
+ }
+ for^hp in^{99,100,101} {
+  f.life := hp
+  if^f.lifeGauge(true^,100) != (hp <= 100) or^f.lifeGauge(false^,100) != (hp >= 100) { panic^"GL boundary" }
+ }
+ f.specialPer := 100 f.stockMax := 5
+ for^value in^{99,100,101,199,200} {
+  f.special := value
+  if^f.specialGauge(1,true^,0) != (value < 200) { panic^"GS more boundary" }
+  f.special := value
+  if^f.specialGauge(1,false^,4) != (value >= 100) { panic^"GS less boundary" }
+  equal(f.special,value)
+ }
+ f.special := 150
+ if^f.specialGauge(0,true^,-9) { panic^"GS rejected" }
+ equal(f.special,50)
+ f.special := 150 f.specialGauge(0,true^,4) equal(f.special,500)
+ f.special := 150 f.specialGauge(0,true^,255) equal(f.special,50)
+ f.special := 150 f.specialGauge(1,true^,3) equal(f.special,150)
+ f.lifeMax := 1000 f.life := 500 f.special := 150
+ let^enemy = vp.fighter.Fighter.new("",0,0) enemy.life := 900 enemy.specialPer := 100 enemy.stockMax := 5 enemy.special := 490
+ f.enemy := enemy
+ let^object = vp.fighter.Fighter.new("",0,0) object.owner := f
+ object.gauges(65535,-200,200,30)
+ equal(f.life,499) equal(f.special,0) equal(enemy.life,1000) equal(enemy.special,500)
+ f.enemy := nil^ f.gauges(0,1000,-100,-100) equal(f.special,500)
+ let^data = vp.scriptdata.parse({{id=9000,name="GS without target",level=0,blocks={{"GS",0,1,-1,-1,0},{"E"}}}})
+ let^sc = vp.script.Script.new()
+ for^sk in^data.skills { sc.byId[sk.id] := sk }
+ sc.install(f) f.special := 150 f.begin(9000) f.stepScript() equal(f.special,50)
+ print("PASS: Rnd inclusive maximum and rand15 modulo; strict GL/GS, stock fractions/caps/less branch, signed GP, owner and opponent")
+ love.event.quit()
+}
+public^let^draw = p^{}

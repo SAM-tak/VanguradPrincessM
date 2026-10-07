@@ -984,9 +984,9 @@ public^let^Fighter = def^{
         let^t = self^.home(n)
         t[n] := (signedWord(t[n] ?? 0) + signedWord(value)).clamp(-30000, 30000)
     },
-    # Rnd: a roll of 0..total-1 above `above`.
+    # Rnd: native rand15 % (maximum + 1), strictly above the threshold.
     chance = p^self^, total:number^, above:number^-> bool^{
-        return^love.math.random(0, total - 1) > above
+        return^love.math.random(0, 32767) % (unsignedWord(total) + 1) > unsignedWord(above)
     },
     # The character a skill belongs to (an object's gauges are its owner's).
     charOf = f^self^-> Fighter { self^.owner ?? self^ },
@@ -998,7 +998,8 @@ public^let^Fighter = def^{
     # ambiguous; this reading makes "GL more 0" the usual "still alive" check.)
     lifeGauge = f^self^, isMore:bool^, amount:number^-> bool^{
         let^life = self^.charOf().life
-        let^met = if^isMore: life > amount el^: life < amount;
+        let^threshold = unsignedWord(amount)
+        let^met = if^isMore: life > threshold el^: life < threshold;
         return^!met
     },
     # GS: the special gauge's level (whole stocks, 0-9) at least `level` (isMore),
@@ -1009,8 +1010,12 @@ public^let^Fighter = def^{
         # "more" is strictly more: this game starts everyone at 4 stocks (shown as
         # 0) and its supers check "more than 4" (shown as 1 or more).
         let^met = if^isMore: stocks > level el^: stocks < level;
-        if^met and^amount != 0 {
-            b.special := (b.special + amount * b.specialPer).clamp(0, b.specialPer * b.stockMax)
+        # Only the > branch adjusts stocks. Underflow retains partial points;
+        # reaching the stock cap discards them (native 0x413523-0x41356F).
+        if^met and^isMore {
+            let^fraction = b.special - stocks * b.specialPer
+            let^next = (stocks + signedByte(amount)).clamp(0, b.stockMax)
+            b.special := next * b.specialPer + (if^next < b.stockMax: fraction el^: 0;)
         }
         return^!met
     },
@@ -1351,8 +1356,8 @@ public^let^Fighter = def^{
         self^.life := (self^.life + amount).clamp(0, self^.lifeMax)
     },
     addGauges = p^self^, life:number^, special:number^{
-        self^.addLife(life)
-        self^.special := (self^.special + special).clamp(0, self^.specialPer * self^.stockMax)
+        self^.addLife(signedWord(life))
+        self^.special := (self^.special + signedWord(special)).clamp(0, self^.specialPer * self^.stockMax)
     },
     gauges = p^self^, life:number^, special:number^, enemyLife:number^, enemySpecial:number^{
         let^b = self^.charOf()
@@ -1555,4 +1560,14 @@ let^signedWord = f^value:number^-> number^{
 let^fixedRange = f^value:number^-> number^{
     if^value >= -32768 and^value < 32768 { return^value }
     return^value - ((value + 32768) / 65536).floor() * 65536
+}
+
+let^unsignedWord = f^value:number^-> number^{
+    let^n = integer(value)
+    return^n - (n / 65536).floor() * 65536
+}
+let^signedByte = f^value:number^-> number^{
+    let^n = integer(value)
+    let^byte = n - (n / 256).floor() * 256
+    return^if^byte >= 128: byte - 256 el^: byte;
 }

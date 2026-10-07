@@ -123,3 +123,5 @@
 - [0094-script-return-slots.md](0094-script-return-slots.md) — SC/SFの固定復帰先とE・SG・DSの相互作用。
 
 - [0095-motion-fixed-point.md](0095-motion-fixed-point.md) — Mの整数係数・符号・保持と32bit加算境界。
+
+- [0096-random-gauge-boundaries.md](0096-random-gauge-boundaries.md) — Rndの端点、GL/GS/GPの比較・消費・数値境界。
