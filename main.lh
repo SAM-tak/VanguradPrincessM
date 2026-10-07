@@ -57,8 +57,7 @@ let^VIEW_H = 480
 let^SCALE = 2
 # Measured in the original's memory (TechnicalDocuments/0011).
 let^GROUND = 920
-let^WALL_GROUND = 50         # x stays in [50, 1230] on the ground, [64, 1216] in the air
-let^WALL_AIR = 64
+let^WALL_GROUND = 50         # Original EXE uses [50, 1230] on the ground and in the air.
 let^START_X = 270            # the round starts with 1P / 2P at 640 -/+ this
 let^VIEW_EDGE = 50           # how close to the view's edge a fighter may go
 
@@ -294,6 +293,7 @@ let^place = p^p:Fighter, x:number^, facing:number^{
     p.hurts := {}
     p.hits := {}
     p.stop := 0
+    p.cornerPush := 0
     p.combo := 0
     # A round starts clean: the character's variables (its objects and its
     # support read them; kept, the support stood frozen in last round's
@@ -342,8 +342,8 @@ let^stepFighters = p^{
     for^p in^{ me, foe } {
         p.minX := std.math.max(WALL_GROUND, camX + VIEW_EDGE)
         p.maxX := std.math.min(WORLD_W - WALL_GROUND, camX + VIEW_W - VIEW_EDGE)
-        p.minXAir := std.math.max(WALL_AIR, camX + VIEW_EDGE)
-        p.maxXAir := std.math.min(WORLD_W - WALL_AIR, camX + VIEW_W - VIEW_EDGE)
+        p.minXAir := p.minX
+        p.maxXAir := p.maxX
     }
     me.step()
     foe.step()
@@ -640,7 +640,17 @@ let^prepare = p^kind:string^{
     pendingKind := kind
 }
 
-public^let^load = p^{ prepare("boot") }
+public^let^load = p^{
+    # Finish incremental cycles before transient battle objects accumulate.
+    # Configure before loading so task workers inherit the same pacing.
+    # Measured memory and frame-time comparison: TechnicalDocuments/0071.
+    let^gc = L^.gc.settings()
+    gc.growth := 120
+    gc.stepmul := 800
+    gc.stepsize := 10
+    L^.gc.configure(gc)
+    prepare("boot")
+}
 
 let^sceneDone = p^{
     if^pending != nil^ { return^ }
@@ -1010,7 +1020,7 @@ public^let^update = p^dt:number^{
     # otherwise keeps large, discarded skill graphs across opening loops.
     if^collectSceneGarbage {
         collectSceneGarbage := false^
-        L^.collectgarbage()
+        L^.gc.collect()
     }
     for^key in^vp.input.poll() { keypressed(key, love.keyboard.Scancode.unknown, false^) }
     if^paused { return^ }

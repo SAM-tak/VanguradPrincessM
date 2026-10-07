@@ -77,7 +77,9 @@ let^check = p^name:string^{
             let^target = sc.byId[actor.jumpSkill]
             if^target is^nil^ or^target.name != ENTRIES[hi * 5 + i] { panic^$"Wrong attack entry: {name}/{hud}/{direction}D" }
             p.record(direction, 0)
-            if^object.command(20, {0}, {8}) { panic^"Stale D press was reused" }
+            if^!object.command(20, {0}, {8}) { panic^"COM incorrectly consumed input" }
+            for^frame from^1 to^20 { p.record(direction, 0) }
+            if^object.command(20, {0}, {8}) { panic^"COM accepted expired input" }
             if^name = "くるみ" and^i = 0 {
                 p.vars[76] := 93
                 let^extra = p.makeObject(dispatch, 0, 0, 0, 80)

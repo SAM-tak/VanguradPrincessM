@@ -248,6 +248,19 @@ winner variable fail generation instead of silently producing incomplete lists.
 
 ## Checking the LTON
 
+For a static VM coverage inventory (no changes to game data), run from the project root:
+
+```sh
+python tools/fm2k_convert/audit_vm.py --out build/fm2k-vm-audit.json
+```
+
+Add `--json-dir build/update-0117/new-json` to list raw blocks converted to Nop.
+The report includes source locations and known ignored operands/events. Counts
+are stored definitions, including owner-specific copies, not executed paths.
+Nop includes intentional unreachable padding; it is not automatically a bug.
+See `TechnicalDocuments/0074-fm2k-vm-coverage-audit.md` for the reviewed findings
+and `tests/vm-audit.lh` for runtime diagnostic probes.
+
 Check the LTON with lhat:
 
 ```sh

@@ -84,3 +84,11 @@
 - [0066-original-palette-rendering.md](0066-original-palette-rendering.md) — 原作EXEの8bit画像入力・16bitパレット参照・画面バッファ描画の確認
 - [0067-process-memory-breakdown.md](0067-process-memory-breakdown.md) — 約1GBのOS領域別内訳、GCで消える約256MBと描画側の遅延解放約235MB
 - [0068-render-audio-resource-reuse-audit.md](0068-render-audio-resource-reuse-audit.md) — 画像・Shaderの再利用、描画ごとのQuad生成と共通音声Sourceの再生ごとの複製
+- [0069-writecombine-allocation-trace.md](0069-writecombine-allocation-trace.md) — WriteCombine約446MBの確保スタック追跡、Vulkan画像プールと描画基盤の内訳、試合中GCの確認
+- [0070-battle-growth-gc-backlog.md](0070-battle-growth-gc-backlog.md) — 通常速度の試合中ヒープ増加、試合を維持したフルGC前後、回収されたテーブル・コルーチン等の直接計数
+- [0071-gc-pacing-tuning.md](0071-gc-pacing-tuning.md) — 新GC APIでgrowth=120/stepmul=800/stepsize=10を採用、同一CPU戦のメモリ・処理時間比較
+- [0072-sweep-down-residual-hurtboxes.md](0072-sweep-down-residual-hurtboxes.md) — ゆい・サキ・えり2Cのダウン再ヒット、被弾前のFD持ち越しと診断比較
+- [0073-corner-recoil-audit.md](0073-corner-recoil-audit.md) — 原作EXEの画面端超過量の返却、壁DS、ゆい6B→えりの過剰後退を生む空中境界の訂正と回帰テスト
+- [0074-fm2k-vm-coverage-audit.md](0074-fm2k-vm-coverage-audit.md) — VM命令・イベント・入力・衝突の横断監査、未対応箇所の自動抽出、COMとダウンFD持ち越しの診断
+
+- [0075-ds-transition-com-history.md](0075-ds-transition-com-history.md) — P0実装：DS専用初期化、技内COMの履歴窓と非消費照合、実データ回帰テスト

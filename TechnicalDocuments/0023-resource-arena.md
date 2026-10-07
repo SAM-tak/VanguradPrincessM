@@ -10,7 +10,7 @@
   （lhat-love は LÖVE の全オブジェクト型に `dispose` を付けている。LÖVE の `Object:release()` に当たる）
 - 実測（640×480 前後の画像 50 枚、`love.graphics.getStats()`）:
   - 参照を捨てただけ: 51.1MB のまま
-  - `L^.collectgarbage()` の後: 0MB（GC で回収されれば VRAM まで返る）
+  - `L^.gc.collect()` の後: 0MB（GC で回収されれば VRAM まで返る）
   - `dispose()`: 参照が残っていてもその場で 0MB
 
 ## 仕組み（`src/arena.lh`、`vp.arena`）

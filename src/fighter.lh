@@ -50,7 +50,7 @@ public^let^Command = def^{
 }
 
 # How many frames of input a fighter remembers.
-let^HISTORY = 64
+let^HISTORY = 1024
 
 # A running skill: one that ends (runs off its E block) or one that loops forever.
 public^let^Skill = c^{p^-> nil^}|c^{p^-> nil^ -> -}
@@ -86,13 +86,12 @@ public^let^Fighter = def^{
         skillName = "",
         skillNo = -1,               # FM2K number of the running skill (-1: not a generated one)
         skill : Skill|nil^= nil^,
-        jumpSkill = -1, jumpBlock = 0,
+        jumpSkill = -1, jumpBlock = 0, eventPending = false^,
         levels : t^{[number^]:number^|nil^} = {},
         commands : t^{Command[]} = {},
         inDirs : t^{[number^]:number^|nil^} = {},    # numpad directions, forward = 6
         inPress : t^{[number^]:number^|nil^} = {},   # buttons pressed that frame
         inputFrame = 0,
-        commandFrame = 0,           # last button frame consumed by an object's COM
         cancelWhen = "", cancelFrom = 0, cancelTo = 0, cancelSkill = -1,
         hitConfirmed = false^,
         cancelByHit = false^,       # an FA with the "cancel" flag connected
@@ -115,6 +114,7 @@ public^let^Fighter = def^{
         combo = 0,                  # hits taken since it was last free to move
         comboMarker : number^|nil^= nil^, # hit-time V128 snapshot for a combo display only
         stop = 0,                   # hitstop frames left: the fighter is frozen
+        cornerPush = 0,             # displacement returned by the opponent's wall clamp
         # Objects (O blocks): effects, voices, sparks, projectiles. They run the
         # owner's skills as fighters of their own.
         dir = "",
@@ -148,6 +148,28 @@ public^let^Fighter = def^{
     },
 
     airborne = f^self^{ self^.y < self^.ground },
+
+    # FM2K keeps wall recoil in the player's pending displacement, not its M
+    # velocity. Only a living main fighter in a hit/guard reaction returns it.
+    confineMotion = p^self^{
+        self^.x += self^.cornerPush
+        self^.cornerPush := 0
+        let^lo = if^self^.airborne(): self^.minXAir el^: self^.minX;
+        let^hi = if^self^.airborne(): self^.maxXAir el^: self^.maxX;
+        let^clamped = self^.x.clamp(lo, hi)
+        let^returned = clamped - self^.x
+        let^e = self^.enemy
+        if^returned != 0 and^self^.owner is^nil^ and^!self^.system and^self^.life > 0 and^(self^.receiving or^self^.blocking) and^e != nil^ {
+            # Original state bits: hit = 8, guard = 12. Do not push an
+            # opponent who is themselves taking a hit (a trade).
+            if^!e.receiving or^e.blocking { e.charOf().cornerPush += returned }
+        }
+        self^.x := clamped
+        # Dispatch performs the event transition's common initialization.
+        if^returned != 0 and^self^.owner is^nil^ and^!self^.system and^(self^.onSkill["wallHitting"] ?? -1) >= 0 {
+            self^.fire("wallHitting")
+        }
+    },
 
     # FD collide boxes participate at any height, including air hit reactions.
     # Jumping over works when their vertical intervals no longer overlap.
@@ -188,6 +210,8 @@ public^let^Fighter = def^{
     # Replaces the running skill, as the engine does when it picks one: attack
     # boxes, event handlers and task variables go, and on the ground so does motion.
     play = p^self^, name:string^, co:Skill {
+        self^.jumpSkill := -1
+        self^.eventPending := false^
         self^.skillName := name
         self^.skillNo := -1
         self^.skill := co
@@ -220,6 +244,15 @@ public^let^Fighter = def^{
         if^proc != nil^ {
             self^.play($"#{n}", proc(self^, 0))
             self^.skillNo := n
+        }
+    },
+
+    # Hit/guard reactions replace the previous pose's FD slots. Script jumps
+    # within the reaction carry boxes through SG, but DS starts a new pose.
+    beginReaction = p^self^, n:number^{
+        if^self^.skills[n] != nil^ {
+            self^.hurts := {}
+            self^.begin(n)
         }
     },
 
@@ -261,6 +294,7 @@ public^let^Fighter = def^{
         if^n? and^b? {
             self^.jumpSkill := n
             self^.jumpBlock := b
+            self^.eventPending := true^
             # It cuts the running I block's wait short: FM2K zeroes the timer
             # (else the new skill's first wait adds onto what was left).
             self^.waitTimer := 0
@@ -269,11 +303,49 @@ public^let^Fighter = def^{
         }
     },
 
+    # DS is a fresh animation entry, unlike SG/COM. Preserve reaction state,
+    # R and task variables (original 0x412327, 0x410D50).
+    dispatch = p^self^{
+        var^hops = 0
+        repeat^while^self^.jumpSkill >= 0 and^hops < 16 {
+            let^n = self^.jumpSkill
+            let^b = self^.jumpBlock
+            self^.jumpSkill := -1
+            if^self^.eventPending {
+                self^.eventPending := false^
+                self^.hurts := {}
+                self^.hits := {}
+                self^.attackConnected := false^
+                self^.onSkill := {}
+                self^.onBlock := {}
+                self^.cancelWhen := ""
+                self^.cancelFrom := 0
+                self^.cancelTo := 0
+                self^.cancelSkill := -1
+                self^.waitTimer := 0
+                if^self^.owner is^nil^ and^!self^.system and^self^.y = self^.ground and^self^.vy = 0 {
+                    self^.vx := 0
+                    self^.ax := 0
+                    self^.ay := 0
+                }
+            }
+            self^.start(n, b)
+            self^.advance()
+            hops += 1
+        }
+    },
+
     # One frame: run the skill up to its next yield, follow jumps, then move.
-    # During hitstop nothing moves.
+    # Hitstop freezes skill motion; queued wall recoil can still be applied.
     step = p^self^{
         if^self^.stop > 0 {
+            self^.confineMotion()
             self^.stop -= 1
+            if^self^.eventPending and^self^.jumpSkill >= 0 {
+                self^.spins := 0
+                self^.dispatch()
+                return^
+            }
             # Frozen, but a skill just started (the hit reaction) shows its
             # first frame at once; its waits count from after the stop.
             let^co = self^.skill
@@ -297,11 +369,7 @@ public^let^Fighter = def^{
         # Kept inside the walls as it moves, before the script runs: 2P's
         # start skill spawns its support after a 300 px dash, which the edge
         # of the view has already stopped.
-        if^self^.airborne() {
-            self^.x := self^.x.clamp(self^.minXAir, self^.maxXAir)
-        else^:
-            self^.x := self^.x.clamp(self^.minX, self^.maxX)
-        }
+        self^.confineMotion()
         # FM2K lands whenever the feet are at or below the ground while moving
         # down, whatever the previous frame was (so nothing can sink through).
         if^self^.y >= self^.ground and^self^.vy > 0 and^(self^.owner is^nil^ or^self^.onSkill["landing"] != nil^) {
@@ -325,15 +393,8 @@ public^let^Fighter = def^{
         }
 
         self^.spins := 0
-        var^hops = 0
         if^self^.jumpSkill < 0 { self^.advance() }
-        repeat^while^self^.jumpSkill >= 0 and^hops < 16 {
-            let^n = self^.jumpSkill
-            self^.jumpSkill := -1
-            self^.start(n, self^.jumpBlock)
-            self^.advance()
-            hops += 1
-        }
+        self^.dispatch()
     },
 
     # The image faces the fighter's way unless the I block says ignoreDirection;
@@ -384,6 +445,7 @@ public^let^Fighter = def^{
 
     # SG to another skill: the fighter switches once this skill returns.
     jump = p^self^, n:number^, b:number^{
+        self^.eventPending := false^
         self^.jumpSkill := n
         self^.jumpBlock := b
     },
@@ -470,26 +532,21 @@ public^let^Fighter = def^{
     },
     # COM inside a skill.
     command = p^self^, time:number^, dirs:t^{number^[]}, buttons:t^{number^[]}-> bool^{
-        # Support HUD objects evaluate the owning player's command history.
-        let^owner = self^.owner
-        let^button = buttons[0] ?? 0
-        if^owner != nil^ and^dirs.length^ = 1 and^buttons.length^ = 1 and^button > 0 {
-            # HUD animation waits between polls. Retain the newest matching press
-            # within COM's window, then consume it once (never repeat a held press).
-            var^frame = owner.inputFrame
-            let^oldest = std.math.max(self^.commandFrame + 1, owner.inputFrame - std.math.min(std.math.max(time, 1), HISTORY) + 1)
-            repeat^while^frame >= oldest and^frame >= 1 {
-                let^slot = frame % HISTORY
-                if^hasButtons(owner.inPress[slot] ?? 0, button) {
-                    if^!dirFits(dirs[0] ?? 0, owner.inDirs[slot] ?? 5) { return^false^ }
-                    self^.commandFrame := frame
-                    return^true^
-                }
-                frame -= 1
+        # Original 0x410A50 scans the entire time window, without consuming
+        # input. Objects read the player's history just like the main fighter.
+        let^player = self^.owner ?? self^
+        var^step = dirs.length^ - 1
+        if^step < 0 or^time <= 0 { return^false^ }
+        let^limit = std.math.min(time, HISTORY)
+        var^age = 0
+        repeat^while^step >= 0 and^age < limit and^player.inputFrame - age >= 1 {
+            let^slot = (player.inputFrame - age) % HISTORY
+            if^dirFits(dirs[step] ?? 0, player.inDirs[slot] ?? 5) and^hasButtons(player.inPress[slot] ?? 0, buttons[step] ?? 0) {
+                step -= 1
             }
-            return^false^
+            age += 1
         }
-        return^(owner ?? self^).entered(time, dirs, buttons, {}, {})
+        return^step < 0
     },
     # The skill the command table gives for this frame's input, or 0.
     fromCommands = p^self^, crouching:bool^-> number^{
@@ -576,7 +633,7 @@ public^let^Fighter = def^{
         let^reaction = if^guarded: onGuard el^: onHit;
         let^skill = def.reactHit[reaction] ?? 0
         def.facing := if^self^.x < def.x: -1 el^: 1;
-        if^skill > 0 { def.begin(skill) }
+        if^skill > 0 { def.beginReaction(skill) }
         def.blocking := guarded
         def.receiving := !guarded and^skill > 0
         if^!guarded {
@@ -817,7 +874,6 @@ public^let^Fighter = def^{
         let^root = self^.owner ?? self^
         let^o = newObjectFighter(root.dir, x, y)
         o.owner := root
-        o.commandFrame := std.math.max(0, root.inputFrame - 1)
         o.parent := self^
         o.sheet := root.sheet
         o.sounds := root.sounds
@@ -1013,7 +1069,7 @@ public^let^Fighter = def^{
         target.x := self^.x + x * self^.facing
         target.y := self^.y + y
         target.facing := if^flags.find("turnX") != nil^: self^.facing el^: -self^.facing;
-        target.begin(skill)
+        target.beginReaction(skill)
         target.receiving := true^
     },
 }

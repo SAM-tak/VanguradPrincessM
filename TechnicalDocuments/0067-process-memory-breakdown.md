@@ -10,7 +10,7 @@
 - GetProcessMemoryInfoでprivate bytesとworking setを取得。VirtualQueryExでコミット済み領域と保護属性を記録。
 - Microsoft Sysinternals VMMapのCSVでヒープ、画像モジュール、その他private dataを分類。CSVの数値はKiB、以下は換算して十進MB。
 - 一時的な独立DLL `build/heap-snapshot.dll` を、自分で起動したテストプロセスにのみロード。GetProcessHeaps / HeapLock / HeapWalkで使用中ブロック量を採取。ゲームやコアのソースは書き換えていない。DLLはプロセス終了で消える。
-- private bytesが1.15GBを超えた時点のヒープと領域を外部から記録し、その後テストエントリーへファイルで合図して `L^.collectgarbage()` だけ行う比較も実施。
+- private bytesが1.15GBを超えた時点のヒープと領域を外部から記録し、その後テストエントリーへファイルで合図して `L^.gc.collect()` だけ行う比較も実施。
 - 全体ETWでの確保元スタック取得は管理者権限不足で使えなかった。既存のETWセッションの停止・設定変更はしていない。したがって、全領域の確保元関数まで特定した結果ではない。
 
 計測ツール: `build/capture-memory-map.py`, `build/remote-memory-audit.py`, `build/heap-snapshot.c`。出力: `build/map-forced-gc-run.log`, `build/map-*.csv`, `build/heap-*.csv`, `build/regions-*.json`, `build/memory-map-samples.json`, `build/memory-breakdown-summary.json`。これらはローカル調査用でbuild配下、配布物に含めない。終了時に一時エントリーと合図ファイルは削除。
@@ -73,3 +73,5 @@ WriteCombineの減少は **234,881,024 bytes = 7 × 32MiB**。この確認では
 さらに所有者別へ分解するには確保元スタック付きトレースが必要。今回の結果はOS領域分類とGC前後比較であり、全約550MBのオブジェクト単位の会計が完了したという意味ではない。
 
 参考: [VMMap](https://learn.microsoft.com/en-us/sysinternals/downloads/vmmap)、[Memory Protection Constants](https://learn.microsoft.com/en-us/windows/win32/memory/memory-protection-constants)、[Working Set](https://learn.microsoft.com/en-us/windows/win32/memory/working-set)。
+
+追記: WriteCombine領域の確保元は[0069](0069-writecombine-allocation-trace.md)で追跡した。実機のバックエンドはVulkanで、大部分がVMAの画像用割り当てに対応する。

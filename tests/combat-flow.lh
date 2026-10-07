@@ -2,6 +2,7 @@
 module^vp.combatflowtest
 import^love.event
 import^love.timer
+import^std.math
 require^"../src/preload.lh"
 require^"../src/resource.lh"
 require^"../src/script.lh"
@@ -21,6 +22,7 @@ public^let^load = p^{
     loadout.add("assets/characters/カテジナ", false^)
     loadout.add("assets/characters/ゆい", false^)
     loadout.add("assets/characters/はるか", false^)
+    loadout.add("assets/characters/えり", false^)
     loadout.add("assets/system/ヴァンガードプリンセス", false^)
 }
 
@@ -311,7 +313,7 @@ let^sweepSuper = p^{
     p.enemy := def def.enemy := p
     def.facing := -1
     p.special := 1500 def.life := 100000
-    for^f in^{p, def} { f.minX := 50 f.maxX := 1230 f.minXAir := 64 f.maxXAir := 1216 }
+    for^f in^{p, def} { f.minX := 50 f.maxX := 1230 f.minXAir := 50 f.maxXAir := 1230 }
     p.begin(239) def.begin(1)
     var^startSuper = false^
     var^hits = 0
@@ -438,6 +440,150 @@ let^comboColour = p^{
     print("PASS: original recovery/tumble scripts; simultaneous blue/red combo text and digits")
 }
 
+let^cornerRecoil = p^{
+    let^dir = "assets/characters/ゆい"
+    # No push boxes: this must work independently of FD body overlap.
+    for^side in^{-1, 1} {
+        for^kind from^0 to^7 {
+            let^a = Fighter.new(dir, 320, 920)
+            let^d = Fighter.new(dir, if^side > 0: 588 el^: 52;, 920)
+            a.enemy := d d.enemy := a
+            for^f in^{a, d} { f.minX := 50 f.maxX := 590 f.minXAir := 50 f.maxXAir := 590 }
+            d.receiving := true^
+            d.vx := side * 6
+            if^kind = 1 { d.receiving := false^ d.blocking := true^ }
+            if^kind = 2 { d.y := 820 }
+            if^kind = 3 { d.life := 0 }
+            if^kind = 4 { d.receiving := false^ }
+            if^kind = 5 { a.receiving := true^ }
+            if^kind = 6 { d.owner := a }
+            if^kind = 7 { d.x := 320 }
+            let^expected = if^kind <= 2: -side * 4 el^: 0;
+            d.step()
+            if^a.x != 320 or^a.cornerPush != expected { panic^$"Corner queue: {side}/{kind}" }
+            # Pending recoil is consumed once even during hitstop, without
+            # overwriting attack motion or starting an extra reaction.
+            a.stop := 2
+            a.vx := 3
+            a.step() a.step()
+            if^a.x != 320 + expected or^a.vx != 3 or^a.cornerPush != 0 { panic^$"Corner consume: {side}/{kind}" }
+        }
+    }
+    # Real M/SG reaction, both player orders and both walls. The lost victim
+    # travel must exactly equal the opponent's retreat over the same reaction.
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing corner reaction script" }
+    for^side in^{-1, 1} {
+        for^order from^0 to^1 {
+            let^a = Fighter.new(dir, 640, 920)
+            let^d = Fighter.new(dir, if^side > 0: 1230 el^: 50;, 920)
+            let^free = Fighter.new(dir, 640, 920)
+            a.enemy := d d.enemy := a
+            d.minX := 50 d.maxX := 1230
+            for^f in^{d, free} {
+                sc.install(f)
+                f.facing := -side
+                f.beginReaction(47)
+                f.receiving := true^
+            }
+            for^frame from^0 to^20 {
+                if^order = 0 { a.step() d.step() else^: d.step() a.step() }
+                free.step()
+            }
+            # Drain the final pending displacement without moving the victim.
+            a.step()
+            let^travel = free.x - 640
+            if^travel * side <= 0 or^(a.x - 640 + travel).abs() > 0.00001 { panic^$"Real wall recoil: {side}/{order}" }
+        }
+    }
+    print("PASS: corner recoil: hit/guard/air, excess only, KO/trade/object exclusions, real Yui reaction both sides/orders")
+    for^reaction in^{56, 59, 185} {
+        for^side in^{-1, 1} {
+            var^distances : t^{number^[]} = {}
+            var^durations : t^{number^[]} = {}
+            for^enabled in^{false^, true^} {
+                let^a = Fighter.new(dir, 640, 920)
+                let^d = Fighter.new(dir, if^side > 0: 1230 el^: 50;, 920)
+                a.enemy := d d.enemy := a
+                d.minX := 50 d.maxX := 1230
+                sc.install(d)
+                d.facing := -side
+                d.beginReaction(reaction)
+                d.receiving := reaction != 185
+                d.blocking := reaction = 185
+                var^moving = 0
+                var^switched = false^
+                for^frame from^0 to^65 {
+                    if^!enabled { d.off("wallHitting") }
+                    d.step()
+                    if^d.skillNo != reaction { switched := true^ }
+                    if^a.cornerPush != 0 { moving += 1 }
+                    a.step()
+                }
+                if^enabled and^!switched { panic^"Wall DS never ran" }
+                distances.push^((a.x - 640).abs())
+                durations.push^(moving)
+            }
+            print($"Wall DS #{reaction} side={side}: {durations[0]}f/{distances[0]}px -> {durations[1]}f/{distances[1]}px")
+            if^durations[1] != 1 or^(distances[1] ?? 0) >= (distances[0] ?? 0) { panic^"Wall reaction kept its old ground motion" }
+        }
+    }
+}
+
+let^yuiForwardB = p^{
+    let^sc = vp.script.load("assets/characters/ゆい/script.lton")
+    let^ds = vp.script.load("assets/characters/えり/script.lton")
+    if^sc is^nil^ or^ds is^nil^ { panic^"Missing Yui/Eri data" }
+    for^side in^{-1, 1} {
+        let^a = Fighter.new("assets/characters/ゆい", if^side > 0: 1170 el^: 110;, 920)
+        let^d = Fighter.new("assets/characters/えり", if^side > 0: 1230 el^: 50;, 920)
+        sc.install(a) ds.install(d)
+        a.enemy := d d.enemy := a
+        a.facing := side d.facing := -side
+        a.begin(240) d.begin(1)
+        var^cam = if^side > 0: 640 el^: 0;
+        var^aim = cam
+        var^hits = 0
+        var^returnedFrames = 0
+        var^returnedDistance = 0
+        var^wallReaction = false^
+        for^frame from^0 to^250 {
+            for^f in^{a, d} {
+                f.minX := std.math.max(50, cam + 50)
+                f.maxX := std.math.min(1230, cam + 590)
+                f.minXAir := f.minX f.maxXAir := f.maxX
+            }
+            a.step() d.step()
+            if^a.cornerPush != 0 { returnedFrames += 1 returnedDistance += a.cornerPush.abs() }
+            if^d.skillNo = 160 { wallReaction := true^ }
+            a.stepObjects() d.stepObjects()
+            if^a.finished() { a.begin(1) }
+            if^d.finished() { d.begin(1) }
+            for^slot, box in^a.hits {
+                if^box != nil^ and^a.canHit(box, d) {
+                    for^hurtSlot, hurt in^d.hurts {
+                        if^hurt != nil^ and^(!hurt.body or^hurt.flags.find("damaged") != nil^) and^a.canHit(box, d) {
+                            let^al, at, aw, ah = a.rect(box)
+                            let^bl, bt, bw, bh = d.rect(hurt)
+                            if^al < bl + bw and^bl < al + aw and^at < bt + bh and^bt < at + ah {
+                                a.struck(box, d, hurt.rate, false^)
+                                hits += 1
+                                if^d.skillNo != 155 { panic^"6B selected the wrong reaction" }
+                            }
+                        }
+                    }
+                }
+            }
+            a.pushAgainst(d)
+            let^delta = (aim - cam) / 2
+            cam := (cam + if^delta < 0: delta.ceil() el^: delta.floor();).clamp(0, 640)
+            aim := (a.x + d.x) / 2 - 320
+        }
+        print($"Yui 6B -> Eri side={side}: hits={hits}, wall={wallReaction}, recoil={returnedFrames}f/{returnedDistance}px, x={a.x}/{d.x}")
+        if^hits != 1 or^!wallReaction or^returnedFrames > 30 { panic^"6B wall knockback did not stop" }
+    }
+}
+
 public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
     if^!done and^loadout.ready() {
@@ -451,6 +597,8 @@ public^let^update = p^dt:number^{
         sweepSuper()
         shake()
         comboColour()
+        cornerRecoil()
+        yuiForwardB()
         print("PASS: combat regressions")
         love.event.quit()
     }

@@ -1,0 +1,127 @@
+# P0 regressions using the actual COM and reaction scripts.
+module^vp.vmaudit
+import^love.event
+import^love.timer
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/script.lh"
+require^"../src/fighter.lh"
+let^Fighter = vp.fighter.Fighter
+let^loadout = vp.preload.Load.new("vm-audit")
+var^done = false^
+var^began = 0
+public^let^load = p^{
+    began := love.timer.getTime()
+    for^name in^{"ゆい", "えり", "かえで"} { loadout.add($"assets/characters/{name}", false^) }
+}
+let^commands = p^name:string^, skill:number^, index:number^{
+    let^dir = $"assets/characters/{name}"
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing data" }
+    let^sk = sc.byId[skill]
+    if^sk is^nil^ { panic^"Missing skill" }
+    let^b = sk.blocks[index]
+    if^b is^nil^ or^b.op != "COM" { panic^"Missing COM" }
+    for^delay from^0 to^3 {
+        let^p = Fighter.new(dir, 600, 920)
+        if^name = "かえで" { p.record(5, 0) p.record(2, 0) }
+        p.record(6, 2)
+        for^i from^1 to^delay { p.record(6, 0) }
+        let^accepted = p.command(b.n[0] ?? 0, b.dirs, b.buttons)
+        if^!accepted { panic^"COM missed buffered input" }
+        sc.install(p)
+        p.start(skill, index)
+        p.step()
+        let^expected = Fighter.new(dir, 600, 920)
+        sc.install(expected)
+        expected.start(b.n[1] ?? -1, b.n[2] ?? 0)
+        expected.step()
+        if^p.skillNo != expected.skillNo or^p.image != expected.image { panic^"Real COM did not enter continuation" }
+        print($"COM {name} #{skill}:{index}, input age={delay}, window={b.n[0]}, accepted={accepted}")
+    }
+}
+let^transitions = p^{
+    for^same in^{false^, true^} {
+        for^air in^{false^, true^} {
+            for^frozen in^{false^, true^} {
+                let^p = Fighter.new("assets/characters/ゆい", 600, 920)
+                p.skills[9001] := p^f:Fighter, at:number^{ f.image := at yield^ }
+                p.skills[9002] := p^f:Fighter, at:number^{ f.image := at yield^ }
+                p.start(9001, 0)
+                p.advance()
+                p.hurt(0, 0, -40, 20, 40)
+                p.hit(0, 0, -40, 20, 40, 10)
+                p.on("landing", if^same: 9001 el^: 9002;, 7)
+                p.on("attacking", 9001, 3)
+                p.cancelWhen := "always"
+                p.waitTimer := 30
+                p.vars[0] := 42
+                p.onHit[0] := 54
+                p.receiving := true^
+                p.vx := 3
+                if^air { p.y := 800 }
+                if^frozen { p.stop := 5 }
+                p.fire("landing")
+                p.step()
+                if^p.image != 7 or^p.hurts[0] != nil^ or^p.hits[0] != nil^ or^p.onSkill["attacking"] != nil^ or^p.cancelWhen != "" or^p.waitTimer != 0 { panic^"DS did not reset animation state" }
+                if^p.vars[0] != 42 or^p.onHit[0] != 54 or^!p.receiving { panic^"DS discarded reaction or task state" }
+                if^p.vx != (if^air: 3 el^: 0;) { panic^"DS motion reset mismatch" }
+            }
+        }
+    }
+    let^p = Fighter.new("assets/characters/ゆい", 600, 920)
+    p.skills[9001] := p^f:Fighter, at:number^{ yield^ }
+    p.hurt(0, 0, -40, 20, 40)
+    p.hit(0, 0, -40, 20, 40, 10)
+    p.on("landing", 9001, 0)
+    p.vx := 3
+    p.jump(9001, 0)
+    p.step()
+    if^p.hurts[0] is^nil^ or^p.hits[0] is^nil^ or^p.onSkill["landing"] is^nil^ or^p.vx != 3 { panic^"SG incorrectly received DS initialization" }
+    p.record(6, 2)
+    if^p.command(0, {2}, {2}) { panic^"Zero-time COM matched" }
+    for^i from^1 to^24 { p.record(5, 0) }
+    if^!p.command(25, {2}, {2}) or^!p.command(25, {2}, {2}) { panic^"COM lost or consumed window boundary" }
+    p.record(5, 0)
+    if^p.command(25, {2}, {2}) { panic^"COM accepted expired input" }
+    print("PASS: DS same/different skill, ground/air, hitstop; SG preservation; COM time boundaries")
+}
+let^down = p^name:string^, reaction:number^{
+    let^dir = $"assets/characters/{name}"
+    let^sc = vp.script.load($"{dir}/script.lton")
+    if^sc is^nil^ { panic^"Missing data" }
+    let^p = Fighter.new(dir, 640, 920)
+    sc.install(p)
+    p.beginReaction(reaction)
+    p.receiving := true^
+    for^frame from^0 to^400 {
+        p.step()
+        if^p.skillNo = 164 {
+            var^count = 0
+            for^slot, box in^p.hurts {
+                if^box != nil^ and^box.w > 0 and^box.h > 0 and^(!box.body or^box.flags.find("damaged") != nil^) {
+                    count += 1
+                    print($"DOWN {name} reaction={reaction} frame={frame} retained FD={slot}: {box.x}/{box.y}/{box.w}/{box.h}")
+                }
+            }
+            if^count != 0 { panic^"DS retained damaged FD on down" }
+            print($"DOWN {name} reaction={reaction}: damaged slots={count}")
+            return^
+        }
+    }
+    panic^"Reaction did not reach down"
+}
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    if^!done and^loadout.ready() {
+        done := true^
+        transitions()
+        commands("えり", 263, 51)
+        commands("かえで", 262, 48)
+        for^name in^{"ゆい", "えり", "かえで"} { down(name, 155) down(name, 157) down(name, 138) }
+        love.event.quit()
+    }
+    if^love.timer.getTime() - began > 120 { panic^"Audit timeout" }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }
