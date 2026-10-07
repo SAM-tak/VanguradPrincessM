@@ -115,3 +115,5 @@
 - [0090-command-button-edges.md](0090-command-button-edges.md) — 通常コマンド・COMの保持履歴からの押下判定。
 
 - [0091-command-history-consumption.md](0091-command-history-consumption.md) — コマンド成立時の古い履歴消費と20フレーム境界。
+
+- [0092-command-rotation-order.md](0092-command-rotation-order.md) — 回転入力の順序と斜め入力の扱い。

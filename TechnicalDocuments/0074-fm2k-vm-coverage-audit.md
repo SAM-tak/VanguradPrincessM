@@ -1,6 +1,6 @@
 # FM2K VM・イベント・入力・衝突処理の再現監査
 
-現在の対象範囲（2026-10-07）：ユーザー指定により、VPで有効な使用例がない非0 RC・EB色効果・O shadowは実装対象外。[0085](0085-command-range-repeat-charge.md)で近遠選択・連打・溜めを対応。[0088](0088-life-and-cancel-rules.md)で低体力補正とFA/C条件を対応。[0090](0090-command-button-edges.md)で通常コマンド・COMのボタン押下を保持履歴基準に修正。[0091](0091-command-history-consumption.md)でコマンド成立時の履歴消費を対応。残件は入力の向き変更・回転、SC/SFと終了/分岐、M丸め、Rnd/ゲージ境界、使用中の描画/音声設定。調査で別途見つかった連続ヒット補正は[0089](0089-combo-damage-correction.md)で対応。以下の表は当初の監査結果を保存しており、現在の未実装一覧ではない。
+現在の対象範囲（2026-10-07）：ユーザー指定により、VPで有効な使用例がない非0 RC・EB色効果・O shadowは実装対象外。[0085](0085-command-range-repeat-charge.md)で近遠選択・連打・溜めを対応。[0088](0088-life-and-cancel-rules.md)で低体力補正とFA/C条件を対応。[0090](0090-command-button-edges.md)で通常コマンド・COMのボタン押下を保持履歴基準に修正。[0091](0091-command-history-consumption.md)でコマンド成立時の履歴消費を対応。[0092](0092-command-rotation-order.md)で回転入力の順序を対応。残件は入力の向き変更、SC/SFと終了/分岐、M丸め、Rnd/ゲージ境界、使用中の描画/音声設定。調査で別途見つかった連続ヒット補正は[0089](0089-combo-damage-correction.md)で対応。以下の表は当初の監査結果を保存しており、現在の未実装一覧ではない。
 
 
 現状の追記：イベント残件は[0083](0083-remaining-event-paths.md)、DB・O管理分岐・ガード削りは[0084](0084-db-object-chip.md)で対応。下記の件数・未実装表は初回監査時点の記録。

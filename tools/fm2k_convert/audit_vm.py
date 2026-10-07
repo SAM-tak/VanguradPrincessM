@@ -134,7 +134,7 @@ def main():
                   command_findings=dict(commands))
     # A zero missing_dispatch count does not mean complete FM2K compatibility.
     result['runtime_reviews'] = [
-        'Command simultaneous-button edge rules, facing changes, rotation order and history consumption',
+        'Command direction history across facing changes and native direction-setting flags',
         'SC/SF native return slots and E/SG/DS interaction',
         'M fixed-point rounding, Rnd and gauge boundaries, remaining render/sound settings',
     ]

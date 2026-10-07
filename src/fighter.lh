@@ -676,6 +676,10 @@ public^let^Fighter = def^{
         var^age = 0
         var^repeatCount = 0
         var^waitRelease = false^
+        var^turnForward = -1
+        var^turnBackward = -1
+        var^forwardLeft = 0
+        var^backwardLeft = 0
         repeat^while^step >= 0 and^age < limit and^self^.inputFrame - age >= 1 {
             let^slot = (self^.inputFrame - age) % HISTORY
             let^d = self^.inDirs[slot] ?? 5
@@ -702,23 +706,29 @@ public^let^Fighter = def^{
                 }
                 if^charged { step -= 1 }
             elseif^mode = 3:
-                # going back through the frames, collect the sides the stick visited
-                turnSeen := addSides(turnSeen, sideOf(d))
-                if^turnSeen = 15 {
-                    turnRounds += 1
-                    turnSeen := 0
-                    if^turnRounds >= std.math.max(amounts[step] ?? 1, 1) {
-                        turnRounds := 0
-                        step -= 1
+                # Native 0x41061A: seed a quadrant, then track both orders.
+                # Only cardinal samples advance; diagonals can only seed.
+                if^turnForward < 0 and^turnBackward < 0 {
+                    let^seed = rotationSeed(d)
+                    if^seed >= 0 {
+                        turnForward := seed turnBackward := seed
+                        forwardLeft := (amounts[step] ?? 0) * 4
+                        backwardLeft := forwardLeft
                     }
+                else^:
+                    if^d = (ROTATION_FORWARD[turnForward % 4] ?? 0) {
+                        turnForward += 1 forwardLeft -= 1
+                    }
+                    if^d = (ROTATION_BACKWARD[turnBackward % 4] ?? 0) {
+                        turnBackward += 3 backwardLeft -= 1
+                    }
+                    if^forwardLeft < 2 or^backwardLeft < 2 { step -= 1 }
                 }
             elseif^dirFits(dirs[step] ?? 0, d) and^hasButtons(p, buttons[step] ?? 0):
                 step -= 1
             }
             age += 1
         }
-        turnSeen := 0
-        turnRounds := 0
         return^step < 0
     },
     # COM inside a skill.
@@ -1412,29 +1422,18 @@ let^hasButtons = f^got:number^, need:number^-> bool^{
     return^true^
 }
 
-# The stick went round: forward, down, back and up each at least once.
-let^sideOf = f^d:number^-> number^{
-    # a bit per side: 1 forward, 2 down, 4 back, 8 up
-    var^m = 0
-    if^d = 9 or^d = 6 or^d = 3 { m += 1 }
-    if^d = 3 or^d = 2 or^d = 1 { m += 2 }
-    if^d = 1 or^d = 4 or^d = 7 { m += 4 }
-    if^d = 7 or^d = 8 or^d = 9 { m += 8 }
-    return^m
+# Quadrant indices and cardinal transitions from the native jump tables
+# at 0x410A00 / 0x410A28 / 0x410A38. Diagonals only choose the seed.
+let^ROTATION_FORWARD : t^{number^[]} = {6, 2, 4, 8}
+let^ROTATION_BACKWARD : t^{number^[]} = {4, 8, 6, 2}
+let^rotationSeed = f^d:number^-> number^{
+    if^d = 8 or^d = 9 { return^0 }
+    if^d = 6 or^d = 3 { return^1 }
+    if^d = 2 or^d = 1 { return^2 }
+    if^d = 4 or^d = 7 { return^3 }
+    return^-1
 }
 
-let^addSides = f^seen:number^, sides:number^-> number^{
-    var^out = seen
-    var^bit = 1
-    repeat^while^bit <= 8 {
-        if^(sides / bit).floor() % 2 = 1 and^(out / bit).floor() % 2 = 0 { out += bit }
-        bit *= 2
-    }
-    return^out
-}
-
-var^turnSeen = 0
-var^turnRounds = 0
 
 # ---------------------------------------------------------------------------
 # Being hit

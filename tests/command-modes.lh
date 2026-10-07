@@ -83,6 +83,22 @@ let^run = p^{
     if^!boundary.command(20, {0}, {1}) { panic^"Repeated consumption changed boundary" }
     boundary.record(5, 1) boundary.consumeCommandHistory()
     if^!boundary.command(20, {0}, {1}) { panic^"Sliding consumed boundary" }
+    let^ordered : t^{t^{number^[]}[]} = {{6, 2, 4, 8}, {6, 8, 4, 2}, {8, 4, 2, 6}, {2, 4, 8, 6}}
+    for^sequence in^ordered {
+        let^rotation = actor()
+        for^d in^sequence { rotation.record(d, 0) }
+        if^!rotation.entered(10, {0}, {0}, {3}, {1}) { panic^"Ordered rotation rejected" }
+        if^rotation.entered(10, {0}, {0}, {3}, {2}) { panic^"One rotation counted as two" }
+    }
+    let^invalid : t^{t^{number^[]}[]} = {{6, 4, 2, 8}, {9, 3, 1, 7}, {6, 2, 4}}
+    for^sequence in^invalid {
+        let^rotation = actor()
+        for^d in^sequence { rotation.record(d, 0) }
+        if^rotation.entered(10, {0}, {0}, {3}, {1}) { panic^"Unordered/diagonal/incomplete rotation accepted" }
+    }
+    let^twice = actor()
+    for^d in^{6, 2, 4, 8, 6, 2, 4, 8} { twice.record(d, 0) }
+    if^!twice.entered(8, {0}, {0}, {3}, {2}) or^twice.entered(7, {0}, {0}, {3}, {2}) { panic^"Two-rotation window boundary" }
     let^f = actor() let^enemy = actor()
     let^sc = vp.script.load("assets/characters/ゆい/script.lton")
     if^sc is^nil^ { panic^"Missing Yui" }
