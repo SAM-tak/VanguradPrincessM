@@ -167,9 +167,8 @@ def main():
         color_operands={key: dict(sorted(values.items())) for key, values in zip(('r', 'g', 'b', 'a'), color_values)},
         raw_color_alpha_flags=dict(color_alpha_flags), sound_options=dict(sound_options))
     # A zero missing_dispatch count does not mean complete FM2K compatibility.
-    result['runtime_reviews'] = [
-        'Used render pixel blending (COLOR operands reviewed in 0098, sound in 0099, layer scroll/repeat in 0100)',
-    ]
+    result['runtime_reviews'] = []  # Scoped review completed through 0101, not universal compatibility.
+    result['accepted_render_difference'] = 'Full-colour blending retained; native 16-bit quantization/rounding is not reproduced (0101)'
     result['out_of_scope_unused'] = [
         'RC nonzero common-pose binding', 'EB nonzero colour fades', 'O shadow rendering flag',
         'GL/GS zero-target command fallback (no current definitions; inventoried if introduced)',

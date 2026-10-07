@@ -1,0 +1,64 @@
+# GPU readback against the full-colour equations, not the old 16-bit quantization.
+module^vp.spriteblendtest
+import^love.graphics
+import^love.image
+import^love.event
+require^"../src/sprite.lh"
+require^"../src/fighter.lh"
+require^"../src/arena.lh"
+let^near = p^got:number^, want:number^{
+    if^(got - want).abs() > 2 / 255 { panic^$"Blend pixel {got}, expected {want}" }
+}
+let^compose = f^mode:number^, source:number^, destination:number^, opacity:number^-> number^{
+    return^if^mode = 2: (destination + source * opacity).clamp(0,1)
+        el^mode = 3: (destination - source * opacity).clamp(0,1)
+        el^: source * opacity + destination * (1 - opacity);
+}
+public^let^load = p^{
+    let^indices = love.image.newImageData(3,1)
+    let^rgba = love.image.newImageData(3,1)
+    let^palette = love.image.newImageData(256,8)
+    for^x from^0 to^2 {
+        let^a = if^x = 0: 1 el^x = 1: 0 el^: 128 / 255;
+        indices.setPixel(x,0,(10+x)/255,0,0,1)
+        rgba.setPixel(x,0,64/255,128/255,192/255,a)
+        palette.setPixel(10+x,3,64/255,128/255,192/255,a)
+    }
+    let^sheet = vp.sprite.Sheet.new("tests/fixtures/blend")
+    sheet.gen := vp.arena.generation()
+    sheet.paletteTried := true^
+    sheet.palette := love.graphics.newImage(palette)
+    sheet.images[0] := love.graphics.newImage(indices)
+    sheet.images[1] := love.graphics.newImage(rgba)
+    let^canvas = love.graphics.newCanvas(3,1)
+    let^f = vp.fighter.Fighter.new("",0,0)
+    for^image from^0 to^1 {
+        for^mode from^0 to^4 {
+            for^alpha in^{0,10,32} {
+                for^tint in^{0,16,240} {
+                    f.color(mode,tint,tint,tint,alpha)
+                    love.graphics.setCanvas(canvas)
+                    love.graphics.clear(96/255,160/255,224/255,1)
+                    vp.sprite.setBlend(f.blend,f.alpha)
+                    sheet.draw(image,1,1,3,1,1,f.tintR,f.tintG,f.tintB)
+                    vp.sprite.resetBlend()
+                    love.graphics.setCanvas()
+                    let^pixels = love.graphics.readbackTexture(canvas)
+                    for^x from^0 to^2 {
+                        let^coverage = if^x = 0: 1 el^x = 1: 0 el^: 128/255;
+                        let^opacity = coverage * (if^mode = 1: 0.5 el^mode = 4: (32-alpha)/32 el^: 1;)
+                        let^offset = (if^tint >= 128: tint-256 el^: tint;) / 32
+                        let^r,g,b,a = pixels.getPixel(x,0)
+                        near(r,compose(mode,(64/255+offset).clamp(0,1),96/255,opacity))
+                        near(g,compose(mode,(128/255+offset).clamp(0,1),160/255,opacity))
+                        near(b,compose(mode,(192/255+offset).clamp(0,1),224/255,opacity))
+                    }
+                    pixels.dispose()
+                }
+            }
+        }
+    }
+    print("PASS: 90 GPU draws, indexed/RGBA, five blend modes, signed tint/clamping, alpha endpoints and transparent coverage")
+    love.event.quit()
+}
+public^let^draw = p^{}
