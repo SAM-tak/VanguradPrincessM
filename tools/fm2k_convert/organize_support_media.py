@@ -1,7 +1,7 @@
 """Move provably exclusive support media out of shared, rewriting all manifests.
 
 Run after share_assets.py and share_supports.py. Without --apply, report only.
-Ambiguous media (multiple supports or non-support skill users) stays shared.
+Ambiguous media stays shared unless explicitly classified in support_media_owners.txt.
 """
 
 import argparse
@@ -16,6 +16,35 @@ from share_assets import content_key
 from supports import SUPPORTS, read_skills, source_script
 
 REF = re.compile(r'\b(shared|file|asset) = "([^"]+)"')
+
+
+def explicit_owners():
+    result = {}
+    for line in Path(__file__).with_name('support_media_owners.txt').read_text(encoding='utf-8').splitlines():
+        fields = line.split('#', 1)[0].split()
+        if not fields:
+            continue
+        filename, owner = fields
+        if not re.fullmatch(r'[0-9a-f]{40}\.(dds|png)', filename) or owner not in SUPPORTS:
+            raise ValueError(f'Invalid support ownership: {line}')
+        if filename in result:
+            raise ValueError(f'Duplicate support ownership: {filename}')
+        result[filename] = owner
+    return result
+
+
+def explicit_moves(root):
+    moves = {}
+    for filename, owner in explicit_owners().items():
+        source = root / 'shared/images' / filename
+        target = root / 'supports' / owner / 'images' / filename
+        if source.exists():
+            if content_key(source) != source.stem:
+                raise ValueError(f'Content hash mismatch: {source}')
+            moves[source] = target
+        elif target.exists() and content_key(target) != target.stem:
+            raise ValueError(f'Content hash mismatch: {target}')
+    return moves
 
 
 def entries(path):
@@ -38,8 +67,12 @@ def resolve(root, listing, line):
     return (media_path(listing.parent) / value).resolve()
 
 
-def plan(root, restore_common_only=False):
+def plan(root, restore_common_only=False, owned_only=False):
     root = root.resolve()
+    overrides = explicit_owners()
+    if owned_only:
+        moves = explicit_moves(root)
+        return moves, rewrite_moves(root, moves)
     libraries = {}
     moves = {}
     media_cache = {}
@@ -102,6 +135,8 @@ def plan(root, restore_common_only=False):
                     if block[0] == op and 0 <= block[1] < len(local_media):
                         other_users.add(local_media[block[1]])
         for path, names in owners.items():
+            if path.name in overrides:
+                continue
             # Restored owner-specific calls can reveal that a previously
             # exclusive effect is shared. Move it back instead of making an
             # unselected support directory a hidden dependency.
@@ -125,6 +160,11 @@ def plan(root, restore_common_only=False):
             if target in moves.values() and moves.get(source) != target:
                 raise ValueError(f"Conflicting destination: {target}")
             moves[source] = target
+    moves.update(explicit_moves(root))
+    return moves, rewrite_moves(root, moves)
+
+
+def rewrite_moves(root, moves):
     rewritten = {}
     for kind in ("images", "sounds"):
         for listing in sorted(metadata_path(root).rglob(f"{kind}.lton")):
@@ -140,7 +180,7 @@ def plan(root, restore_common_only=False):
                 changed = True
             if changed:
                 rewritten[listing] = "\n".join(lines) + "\n"
-    return moves, rewritten
+    return rewritten
 
 
 def apply(root, moves, rewritten):
@@ -176,10 +216,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("assets", type=Path)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--owned-only", action="store_true", help="Apply explicit support ownership only")
     parser.add_argument("--restore-common-only", action="store_true",
                         help="Only return newly discovered shared dependencies to the pool")
     args = parser.parse_args()
-    moves, rewritten = plan(args.assets, restore_common_only=args.restore_common_only)
+    moves, rewritten = plan(args.assets, restore_common_only=args.restore_common_only, owned_only=args.owned_only)
     counts = Counter(f"{p.parent.parent.name}/{p.parent.name}" for p in moves.values())
     print(json.dumps({"files": len(moves), "manifests": len(rewritten), "counts": dict(sorted(counts.items()))}, ensure_ascii=False, indent=2))
     if args.apply:

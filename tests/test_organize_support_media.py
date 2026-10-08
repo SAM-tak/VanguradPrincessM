@@ -36,6 +36,36 @@ def fixture(root):
 
 
 class OrganizeSupportMediaTest(unittest.TestCase):
+    def test_explicit_image_owner_preserves_variants_and_survives_regeneration(self):
+        from unittest.mock import patch
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pool = root / 'shared/images'
+            pool.mkdir(parents=True)
+            image = pool / 'image.png'
+            Image.new('L', (2, 2), 106).save(image)
+            filename = organize.content_key(image) + '.png'
+            source = image.rename(pool / filename)
+            listing = root / 'characters/test/images.lton'
+            listing.parent.mkdir(parents=True)
+            original = '{ shared = "images/%s", format = "indexed" },\n' % filename
+            listing.write_text(original, encoding='utf-8')
+            with patch.object(organize, 'explicit_owners', return_value={filename: 'えこ'}):
+                for regeneration in range(2):
+                    moves, rewritten = organize.plan(root, owned_only=True)
+                    target = root / 'supports/えこ/images' / filename
+                    self.assertEqual(moves, {source: target})
+                    data = source.read_bytes()
+                    organize.apply(root, moves, rewritten)
+                    self.assertEqual(target.read_bytes(), data)
+                    self.assertFalse(source.exists())
+                    self.assertIn('assets/supports/えこ/images/' + filename, listing.read_text(encoding='utf-8'))
+                    self.assertEqual(organize.plan(root, owned_only=True), ({}, {}))
+                    if not regeneration:
+                        source.write_bytes(data)
+                        listing.write_text(original, encoding='utf-8')
+
     def test_new_cross_support_reference_moves_effect_back_to_shared(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

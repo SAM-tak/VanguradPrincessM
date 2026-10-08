@@ -167,3 +167,7 @@
 - [0116-vs-return-selection.md](0116-vs-return-selection.md) — VS対戦後のキャラセレで両者の直前の使用キャラにカーソルを合わせる。
 
 - [0117-vs-return-support.md](0117-vs-return-support.md) — VS対戦後に両者のサポート選択も復元。隠しヒルダのみえこへ戻す。
+
+- [0118-eko-media-ownership-and-variants.md](0118-eko-media-ownership-and-variants.md) — ゆい・はるか固有画像とえこ151枚の整理、パレット差による重複候補の監査。
+
+- [0119-kanae-media-ownership.md](0119-kanae-media-ownership.md) — かなえ専用PNG12枚を分類し、他キャラ・サポートからの132参照を維持。
