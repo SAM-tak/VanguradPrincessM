@@ -1317,14 +1317,14 @@ public^let^Fighter = def^{
     advanceObjects = p^self^, scriptOnly:bool^{
         var^live : t^{Fighter[]} = {}
         for^o in^self^.objects {
-            # The original stage-face script maintained variable 75 by comparing
-            # the two players. Our HUD does not run that script. Keep its support
-            # branch input relative to the actor's spawn orientation instead;
-            # movement and attack scripts retain their explicit turnX branches.
+            # Port behavior: choose the support's branch from its own position,
+            # rather than the two players as in the original stage-face script.
+            # Keep it relative to the actor's spawn orientation; movement and
+            # attack scripts retain their explicit turnX / aim-lock branches.
             let^support = self^.slots[5]
             let^enemy = self^.enemy
             if^support fits^Fighter and^enemy fits^Fighter and^support.alive {
-                let^delta = (enemy.x - self^.x) * support.facing
+                let^delta = (enemy.x - support.x) * support.facing
                 if^delta.abs() > 1 { self^.setv(75, if^delta < 0: 1 el^: 0;) }
             }
             let^par = o.parent ?? self^

@@ -14,6 +14,38 @@ public^let^load = p^{
    if^sk.name = "サポートショット" { shot := id }
   } }
   if^aim = 0 or^shot = 0 { panic^"Missing Sierra entries" }
+  # The enemy lies between owner and support: owner-relative aiming is wrong.
+  for^face in^{1,-1} { for^side in^{1,-1} { for^scriptOnly in^{false^,true^} {
+   vp.fighter.clearSystemVars()
+   let^p = vp.fighter.Fighter.new(dir,640 + side*200,920) sc.install(p)
+   p.facing := face p.setv(76,110) p.setv(71,30)
+   let^enemy = vp.fighter.Fighter.new(dir,640 + side*100,920)
+   p.enemy := enemy
+   let^a = p.makeObject(aim,0,640,920,80)
+   p.slots[5] := a
+   if^scriptOnly { p.stepObjectScripts() else^: p.stepObjects() }
+   if^a.facing * (if^a.turnX: -1 el^: 1;) != side { panic^"Aim used the owner's position" }
+   # Moving the owner alone must not affect the support's direction input.
+   p.x := 640 - side*200
+   if^scriptOnly { p.stepObjectScripts() else^: p.stepObjects() }
+   if^p.v(75) != (if^face = side: 0 el^: 1;) { panic^"Owner movement changed support direction" }
+   # At equal X preserve the previous direction.
+   enemy.x := a.x
+   if^scriptOnly { p.stepObjectScripts() else^: p.stepObjects() }
+   if^p.v(75) != (if^face = side: 0 el^: 1;) { panic^"Equal X changed support direction" }
+   enemy.x := 640 - side*100
+   p.setv(76,101)
+   var^seen = false^
+   for^tick from^0 to^250 {
+    if^scriptOnly { p.stepObjectScripts() else^: p.stepObjects() }
+    if^a.skillNo = shot {
+     seen := true^
+     if^a.facing * (if^a.turnX: -1 el^: 1;) != side { panic^"6D lost its initial aim after enemy crossed" }
+    elseif^seen: break^
+    }
+   }
+   if^!seen { panic^"Position-based aim never fired" }
+  } } }
   for^face in^{1,-1} { for^direction in^{0,1} { for^early in^{false^,true^} {
    vp.fighter.clearSystemVars()
    let^p = vp.fighter.Fighter.new(dir,640,920) sc.install(p)

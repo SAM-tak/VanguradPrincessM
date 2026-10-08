@@ -185,3 +185,5 @@
 - [0125-eko-independent-palettes.md](0125-eko-independent-palettes.md) — えこに独立パレットを持たせ、全8色の表示を維持してDDS112枚を統合。
 
 - [0126-additional-media-ownership.md](0126-additional-media-ownership.md) — ゆいと全5サポートの追加41枚を整理し、えこの2枚を追加統合。
+
+- [0127-support-position-facing.md](0127-support-position-facing.md) — サポート自身の位置を基準に方向を選び、シエラ6Dの照準後の固定も維持。
