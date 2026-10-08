@@ -11,7 +11,7 @@ let^Fighter = vp.fighter.Fighter
 let^loadout = vp.preload.Load.new("link-test")
 var^done = false^
 var^began = 0
-let^names = {"ゆい", "はるか", "えり", "サキ", "リリス", "かえで", "カテジナ", "ルナ", "くるみ", "あやね"}
+let^names = {"ゆい", "はるか", "えり", "サキ", "リリス", "かえで", "ナタリア", "ルナ", "くるみ", "あやね"}
 public^let^load = p^{ began := love.timer.getTime() for^name in^names { loadout.add($"assets/characters/{name}", false^) } }
 let^probe = p^name:string^, place:number^{
     vp.fighter.clearSystemVars()

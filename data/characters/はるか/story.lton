@@ -46,7 +46,7 @@ routes = {
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "fight", name = "かえで", stage = "神社", level = 100, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
-        { kind = "fight", name = "カテジナ", stage = "夜", level = 100, rounds = 2, seconds = 60 },
+        { kind = "fight", name = "ナタリア", stage = "夜", level = 100, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "fight", name = "くるみ", stage = "プール", level = 100, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },

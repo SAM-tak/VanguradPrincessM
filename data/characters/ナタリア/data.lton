@@ -1,6 +1,6 @@
 # Converted from カテジナ.json by tools/fm2k_convert/convert.py
 kind = "character",
-name = "カテジナ",
+name = "ナタリア",
 skillCount = 806,
 skillsPerFile = 100,
 commands = {

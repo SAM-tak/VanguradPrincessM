@@ -35,7 +35,7 @@ let^AFTER_BOTH = 100          # frames from both confirmed to the battle
 
 # The characters on the grid, top to bottom (the system file's list, under
 # the port's names: tools/fm2k_convert/names.py).
-public^let^CHARACTERS = { "ゆい", "はるか", "リリス", "ルナ", "くるみ", "サキ", "かえで", "カテジナ", "えり", "あやね" }
+public^let^CHARACTERS = { "ゆい", "はるか", "リリス", "ルナ", "くるみ", "サキ", "かえで", "ナタリア", "えり", "あやね" }
 
 public^let^Side = def^{
     self^{

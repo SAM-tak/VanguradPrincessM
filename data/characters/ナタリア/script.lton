@@ -188,7 +188,7 @@ commands = {
     { name = "コマンド 26", time = 1, skills = { 0, 6, 6, 6 }, directions = { 7 }, buttons = { 0 }, modes = { 0 }, amounts = { 20 } },
 },
 supportNamespaces = true^,
-supportOwner = "カテジナ",
+supportOwner = "ナタリア",
 { name = "－－設定無し－－", level = 0, id = 0, space = "", media = "", blocks = {
     { "I", 461, 0, -45, -241, "turnX" },
 } },

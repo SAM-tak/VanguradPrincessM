@@ -1,5 +1,5 @@
 # Original opponents and presentation assets, exported by story.py.
-intro = "assets/characters/カテジナ/images/1971.png",
+intro = "assets/characters/ナタリア/images/1971.png",
 routes = {
     {
         { kind = "fight", name = "サキ", stage = "スクール", level = 20, rounds = 2, seconds = 60 },
@@ -59,7 +59,7 @@ routes = {
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "fight", name = "えり", stage = "プール", level = 100, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
-        { kind = "fight", name = "カテジナ", stage = "瓦礫", level = 100, rounds = 2, seconds = 60 },
+        { kind = "fight", name = "ナタリア", stage = "瓦礫", level = 100, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "demo", name = "丘イベント", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "fight", name = "リリス", stage = "丘", level = 100, rounds = 2, seconds = 60 },

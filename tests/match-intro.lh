@@ -8,7 +8,7 @@ require^"../src/fighter.lh"
 require^"../src/arena.lh"
 let^SYSTEM = "assets/system/ヴァンガードプリンセス"
 let^loadout = vp.preload.Load.new("intro-test")
-let^NAMES = {"ゆい", "はるか", "くるみ", "ヒルダ", "あやね", "えり", "かえで", "カテジナ", "サキ", "リリス", "ルナ"}
+let^NAMES = {"ゆい", "はるか", "くるみ", "ヒルダ", "あやね", "えり", "かえで", "ナタリア", "サキ", "リリス", "ルナ"}
 var^done = false^
 public^let^load = p^{
     loadout.add(SYSTEM, false^)

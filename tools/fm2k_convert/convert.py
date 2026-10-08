@@ -242,6 +242,8 @@ def convert(src, out_root, kind, media=True):
     patches.apply(src, d)           # the port's deliberate changes (patches/)
     if kind == "game":              # the character list under the port's names (names.py)
         d["characters"] = [official(n) for n in d["characters"]]
+    if kind == "character" and "name" in d:
+        d["name"] = official(d["name"])
     dst = out_root / KIND_DIRS[kind] / official(src.stem)
     (dst / "images").mkdir(parents=True, exist_ok=True)
     definitions = metadata_path(dst)

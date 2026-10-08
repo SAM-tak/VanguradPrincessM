@@ -19,7 +19,7 @@ var^done = false^
 
 public^let^load = p^{
     began := love.timer.getTime()
-    loadout.add("assets/characters/カテジナ", false^)
+    loadout.add("assets/characters/ナタリア", false^)
     loadout.add("assets/characters/ゆい", false^)
     loadout.add("assets/characters/はるか", false^)
     loadout.add("assets/characters/えり", false^)
@@ -381,12 +381,12 @@ let^shake = p^{
     if^axis.offset != 5 { panic^"One-frame shake was invisible" }
     axis.step()
     if^axis.offset != 0 { panic^"One-frame shake did not expire" }
-    let^source = Fighter.new("assets/characters/カテジナ", 0, 0)
+    let^source = Fighter.new("assets/characters/ナタリア", 0, 0)
     source.screen(0, 0, 0, 0, 0, 0, "", 3, 4, 2, 3, 7, 4)
     if^vp.shake.horizontal.offset != 4 or^vp.shake.vertical.offset != 7 { panic^"EB axes were mixed" }
     for^i from^0 to^1 { vp.shake.horizontal.step() vp.shake.vertical.step() }
     if^vp.shake.horizontal.offset != 0 or^vp.shake.vertical.offset != 7 { panic^"Axis durations are not independent" }
-    let^sc = vp.script.load("assets/characters/カテジナ/script.lton")
+    let^sc = vp.script.load("assets/characters/ナタリア/script.lton")
     if^sc is^nil^ { panic^"Missing shake script" }
     # Invoke an actual restored EB through Script.run, not directly through Axis.
     var^tested = false^
@@ -394,7 +394,7 @@ let^shake = p^{
         for^at, b in^sk.blocks {
             if^b.op = "EB" and^(b.n[6] ?? 0) > 0 and^(b.n[8] ?? 0) > 0 and^!tested {
                 vp.shake.horizontal.reset()
-                let^p = Fighter.new("assets/characters/カテジナ", 123, 456)
+                let^p = Fighter.new("assets/characters/ナタリア", 123, 456)
                 sc.install(p)
                 p.start(n, at)
                 p.advance()
@@ -621,9 +621,9 @@ public^let^update = p^dt:number^{
     vp.resource.pump(0.006)
     if^!done and^loadout.ready() {
         done := true^
-        attack("assets/characters/カテジナ", "足払い", 1, 120)
+        attack("assets/characters/ナタリア", "足払い", 1, 120)
         # 100 + (31 - floor(31 * 8 / 100)), before FD/low-life multipliers.
-        attack("assets/characters/カテジナ", "けつ昇竜", 2, 129)
+        attack("assets/characters/ナタリア", "けつ昇竜", 2, 129)
         guard()
         reactionFacing()
         melt()

@@ -4,7 +4,7 @@ require^"../src/fighter.lh"
 require^"../src/script.lh"
 require^"../src/resource.lh"
 public^let^load = p^{
- for^name in^{"ゆい","えり","はるか","サキ","リリス","かえで","カテジナ","ルナ","くるみ","あやね"} {
+ for^name in^{"ゆい","えり","はるか","サキ","リリス","かえで","ナタリア","ルナ","くるみ","あやね"} {
   let^dir = $"assets/characters/{name}"
   let^sc = vp.script.loadFor($"{dir}/script.lton",102)
   if^sc is^nil^ { panic^"Missing script" }

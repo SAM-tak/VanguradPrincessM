@@ -4,7 +4,7 @@ routes = {
     {
         { kind = "fight", name = "リリス", stage = "スクール", level = 20, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
-        { kind = "fight", name = "カテジナ", stage = "夜", level = 20, rounds = 2, seconds = 60 },
+        { kind = "fight", name = "ナタリア", stage = "夜", level = 20, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "demo", name = "ランダムかえで", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "fight", name = "えり", stage = "瓦礫", level = 20, rounds = 2, seconds = 60 },
@@ -57,7 +57,7 @@ routes = {
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "fight", name = "くるみ", stage = "プール", level = 100, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
-        { kind = "fight", name = "カテジナ", stage = "夜", level = 100, rounds = 2, seconds = 60 },
+        { kind = "fight", name = "ナタリア", stage = "夜", level = 100, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
         { kind = "fight", name = "かえで", stage = "瓦礫", level = 100, rounds = 2, seconds = 60 },
         { kind = "demo", name = "ゆい勝ち", stage = "", level = 0, rounds = 0, seconds = 0 },
