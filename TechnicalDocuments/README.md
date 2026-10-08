@@ -173,3 +173,7 @@
 - [0119-kanae-media-ownership.md](0119-kanae-media-ownership.md) — かなえ専用PNG12枚を分類し、他キャラ・サポートからの132参照を維持。
 
 - [0120-result-presentation-deadline.md](0120-result-presentation-deadline.md) — KOから3秒で演出待ちを打ち切り、ルナの構えでもラウンドを進行。
+
+- [0121-hud-timer-intro-visibility.md](0121-hud-timer-intro-visibility.md) — 開始演出中は通常タイマーを生成せず、60と59の重複を防止。
+
+- [0122-round-curtain-handoff.md](0122-round-curtain-handoff.md) — 次ラウンドの黒幕を描画前に初期化し、境界の1フレーム露出を修正。

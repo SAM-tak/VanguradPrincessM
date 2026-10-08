@@ -299,6 +299,9 @@ public^let^Round = def^{
             self^.layers := {}
             self^.combos := {}
             self^.enter("start", ROUND_START)
+            # The outgoing curtain is gone. Initialize the incoming one
+            # before this frame can render the newly reset fighters.
+            for^l in^self^.layers { l.stepScript() }
             self^.placeMarks()
         }
     },

@@ -47,6 +47,7 @@ public^let^Hud = def^{
         tens : Fighter|nil^= nil^,
         ones : Fighter|nil^= nil^,
         shownSeconds = -2,
+        timerActive = false^,
     },
 
     # A round starts the HUD's skills over (layout 5, the big "60", times itself
@@ -61,15 +62,19 @@ public^let^Hud = def^{
         self^.shown1 := -1
         self^.shown2 := -1
         self^.shownSeconds := -2
+        self^.timerActive := false^
+        self^.tens := nil^
+        self^.ones := nil^
     },
     # The clock starts: layout 5's big "60" goes (it outlasts the round's start
-    # by some frames and showed under "59") and the timer's digits start over
-    # (started hidden, they would look again only hundreds of frames later).
+    # by some frames and showed under "59") and normal timer digits become
+    # active. Do not rely on the scripts sampling V128 during the intro.
     fightBegins = p^self^{
         for^l in^self^.layers {
             if^l.skillNo = LAYOUT_TIME { l.alive := false^ }
         }
         self^.shownSeconds := -2
+        self^.timerActive := true^
     },
     each = p^self^-> t^{Fighter[]} {
         var^all : t^{Fighter[]} = {}
@@ -81,6 +86,7 @@ public^let^Hud = def^{
     },
     # The timer's digits for `seconds` left (negative: no time limit, "∞").
     stepTimer = p^self^, seconds:number^{
+        if^!self^.timerActive { return^ }
         if^seconds = self^.shownSeconds { return^}
         let^before = self^.shownSeconds
         self^.shownSeconds := seconds

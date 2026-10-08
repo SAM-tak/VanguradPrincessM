@@ -402,6 +402,7 @@ let^startRound = p^{
     place(me, WORLD_W / 2 - START_X, 1)
     place(foe, WORLD_W / 2 + START_X, -1)
     roundFrames := if^matchSeconds = 0: 100000000 el^: matchSeconds * 100;
+    vp.fighter.setRound(roundFrames, flow.number)
     let^cpu = brain
     if^cpu != nil^ { cpu.reset() }
     let^firstCPU = demoBrain

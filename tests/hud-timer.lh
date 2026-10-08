@@ -1,0 +1,36 @@
+module^vp.hudtimertest
+import^love.event
+require^"../src/hud.lh"
+require^"../src/fighter.lh"
+require^"../src/resource.lh"
+public^let^load = p^{
+ let^hud = vp.hud.load("assets/system/ヴァンガードプリンセス")
+ let^a = vp.fighter.Fighter.new("assets/characters/ゆい",500,920)
+ let^b = vp.fighter.Fighter.new(a.dir,700,920)
+ for^round in^{1,2,3} {
+  vp.fighter.setRound(6000,round)
+  hud.restart()
+  if^hud.tens != nil^ or^hud.ones != nil^ { panic^"Previous round digits survived" }
+  for^tick from^0 to^20 {
+   a.setv(128,if^tick < 10: 0 el^: 10000;)
+   hud.step(a,b,59)
+   if^hud.tens != nil^ or^hud.ones != nil^ { panic^"Digits appeared during intro" }
+  }
+  var^intro = false^
+  for^l in^hud.layers { if^l.skillNo = 61 and^l.alive { intro := true^ } }
+  if^!intro { panic^"Intro timer missing" }
+  a.setv(128,0)
+  hud.fightBegins()
+  hud.step(a,b,59)
+  for^l in^hud.layers { if^l.skillNo = 61 and^l.alive { panic^"Intro timer overlaps digits" } }
+  if^hud.tens?.skillNo != 40 or^hud.ones?.skillNo != 44 { panic^"Missing or incorrect opening digits" }
+ }
+ hud.restart() hud.step(a,b,-1)
+ if^hud.tens != nil^ { panic^"Infinity appeared during intro" }
+ hud.fightBegins() hud.step(a,b,-1)
+ if^hud.tens?.skillNo != 34 or^hud.ones != nil^ { panic^"Missing or incorrect infinite timer" }
+ print("PASS: three round intros, stale visibility flag, atomic timer switch, infinite timer")
+ love.event.quit()
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

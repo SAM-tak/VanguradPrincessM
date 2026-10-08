@@ -1,0 +1,32 @@
+module^vp.roundcurtaintest
+import^love.event
+require^"../src/round.lh"
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/resource.lh"
+public^let^load = p^{
+ let^system = vp.script.load("assets/system/ヴァンガードプリンセス/script.lton")
+ if^system is^nil^ { panic^"Missing system" }
+ let^a = vp.fighter.Fighter.new("assets/characters/ゆい",500,920)
+ let^b = vp.fighter.Fighter.new(a.dir,700,920)
+ for^number in^{1,2} {
+  vp.fighter.clearSystemVars()
+  vp.fighter.setRound(4500,number)
+  let^r = vp.round.Round.new()
+  r.script := system r.phase := "end" r.number := number
+  r.step(a,b,false^,p^{ vp.fighter.setRound(6000,r.number) },p^{ panic^"Unexpected match end" })
+  if^r.phase != "start" or^r.number != number + 1 { panic^"Round did not reset" }
+  var^covered = false^
+  for^l in^r.layers {
+   if^l.skillNo = 13 and^l.image = 62 and^l.alive and^l.blend = 0 { covered := true^ }
+  }
+  if^!covered { panic^"Reset frame exposed fighters before curtain initialized" }
+  if^a.v(128) != 10000 { panic^"Intro visibility not initialized" }
+  r.step(a,b,false^,p^{},p^{})
+  for^l in^r.layers { if^l.skillNo = 13 and^l.image != 62 { panic^"Curtain lost next frame" } }
+ }
+ print("PASS: round 1->2 and 2->3 reset frames retain incoming opaque curtain")
+ love.event.quit()
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }
