@@ -1,7 +1,7 @@
 # Builds a fused, source-free distribution: the game compiled by the full
 # lovec, zipped into a .love and appended to the VM-only shipping love.exe.
 #
-#   pwsh tools/dist.ps1 [-Love <lhat-love repo>] [-RebuildEngine] [-Run]
+#   pwsh tools/dist.ps1 [-Love <lhat-love repo>] [-Jobs <count>] [-RebuildEngine] [-Run]
 #
 # The VM-only engine only reads units written by the same build of lhat, so
 # it is rebuilt when it is older than the full lovec (or with -RebuildEngine).
@@ -11,7 +11,8 @@
 param(
     [string]$Love = "C:\Users\Owner\source\repos\lhat-love",
     [switch]$RebuildEngine,
-    [switch]$Run
+    [switch]$Run,
+    [ValidateRange(0, 256)][int]$Jobs = 0 # 0: physical cores; 1: serial compilation
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
@@ -32,36 +33,27 @@ if ($RebuildEngine -or -not (Test-Path $vmDll) -or
 & (Join-Path $PSScriptRoot "check.ps1") -Love $Love
 
 $build = Join-Path $root "build"
-$stage = Join-Path $build "stage"
-$game = Join-Path $build "game"
+$work = Join-Path $build "package"
 $zip = Join-Path $build "VanguardPrincess.love"
 $out = Join-Path $root "dist\VanguardPrincess"
-foreach ($d in $stage, $game, $out) {
-    if (Test-Path $d) { Remove-Item $d -Recurse -Force }
+# Validate the exact cleanup targets before recursively removing generated files.
+function Clear-GeneratedDirectory([string]$Path, [string]$Parent) {
+    $resolved = [IO.Path]::GetFullPath($Path)
+    $expectedParent = [IO.Path]::GetFullPath($Parent).TrimEnd('\', '/')
+    if ((Split-Path $resolved -Parent) -ine $expectedParent) { throw "Unsafe cleanup target: $resolved" }
+    if (Test-Path -LiteralPath $resolved) {
+        if ((Get-Item -LiteralPath $resolved -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "Refusing to clean a linked directory: $resolved"
+        }
+        Remove-Item -LiteralPath $resolved -Recurse -Force
+    }
 }
-New-Item -ItemType Directory -Force $stage, $out | Out-Null
+Clear-GeneratedDirectory $work $build
+& (Join-Path $PSScriptRoot "package-game.ps1") -SourceRoot $root -Lovec $lovec -WorkDirectory $work -Archive $zip -Jobs $Jobs
 
-# Only what the game reads: leave out tools/, the donor and the docs, and the
-# converter's intermediate data (old skills/, data/_conversion/, data.lton), which
-# the game never opens and which --compile-game would spend minutes on.
-Write-Host "staging"
-foreach ($item in "main.lh", "conf.lton") {
-    Copy-Item (Join-Path $root $item) $stage
-}
-foreach ($item in "src", "assets", "data") {
-    # Numbered skill exports and normalized conversion inputs are not runtime assets.
-    robocopy (Join-Path $root $item) (Join-Path $stage $item) /E /XD skills _conversion /XF data.lton support-source.lton /NFL /NDL /NJH /NJS /NP /MT:16 | Out-Null
-    if ($LASTEXITCODE -ge 8) { throw "copying $item failed ($LASTEXITCODE)" }
-}
-
-Write-Host "compiling"
-& $lovec --compile-game $game $stage
-if ($LASTEXITCODE -ne 0) { throw "--compile-game failed ($LASTEXITCODE)" }
-
-Write-Host "zipping"
-if (Test-Path $zip) { Remove-Item $zip -Force }
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($game, $zip)
+# Keep the previous distribution until compilation and archive creation succeed.
+Clear-GeneratedDirectory $out (Join-Path $root 'dist')
+New-Item -ItemType Directory -Force $out | Out-Null
 
 Write-Host "fusing"
 $exe = Join-Path $out "VanguardPrincess.exe"

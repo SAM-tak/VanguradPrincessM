@@ -148,12 +148,20 @@
 
 - [0107-air-attack-landing-facing.md](0107-air-attack-landing-facing.md) — 空中C後の着地硬直中の振り向きと、着地未処理時の地上技開始防止。
 
+- [0108-compile-parallelism.md](0108-compile-parallelism.md) — VM-only向けLTONコンパイルの直列処理・共有ロック調査と1/6並列の実測。
+
 - [0109-sierra-aim-direction.md](0109-sierra-aim-direction.md) — シエラ6Dの照準方向を射撃終了まで維持する生成時パッチ。
 
+- [0110-direct-asset-packaging.md](0110-direct-asset-packaging.md) — 素材の2回の中間コピーを廃止し、元ファイルから直接ZIPへ格納。
+
 - [0111-natalia-official-name.md](0111-natalia-official-name.md) — 内部名カテジナを正式名ナタリアへ統一し、素材・生成データ・変換処理を更新。
+
+- [0112-parallel-lton-packaging.md](0112-parallel-lton-packaging.md) — 物理コア数に応じたLTON並列コンパイルと直列生成物との比較。
 
 - [0113-natalia-throw-reaction-input.md](0113-natalia-throw-reaction-input.md) — ナタリア投げのレベル0やられ動作へのコマンド割り込みを原作の被弾状態制限で防止。
 
 - [0114-select-confirmed-palette.md](0114-select-confirmed-palette.md) — キャラ決定時に顔グラ本体と既存の子オブジェクトへ確定パレットを即時反映。
+
+- [0115-native-lton-threads.md](0115-native-lton-threads.md) — lovec内のLTONマルチスレッド化と、ゲーム側の複数プロセス処理の廃止。
 
 - [0116-vs-return-selection.md](0116-vs-return-selection.md) — VS対戦後のキャラセレで両者の直前の使用キャラにカーソルを合わせる。
