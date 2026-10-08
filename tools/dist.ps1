@@ -78,6 +78,15 @@ try {
 } finally { $fs.Dispose() }
 Copy-Item (Join-Path $vm "*.dll") $out
 
+# Portable media builder: no original game media or FM2K definitions included.
+$builder = Join-Path $out 'asset-builder'
+New-Item -ItemType Directory -Force "$builder/patches", "$builder/licenses" | Out-Null
+$converter = Join-Path $root 'tools/fm2k_convert'
+foreach ($file in 'build_assets.py', 'extract_original.py', 'raw_media.py', 'convert.py', 'share_assets.py', 'layout.py', 'names.py', 'assets-recipe.json', 'requirements.txt', 'ASSETS.md', 'patches/__init__.py', 'licenses/fm2ndparser.txt') {
+    Copy-Item -LiteralPath (Join-Path $converter $file) -Destination (Join-Path $builder $file)
+}
+Copy-Item -LiteralPath (Join-Path $converter 'ASSETS.md') -Destination (Join-Path $out 'ASSETS.md')
+
 $size = (Get-Item $exe).Length / 1MB
 Write-Host ("done: {0} ({1:N1} MB)" -f $exe, $size)
 if ($Run) { & $exe }

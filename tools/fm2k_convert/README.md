@@ -14,6 +14,12 @@ Background and decisions: `TechnicalDocuments/0003-asset-pipeline-decision.md`.
 
 ## 1. Extract with fm2ndparser
 
+For end users who only need release-compatible **assets**, use
+[ASSETS.md](ASSETS.md): `build_assets.py` accepts the original SFX/7z or a
+directory and directly builds organized media in one command. It does not
+need fm2ndparser/.NET and never regenerates runtime definitions. The full
+developer conversion pipeline below is only needed to regenerate definitions.
+
 ### Unpack the original self-extracting download first
 
 The Windows SFX does not need to run. On Windows, macOS or Linux, install the

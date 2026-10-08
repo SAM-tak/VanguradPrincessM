@@ -191,3 +191,5 @@
 - [0128-external-distribution-assets.md](0128-external-distribution-assets.md) — 配布exeからassetsを除外し、exe隣の外部素材をマウント。素材入り自前ビルドも維持。
 
 - [0129-original-sfx-extraction.md](0129-original-sfx-extraction.md) — 原作SFXの7z部分を検出し、Windows用exeを実行せずPythonで素材を展開。
+
+- [0130-automatic-assets-builder.md](0130-automatic-assets-builder.md) — 原作exe/7z/フォルダから、配布版に合うassets全体をPythonだけで自動構築。
