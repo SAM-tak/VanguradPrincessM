@@ -1,0 +1,45 @@
+module^vp.imagepositiontest
+import^love.event
+import^love.graphics
+import^love.image
+require^"../src/fighter.lh"
+require^"../src/sprite.lh"
+require^"../src/arena.lh"
+require^"../src/afterimage.lh"
+public^let^load = p^{
+ let^pixel = love.image.newImageData(1,1)
+ pixel.setPixel(0,0,1,1,1,1)
+ let^sheet = vp.sprite.Sheet.new("tests/fixtures/blend")
+ sheet.gen := vp.arena.generation() sheet.paletteTried := true^
+ sheet.images[1] := love.graphics.newImage(pixel)
+ let^canvas = love.graphics.newCanvas(640,200)
+ for^side in^{1,-1} {
+  for^fixed in^{false^,true^} {
+   for^offset in^{-220,260} {
+    let^f = vp.fighter.Fighter.new("",320,163)
+    f.sheet := sheet f.image := 1 f.ix := offset f.iy := 20
+    f.facing := side f.fixed := fixed f.onScreen := true^
+    let^face = if^fixed: 1 el^: side;
+    let^anchor = 320 + offset * face
+    # A flipped one-pixel image extends left of its integer origin.
+    let^x = anchor + (if^face < 0: -1 el^: 0;)
+    love.graphics.setCanvas(canvas) love.graphics.clear(0,0,0,1)
+    love.graphics.push() love.graphics.translate(-137,-480)
+    vp.fighter.setView(137,480)
+    f.draw()
+    love.graphics.pop() love.graphics.setCanvas()
+    let^data = love.graphics.readbackTexture(canvas)
+    let^r,g,b,a = data.getPixel(x,182)
+    if^r < 0.99 { panic^$"Wrong I offset: side={side} fixed={fixed} offset={offset}" }
+    data.dispose()
+    let^trail = vp.afterimage.Trail.new()
+    trail.configure(1,1,0,0,0,0,0,0) f.trail := trail f.captureTrail()
+    if^trail.poses[0]?.x != anchor { panic^"Trail disagrees with sprite offset" }
+   }
+  }
+ }
+ vp.fighter.setView(0,0)
+ print("PASS: ignoreDirection offset, both facings, both HUD offsets, normal mirroring, camera cancellation and trail")
+ love.event.quit()
+}
+public^let^draw = p^{}

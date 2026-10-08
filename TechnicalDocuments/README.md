@@ -139,3 +139,5 @@
 - [0102-hit-reaction-facing.md](0102-hit-reaction-facing.md) — 命中位置ではなく攻撃オブジェクトの向きに基づくヒット・ガード反応。
 
 - [0103-sierra-startup-routing.md](0103-sierra-startup-routing.md) — シエラの初期化を選択パッケージへ接続、単独ロードでの全入力回帰。
+
+- [0104-ignore-direction-offset.md](0104-ignore-direction-offset.md) — 向き無視のI命令を画像位置と残像にも適用。

@@ -500,7 +500,7 @@ public^let^Fighter = def^{
         let^trail = self^.trail
         if^trail is^nil^ { return^ }
         let^face = if^self^.fixed: 1 el^: self^.facing;
-        trail.capture(self^.image, self^.x + self^.ix * self^.facing, self^.y + self^.iy,
+        trail.capture(self^.image, self^.x + self^.ix * face, self^.y + self^.iy,
             if^self^.turnX: -face el^: face;, if^self^.turnY: -1 el^: 1;)
     },
 
@@ -520,7 +520,7 @@ public^let^Fighter = def^{
         }
         vp.sprite.setBlend(self^.blend, self^.alpha)
         self^.sheet.draw(self^.image,
-            ox + self^.x + self^.ix * self^.facing,
+            ox + self^.x + self^.ix * face,
             oy + self^.y + self^.iy, self^.palette,
             sx, sy,
             self^.tintR, self^.tintG, self^.tintB
