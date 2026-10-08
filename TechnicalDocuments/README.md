@@ -155,3 +155,5 @@
 - [0113-natalia-throw-reaction-input.md](0113-natalia-throw-reaction-input.md) — ナタリア投げのレベル0やられ動作へのコマンド割り込みを原作の被弾状態制限で防止。
 
 - [0114-select-confirmed-palette.md](0114-select-confirmed-palette.md) — キャラ決定時に顔グラ本体と既存の子オブジェクトへ確定パレットを即時反映。
+
+- [0116-vs-return-selection.md](0116-vs-return-selection.md) — VS対戦後のキャラセレで両者の直前の使用キャラにカーソルを合わせる。

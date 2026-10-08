@@ -456,13 +456,23 @@ let^toSelect = p^{
     matchLoading := false^
     let^st = campaign
     let^won = flow.wins1 >= flow.toWin
+    # Capture the participants before releaseBattle replaces both fighters.
+    let^row1 = characterCode(me) / 100 - 1
+    let^row2 = characterCode(foe) / 100 - 1
     releaseBattle()
     if^st != nil^ {
         if^won { st.advance()
         else^: st.enter("continue") st.continueChoice := 0 }
         return^
     }
-    selecting := vp.select.load(SYSTEM, storyMode)
+    let^s = vp.select.load(SYSTEM, storyMode)
+    if^!storyMode {
+        for^k, side in^s.sides {
+            side.row := if^k = 0: row1 el^: row2;
+            s.showPortrait(k)
+        }
+    }
+    selecting := s
 }
 
 # Select owns the small portrait scripts. The stage is ready before this
