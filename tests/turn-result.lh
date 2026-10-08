@@ -70,23 +70,68 @@ public^let^load = p^{
   if^flow.phase != "ko" or^d.skillNo != 23 or^a.skillNo != attacking { panic^"KO replaced attacker" }
   flow.left := 0
   flow.step(p1,p2,false^,p^{},p^{})
-  if^flow.phase != "ko" { panic^"KO timer interrupted super" }
-  var^won = false^
-  for^tick from^0 to^1600 {
+  if^flow.phase != "ko" or^a.skillNo != attacking { panic^"KO interrupted super" }
+  var^advanced = false^
+  for^tick from^0 to^500 {
    let^ready = a.readyForResult()
-   flow.step(p1,p2,false^,p^{},p^{})
-   if^flow.phase = "win" {
-    if^!ready or^a.skillNo != 22 { panic^"Premature victory" }
-    won := true^ break^
-   }
+   let^before = a.skillNo
+   flow.step(p1,p2,false^,p^{ advanced := true^ },p^{ advanced := true^ })
+   if^before != 22 and^a.skillNo = 22 and^!ready { panic^"Premature victory" }
+   if^advanced { break^ }
    a.step() d.step() a.stepObjects() d.stepObjects()
    if^a.finished() and^a.airborne() { a.start(7,0) }
   }
-  if^!won { panic^"KO never completed" }
+  if^!advanced { panic^"Result timeline stalled" }
   let^b = vp.fighter.Box.new(0,0,10,10)
   if^a.canHit(b,d) { panic^"Dead fighter can be hit again" }
  }
- print("PASS: real super runs through KO, both winners, victory waits for completion, dead target excluded")
+ print("PASS: real super runs through KO, both winners, bounded result wait, dead target excluded")
+ let^luna = vp.script.loadFor("assets/characters/ルナ/script.lton",101)
+ if^luna is^nil^ { panic^"Missing Luna" }
+ for^winner in^{1,2} {
+  for^lastRound in^{false^,true^} {
+   vp.fighter.clearSystemVars()
+   let^a = Fighter.new("assets/characters/ルナ",500,920)
+   let^d = Fighter.new("assets/characters/ゆい",700,920)
+   luna.install(a) sc.install(d) a.enemy := d d.enemy := a
+   a.begin(235)
+   for^tick from^0 to^200 { a.step() }
+   if^a.skillNo != 234 or^a.readyForResult() { panic^"Luna did not enter looping stance" }
+   d.life := 0
+   let^flow = vp.round.Round.new() flow.script := system flow.phase := "fight"
+   flow.toWin := if^lastRound: 1 el^: 2;
+   let^p1 = if^winner = 1: a el^: d;
+   let^p2 = if^winner = 1: d el^: a;
+   var^resets = 0 var^overs = 0
+   flow.step(p1,p2,false^,p^{ resets += 1 },p^{ overs += 1 })
+   let^budget = 300 + system.showTime(14) + 1
+   for^tick from^1 to^budget {
+    a.step() d.step()
+    flow.step(p1,p2,false^,p^{ resets += 1 },p^{ overs += 1 })
+    if^a.skillNo != 234 { panic^"Stance was forcibly replaced" }
+    if^tick = 299 and^flow.phase != "ko" { panic^"Stance wait ended early" }
+    if^tick = 300 and^flow.phase != "end" { panic^"Three-second deadline missed" }
+    if^tick < budget and^(resets + overs) != 0 { panic^"Ended before configured show times" }
+   }
+   if^(lastRound and^(overs != 1 or^resets != 0)) or^(!lastRound and^(resets != 1 or^overs != 0)) { panic^"Stance blocked round/match completion" }
+   if^flow.wins1 != (if^winner = 1: 1 el^: 0;) or^flow.wins2 != (if^winner = 2: 1 el^: 0;) { panic^"Incorrect victory count" }
+
+  }
+ }
+ print("PASS: Luna stance preserved, three-second deadline, both winners, next round and match end, one award")
+ for^winner in^{1,2} {
+  let^a = Fighter.new("assets/characters/ゆい",500,920)
+  let^d = Fighter.new(a.dir,700,920)
+  sc.install(a) sc.install(d)
+  let^flow = vp.round.Round.new() flow.script := system flow.phase := "ko"
+  flow.winner := winner flow.resultFrames := 280
+  flow.step(a,d,false^,p^{},p^{})
+  if^flow.phase != "win" { panic^"Ready fighter failed to start victory" }
+  for^tick from^282 to^300 { flow.step(a,d,false^,p^{},p^{}) }
+  if^flow.phase != "end" or^flow.resultFrames != 300 { panic^"Win phase reset the KO deadline" }
+  if^flow.wins1 + flow.wins2 != 1 { panic^"Win timeout awarded twice" }
+ }
+ print("PASS: delayed victory shares KO deadline and never awards twice")
  love.event.quit()
 }
 public^let^draw = p^{}

@@ -48,6 +48,8 @@ let^DIGIT_STEP = 30
 # A character's built-in skills used here.
 let^VICTORY = 22
 let^LOSS = 23
+# Port policy: at most three seconds from KO to the closing transition.
+let^RESULT_LIMIT = 300
 
 # Replay only the opaque portrait frames while the VS exit waits for assets.
 # Keep the suspended entrance coroutine and its position intact for resume.
@@ -88,6 +90,7 @@ public^let^Round = def^{
         externalPresentation = false^,
         battleRevealed = false^,
         preparing = false^,         # VS presentation may run before fighter assets arrive
+        resultFrames = 0,           # shared deadline across KO and victory
         left = 0,                   # frames left of this stage
         number = 1,                 # the round
         toWin = 2,                  # rounds a side needs to win the match
@@ -162,6 +165,15 @@ public^let^Round = def^{
         let^x = if^side = 0: MARK_1P_X - MARK_STEP * k el^: MARK_2P_X + MARK_STEP * k;
         self^.marks[2 * k + side] := self^.runAt(MARK_ON, x, MARK_Y)
     },
+    awardResult = p^self^{
+        if^self^.winner = 1 {
+            self^.wins1 += 1
+            self^.awardMark(0, self^.wins1)
+        elseif^self^.winner = 2:
+            self^.wins2 += 1
+            self^.awardMark(1, self^.wins2)
+        }
+    },
     backgroundOnly = f^self^-> bool^{ self^.externalPresentation and^!self^.battleRevealed },
     fighting = f^self^-> bool^{
         return^self^.phase = "fight"
@@ -229,12 +241,23 @@ public^let^Round = def^{
             if^down1 { p1.begin(LOSS) }
             if^down2 { p2.begin(LOSS) }
             self^.enter("ko", if^down1 and^down2: DOUBLE_KO el^: KO;)
+            self^.resultFrames := 0
             self^.perfect := false^
             let^w = if^self^.winner = 1: p1 el^self^.winner = 2: p2 el^: nil^;
             if^w != nil^ { self^.perfect := w.life >= w.lifeMax }
             return^
         }
 
+        if^self^.phase = "ko" or^self^.phase = "win" {
+            self^.resultFrames += 1
+            if^self^.resultFrames >= RESULT_LIMIT {
+                # A stance may loop forever. Keep its pose and finish the
+                # presentation; a win already awarded must not count twice.
+                if^self^.phase = "ko" { self^.awardResult() }
+                self^.enter("end", ROUND_END)
+                return^
+            }
+        }
         if^self^.left > 0 {
             self^.left -= 1
             return^
@@ -250,14 +273,11 @@ public^let^Round = def^{
             # KO's display timer is a minimum, not permission to cut off a move.
             let^w = if^self^.winner = 1: p1 el^self^.winner = 2: p2 el^: nil^;
             if^w != nil^ and^!w.readyForResult() { return^ }
+            self^.awardResult()
             if^self^.winner = 1 {
-                self^.wins1 += 1
-                self^.awardMark(0, self^.wins1)
                 p1.begin(VICTORY)
                 self^.enter("win", WIN_1P)
             elseif^self^.winner = 2:
-                self^.wins2 += 1
-                self^.awardMark(1, self^.wins2)
                 p2.begin(VICTORY)
                 self^.enter("win", WIN_2P)
             else^:

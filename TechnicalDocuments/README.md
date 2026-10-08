@@ -171,3 +171,5 @@
 - [0118-eko-media-ownership-and-variants.md](0118-eko-media-ownership-and-variants.md) — ゆい・はるか固有画像とえこ151枚の整理、パレット差による重複候補の監査。
 
 - [0119-kanae-media-ownership.md](0119-kanae-media-ownership.md) — かなえ専用PNG12枚を分類し、他キャラ・サポートからの132参照を維持。
+
+- [0120-result-presentation-deadline.md](0120-result-presentation-deadline.md) — KOから3秒で演出待ちを打ち切り、ルナの構えでもラウンドを進行。
