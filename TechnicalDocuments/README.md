@@ -189,3 +189,5 @@
 - [0127-support-position-facing.md](0127-support-position-facing.md) — サポート自身の位置を基準に方向を選び、シエラ6Dの照準後の固定も維持。
 
 - [0128-external-distribution-assets.md](0128-external-distribution-assets.md) — 配布exeからassetsを除外し、exe隣の外部素材をマウント。素材入り自前ビルドも維持。
+
+- [0129-original-sfx-extraction.md](0129-original-sfx-extraction.md) — 原作SFXの7z部分を検出し、Windows用exeを実行せずPythonで素材を展開。

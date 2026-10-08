@@ -14,6 +14,29 @@ Background and decisions: `TechnicalDocuments/0003-asset-pipeline-decision.md`.
 
 ## 1. Extract with fm2ndparser
 
+### Unpack the original self-extracting download first
+
+The Windows SFX does not need to run. On Windows, macOS or Linux, install the
+Python dependencies and unpack its embedded 7z data into a new directory:
+
+```sh
+python -m pip install -r tools/fm2k_convert/requirements.txt
+python tools/fm2k_convert/extract_original.py vanpri108.exe build/original
+# Optional: inspect the archive without extracting it.
+python tools/fm2k_convert/extract_original.py vanpri108.exe --list
+```
+
+Use `python3` if that is the Python command on your system. Plain `.7z` inputs
+are also accepted. Existing output directories are never overwritten. The tool
+prints the extracted `.kgt` path to use with fm2ndparser below.
+
+Windows `.exe` and `.dll` entries are deliberately omitted: the original game
+executable uses BCJ2, unsupported by py7zr, and is not needed by the converter.
+The FM2K data uses supported compression. No Wine or external 7-Zip executable
+is required. This command only unpacks the download; it does not generate assets
+or apply the separate 1.08+ player update. Apply that update before regenerating
+definitions if using the full conversion pipeline.
+
 [xem85/fm2ndparser](https://github.com/xem85/fm2ndparser) (MIT, .NET 10). It rejects the
 game's `2DKGT2G` files as "locked"; disable that check first — the layout is identical.
 It also reads a sound's loop flag from the wrong bit; fix that too.
