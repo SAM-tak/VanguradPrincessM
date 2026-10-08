@@ -1,0 +1,61 @@
+# RP reactions with level zero must not accept command-table attacks.
+module^vp.nataliathrowtest
+import^love.event
+require^"../src/script.lh"
+require^"../src/fighter.lh"
+let^Fighter = vp.fighter.Fighter
+public^let^load = p^{
+ let^sc = vp.script.load("assets/characters/ナタリア/script.lton")
+ if^sc is^nil^ { panic^"Missing Natalia" }
+ for^name in^{"ゆい","えり","はるか","サキ","リリス","かえで","ナタリア","ルナ","くるみ","あやね"} {
+  let^dir = $"assets/characters/{name}"
+  let^ds = vp.script.load($"{dir}/script.lton")
+  if^ds is^nil^ { panic^"Missing opponent" }
+  for^entry in^{235,236,237} { for^side in^{-1,1} {
+   var^baselineLife = 1000
+   for^spam in^{false^,true^} {
+   vp.fighter.clearSystemVars()
+   let^a = Fighter.new("assets/characters/ナタリア",640,920)
+   let^d = Fighter.new(dir,640 + 60 * side,920)
+   sc.install(a) ds.install(d)
+   a.enemy := d d.enemy := a a.facing := side d.facing := -side
+   a.begin(entry) d.begin(1)
+   var^grabbed = false^
+   var^zeroReaction = false^
+   for^tick from^0 to^260 {
+    a.record(5,0)
+    # Repeated A/B/C edges, including throughout the airborne throw pose.
+    d.record(5,if^spam and^tick % 2 = 0: 7 el^: 0;)
+    if^grabbed and^d.receiving and^!d.finished() {
+     if^d.skillLevel(d.skillNo) = 0 { zeroReaction := true^ }
+     if^d.takeCommand(false^) { panic^$"Escaped throw: {name}, {entry}, {side}, tick {tick}" }
+    }
+    a.stepScript() d.stepScript()
+    a.resetHitEvents() d.resetHitEvents()
+    if^!grabbed {
+     for^slot,box in^a.hits {
+      if^box != nil^ and^box.w > 0 and^box.h > 0 {
+       a.struck(box,d,100,false^,"throw") grabbed := true^
+      }
+     }
+    }
+    a.moveStep() d.moveStep()
+    a.finishHitEvents() d.finishHitEvents()
+   }
+   if^!grabbed or^(name = "ゆい" and^!zeroReaction) or^d.life >= 1000 { panic^$"Missing complete throw: {name}, {entry}, life {d.life}" }
+   if^!spam { baselineLife := d.life
+   elseif^d.life != baselineLife: panic^$"Input reduced throw damage: {name}, {entry}" }
+   }
+  } }
+  print($"PASS: {name}: all three throws, both facings, reactions resist command input; same damage with and without repeated input")
+ }
+ let^ys = vp.script.load("assets/characters/ゆい/script.lton")
+ if^ys is^nil^ { panic^"Missing recovery data" }
+ let^r = Fighter.new("assets/characters/ゆい",640,500)
+ ys.install(r) r.beginReaction(163) r.receiving := true^ r.record(5,1)
+ if^r.takeCommand(false^) { panic^"Command table interrupted recovery" }
+ r.stepScript()
+ if^r.skillNo != 165 { panic^"Explicit COM recovery was blocked" }
+ print("PASS: reaction-script COM still permits intended air recovery")
+ love.event.quit()
+}

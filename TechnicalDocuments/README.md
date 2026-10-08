@@ -151,3 +151,5 @@
 - [0109-sierra-aim-direction.md](0109-sierra-aim-direction.md) — シエラ6Dの照準方向を射撃終了まで維持する生成時パッチ。
 
 - [0111-natalia-official-name.md](0111-natalia-official-name.md) — 内部名カテジナを正式名ナタリアへ統一し、素材・生成データ・変換処理を更新。
+
+- [0113-natalia-throw-reaction-input.md](0113-natalia-throw-reaction-input.md) — ナタリア投げのレベル0やられ動作へのコマンド割り込みを原作の被弾状態制限で防止。

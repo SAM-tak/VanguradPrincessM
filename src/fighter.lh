@@ -843,6 +843,9 @@ public^let^Fighter = def^{
     mayStart = p^self^, n:number^-> bool^{
         if^self^.stop > 0 or^self^.eventPending or^self^.landingDue() { return^false^ }
         if^self^.finished() { return^true^ }
+        # Native 0x411922: reaction state (bit 8) skips command-table input,
+        # even for level-zero RP poses. COM inside the reaction still runs.
+        if^self^.receiving or^self^.blocking { return^false^ }
         let^current = self^.skillLevel(self^.skillNo)
         if^current = 0 { return^true^ }
         let^when = self^.cancelWhen
