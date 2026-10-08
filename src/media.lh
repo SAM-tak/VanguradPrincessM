@@ -1,0 +1,17 @@
+# Mount only external assets, never neighboring scripts or definitions.
+module^vp.media
+import^love.filesystem
+var^ready = false^
+public^let^prepare = p^{
+    if^ready { return^ }
+    if^love.filesystem.getInfo("assets") != nil^ { ready := true^ return^ }
+    if^!love.filesystem.isFused() { panic^"assets folder is missing. Extract and convert the original game media first." }
+    let^base = love.filesystem.getSourceBaseDirectory()
+    # mount resolves physical paths relative to the real directory, so expose
+    # the base briefly at root, append-only, before mounting assets separately.
+    if^!love.filesystem.mount(base, "", true^) { panic^"Could not access the executable directory for external assets." }
+    let^mounted = love.filesystem.mount("assets", "assets", true^)
+    love.filesystem.unmount(base)
+    if^!mounted { panic^"assets folder is missing beside the executable. Place the converted assets folder next to VanguardPrincess.exe." }
+    ready := true^
+}

@@ -1,11 +1,12 @@
-# Compile only scripts/data; stream unchanged assets directly into the archive.
+# Compile scripts/data; optionally stream media for private local builds.
 # WorkDirectory must be new so stale compiled files cannot enter the package.
 param(
     [Parameter(Mandatory)][string]$SourceRoot,
     [Parameter(Mandatory)][string]$Lovec,
     [Parameter(Mandatory)][string]$WorkDirectory,
     [Parameter(Mandatory)][string]$Archive,
-    [ValidateRange(0, 256)][int]$Jobs = 0
+    [ValidateRange(0, 256)][int]$Jobs = 0,
+    [switch]$IncludeAssets
 )
 $ErrorActionPreference = 'Stop'
 $SourceRoot = (Resolve-Path -LiteralPath $SourceRoot).Path
@@ -34,7 +35,8 @@ function Get-PackageFiles([string]$Directory) {
 }
 $files = @(
     Get-Item -LiteralPath (Join-Path $SourceRoot 'main.lh'), (Join-Path $SourceRoot 'conf.lton')
-    foreach ($folder in 'src', 'assets', 'data') { Get-PackageFiles (Join-Path $SourceRoot $folder) }
+    foreach ($folder in 'src', 'data') { Get-PackageFiles (Join-Path $SourceRoot $folder) }
+    if ($IncludeAssets) { Get-PackageFiles (Join-Path $SourceRoot 'assets') }
 )
 $entries = @($files | ForEach-Object {
     [pscustomobject]@{

@@ -1,7 +1,8 @@
 # Builds a fused, source-free distribution: the game compiled by the full
 # lovec, zipped into a .love and appended to the VM-only shipping love.exe.
 #
-#   pwsh tools/dist.ps1 [-Love <lhat-love repo>] [-Jobs <count>] [-RebuildEngine] [-Run]
+#   pwsh tools/dist.ps1 [-Love <lhat-love repo>] [-Jobs <count>] [-RebuildEngine] [-Run] [-IncludeAssets]
+# Assets stay external by default. IncludeAssets is for private local builds.
 #
 # The VM-only engine only reads units written by the same build of lhat, so
 # it is rebuilt when it is older than the full lovec (or with -RebuildEngine).
@@ -12,6 +13,7 @@ param(
     [string]$Love = "C:\Users\Owner\source\repos\lhat-love",
     [switch]$RebuildEngine,
     [switch]$Run,
+    [switch]$IncludeAssets,
     [ValidateRange(0, 256)][int]$Jobs = 0 # 0: physical cores; 1: serial compilation
 )
 $ErrorActionPreference = "Stop"
@@ -49,10 +51,20 @@ function Clear-GeneratedDirectory([string]$Path, [string]$Parent) {
     }
 }
 Clear-GeneratedDirectory $work $build
-& (Join-Path $PSScriptRoot "package-game.ps1") -SourceRoot $root -Lovec $lovec -WorkDirectory $work -Archive $zip -Jobs $Jobs
+& (Join-Path $PSScriptRoot "package-game.ps1") -SourceRoot $root -Lovec $lovec -WorkDirectory $work -Archive $zip -Jobs $Jobs -IncludeAssets:$IncludeAssets
 
 # Keep the previous distribution until compilation and archive creation succeed.
-Clear-GeneratedDirectory $out (Join-Path $root 'dist')
+# Preserve user-extracted media across rebuilds. Clean only generated siblings.
+if (Test-Path -LiteralPath $out) {
+    $resolvedOut = [IO.Path]::GetFullPath($out)
+    if ((Split-Path $resolvedOut -Parent) -ine [IO.Path]::GetFullPath((Join-Path $root 'dist'))) { throw 'Unsafe output directory' }
+    if ((Get-Item -LiteralPath $out -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked output directory' }
+    foreach ($item in Get-ChildItem -LiteralPath $out -Force) {
+        if ($item.Name -eq 'assets') { continue }
+        if ($item.PSIsContainer) { Clear-GeneratedDirectory $item.FullName $out }
+        else { Remove-Item -LiteralPath $item.FullName -Force }
+    }
+}
 New-Item -ItemType Directory -Force $out | Out-Null
 
 Write-Host "fusing"

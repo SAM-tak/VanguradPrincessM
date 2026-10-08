@@ -187,3 +187,5 @@
 - [0126-additional-media-ownership.md](0126-additional-media-ownership.md) — ゆいと全5サポートの追加41枚を整理し、えこの2枚を追加統合。
 
 - [0127-support-position-facing.md](0127-support-position-facing.md) — サポート自身の位置を基準に方向を選び、シエラ6Dの照準後の固定も維持。
+
+- [0128-external-distribution-assets.md](0128-external-distribution-assets.md) — 配布exeからassetsを除外し、exe隣の外部素材をマウント。素材入り自前ビルドも維持。

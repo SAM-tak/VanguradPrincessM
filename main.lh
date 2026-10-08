@@ -42,6 +42,7 @@ require^"src/resource.lh"
 require^"src/story.lh"
 require^"src/cpu.lh"
 require^"src/input.lh"
+require^"src/media.lh"
 
 let^Fighter = vp.fighter.Fighter
 let^Key = love.keyboard.Key
@@ -678,6 +679,7 @@ let^prepare = p^kind:string^{
 }
 
 public^let^load = p^{
+    vp.media.prepare()
     # Finish incremental cycles before transient battle objects accumulate.
     # Configure before loading so task workers inherit the same pacing.
     # Measured memory and frame-time comparison: TechnicalDocuments/0071.
