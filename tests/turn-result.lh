@@ -106,6 +106,8 @@ public^let^load = p^{
    flow.step(p1,p2,false^,p^{ resets += 1 },p^{ overs += 1 })
    let^budget = 300 + system.showTime(14) + 1
    for^tick from^1 to^budget {
+    # Model a non-terminating stance even after the Luna KO patch.
+    a.setv(138,0)
     a.step() d.step()
     flow.step(p1,p2,false^,p^{ resets += 1 },p^{ overs += 1 })
     if^a.skillNo != 234 { panic^"Stance was forcibly replaced" }

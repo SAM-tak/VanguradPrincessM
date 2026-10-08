@@ -177,3 +177,5 @@
 - [0121-hud-timer-intro-visibility.md](0121-hud-timer-intro-visibility.md) — 開始演出中は通常タイマーを生成せず、60と59の重複を防止。
 
 - [0122-round-curtain-handoff.md](0122-round-curtain-handoff.md) — 次ラウンドの黒幕を描画前に初期化し、境界の1フレーム露出を修正。
+
+- [0123-luna-stance-ko-exit.md](0123-luna-stance-ko-exit.md) — ルナの構え待機8箇所をKO後に解除し、通常の勝利ポーズへ移行。

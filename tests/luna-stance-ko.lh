@@ -1,0 +1,36 @@
+module^vp.lunastancekotest
+import^love.event
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/round.lh"
+require^"../src/resource.lh"
+let^Fighter = vp.fighter.Fighter
+public^let^load = p^{
+ let^sc = vp.script.loadFor("assets/characters/ルナ/script.lton",101)
+ let^system = vp.script.load("assets/system/ヴァンガードプリンセス/script.lton")
+ if^sc is^nil^ or^system is^nil^ { panic^"Missing scripts" }
+ for^entry in^{{228,44},{230,48},{232,73},{234,55},{236,53},{238,60},{241,68},{246,67}} {
+  vp.fighter.clearSystemVars()
+  let^p = Fighter.new("assets/characters/ルナ",500,920)
+  let^e = Fighter.new(p.dir,700,920)
+  sc.install(p) sc.install(e) p.enemy := e e.enemy := p
+  let^n = entry[0]
+  p.start(n,entry[1])
+  for^tick from^0 to^200 { p.step() }
+  if^p.skillNo != n or^p.finished() { panic^"Stance no longer waits without KO" }
+  p.setv(138,1)
+  var^exited = false^
+  for^tick from^0 to^80 {
+   p.step()
+   if^p.skillNo = 240 and^p.finished() { exited := true^ break^ }
+  }
+  if^!exited or^!p.readyForResult() { panic^"Stance failed to recover after KO" }
+  let^r = vp.round.Round.new() r.script := system r.phase := "ko" r.winner := 1
+  r.step(p,e,false^,p^{},p^{})
+  if^r.phase != "win" or^p.skillNo != 22 { panic^"Recovered stance did not reach victory" }
+ }
+ print("PASS: eight real stance loops wait without KO, exit through #240 and reach victory after KO")
+ love.event.quit()
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }
