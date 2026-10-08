@@ -459,6 +459,8 @@ let^toSelect = p^{
     # Capture the participants before releaseBattle replaces both fighters.
     let^row1 = characterCode(me) / 100 - 1
     let^row2 = characterCode(foe) / 100 - 1
+    let^support1 = me.v(142)
+    let^support2 = me.v(143)
     releaseBattle()
     if^st != nil^ {
         if^won { st.advance()
@@ -470,6 +472,7 @@ let^toSelect = p^{
         for^k, side in^s.sides {
             side.row := if^k = 0: row1 el^: row2;
             s.showPortrait(k)
+            s.restoreSupport(k, if^k = 0: support1 el^: support2;)
         }
     }
     selecting := s

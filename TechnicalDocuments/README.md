@@ -165,3 +165,5 @@
 - [0115-native-lton-threads.md](0115-native-lton-threads.md) — lovec内のLTONマルチスレッド化と、ゲーム側の複数プロセス処理の廃止。
 
 - [0116-vs-return-selection.md](0116-vs-return-selection.md) — VS対戦後のキャラセレで両者の直前の使用キャラにカーソルを合わせる。
+
+- [0117-vs-return-support.md](0117-vs-return-support.md) — VS対戦後に両者のサポート選択も復元。隠しヒルダのみえこへ戻す。
