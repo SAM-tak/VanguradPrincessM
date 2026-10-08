@@ -141,3 +141,7 @@
 - [0103-sierra-startup-routing.md](0103-sierra-startup-routing.md) — シエラの初期化を選択パッケージへ接続、単独ロードでの全入力回帰。
 
 - [0104-ignore-direction-offset.md](0104-ignore-direction-offset.md) — 向き無視のI命令を画像位置と残像にも適用。
+
+- [0105-turn-and-ko-completion.md](0105-turn-and-ko-completion.md) — 着地硬直後の先行入力前の振り向き、KO後の演出保護と技終了待ち。
+
+- [0106-distribution-engine-check.md](0106-distribution-engine-check.md) — 配布ビルド前にコンパイラとVMの互換性を実行検証。

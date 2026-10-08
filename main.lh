@@ -183,6 +183,13 @@ let^endsCrouched = p^p:Fighter, n:number^-> bool^{
 # What the built-in part of FM2K does: pick the next skill from the input.
 # forward / back are relative to the way the fighter faces.
 let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, held:number^{
+    # Result scripts own the pose after KO. Even neutral input must not
+    # replace a completed loss/victory script with standing or buffered attacks.
+    if^flow.phase = "ko" or^flow.phase = "win" or^flow.phase = "end" or^me.life <= 0 or^foe.life <= 0 {
+        p.recordHeld(5, 0)
+        if^flow.phase = "ko" and^p.life > 0 and^p.stop <= 0 and^p.finished() and^p.airborne() and^!p.eventPending { p.start(FALL, 0) }
+        return^
+    }
     let^n = p.skillNo
     let^air = p.airborne()
 
@@ -221,14 +228,6 @@ let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, held
     elseif^m != STAND and^m != STAND_UP:
         p.begin(STAND)
     }
-}
-
-# Turning: on the ground and free to move, a fighter faces the other one. The
-# FM2K turn skills (#16, #17) are empty, so turning is just the flip.
-let^face = p^p:Fighter, other:Fighter {
-    if^p.eventPending or^p.airborne() or^!groundIdle(p.skillNo) { return^}
-    if^other.x > p.x + 1 { p.facing := 1 }
-    if^other.x < p.x - 1 { p.facing := -1 }
 }
 
 # Hits: an attack box of a over a hurt box (not a push-only one) of b.
@@ -387,8 +386,7 @@ let^stepFighters = p^{
         if^p.airborne() { p.x := p.x.clamp(p.minXAir, p.maxXAir) else^: p.x := p.x.clamp(p.minX, p.maxX) }
     }
     followCamera()
-    face(me, foe)
-    face(foe, me)
+    if^flow.fighting() { me.faceOpponent() foe.faceOpponent() }
 }
 
 let^startRound = p^{
@@ -965,6 +963,9 @@ let^tick = p^{
     }
     let^story = campaign
     if^story != nil^ and^story.phase != "battle" { return^ }
+    # Refresh facing before converting physical directions and consuming
+    # buffered commands, including the first frame after landing recovery.
+    if^flow.fighting() { me.faceOpponent() foe.faceOpponent() }
     let^right = vp.input.isDown(Key.right)
     let^left = vp.input.isDown(Key.left)
     let^forward = if^me.facing > 0: right el^: left;

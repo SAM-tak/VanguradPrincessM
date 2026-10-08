@@ -1,0 +1,69 @@
+module^vp.turnresulttest
+import^love.event
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/round.lh"
+require^"../src/resource.lh"
+let^Fighter = vp.fighter.Fighter
+public^let^load = p^{
+ let^sc = vp.script.loadFor("assets/characters/ゆい/script.lton",101)
+ let^system = vp.script.load("assets/system/ヴァンガードプリンセス/script.lton")
+ if^sc is^nil^ or^system is^nil^ { panic^"Missing scripts" }
+ for^side in^{1,-1} {
+  let^p = Fighter.new("assets/characters/ゆい",640,920)
+  let^e = Fighter.new(p.dir,640-side*100,920)
+  sc.install(p) sc.install(e) p.enemy := e e.enemy := p p.facing := side
+  p.y := 900 p.vy := 1 p.begin(7) p.stepScript()
+  p.faceOpponent()
+  if^p.facing != side { panic^"Turned in the air" }
+  p.y := 920 p.stepScript()
+  if^p.skillNo != 9 { panic^"Missing real landing event" }
+  p.recordHeld(5,1)
+  for^tick from^0 to^8 { if^!p.finished() { p.recordHeld(5,0) p.stepScript() } }
+  if^!p.finished() { panic^"Landing did not finish" }
+  p.faceOpponent()
+  if^p.facing != -side { panic^"Landing recovery did not turn before command" }
+  if^!p.takeCommand(false^) { panic^"Buffered A was lost" }
+  p.stepScript()
+  e.x := p.x + side*100 p.faceOpponent()
+  if^p.facing != -side { panic^"Turned a running attack" }
+ }
+ print("PASS: real jump landing, both crossover directions, buffered A, active attack facing")
+ for^winner in^{1,2} {
+  vp.fighter.clearSystemVars()
+  let^a = Fighter.new("assets/characters/ゆい",500,920)
+  let^d = Fighter.new(a.dir,700,920)
+  sc.install(a) sc.install(d) a.enemy := d d.enemy := a d.facing := -1
+  a.special := 1500 a.begin(292) a.stepScript() d.life := 0
+  let^attacking = a.skillNo
+  let^flow = vp.round.Round.new() flow.script := system flow.phase := "fight"
+  let^p1 = if^winner = 1: a el^: d;
+  let^p2 = if^winner = 1: d el^: a;
+  flow.step(p1,p2,false^,p^{},p^{})
+  if^flow.phase != "ko" or^d.skillNo != 23 or^a.skillNo != attacking { panic^"KO replaced attacker" }
+  flow.left := 0
+  flow.step(p1,p2,false^,p^{},p^{})
+  if^flow.phase != "ko" { panic^"KO timer interrupted super" }
+  var^won = false^
+  for^tick from^0 to^1600 {
+   let^ready = a.readyForResult()
+   flow.step(p1,p2,false^,p^{},p^{})
+   if^flow.phase = "win" {
+    if^!ready or^a.skillNo != 22 { panic^"Premature victory" }
+    won := true^ break^
+   }
+   a.step() d.step() a.stepObjects() d.stepObjects()
+   if^a.finished() and^a.airborne() { a.start(7,0) }
+  }
+  if^!won { panic^"KO never completed" }
+  let^b = vp.fighter.Box.new(0,0,10,10)
+  if^a.canHit(b,d) { panic^"Dead fighter can be hit again" }
+ }
+ print("PASS: real super runs through KO, both winners, victory waits for completion, dead target excluded")
+ love.event.quit()
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }
+
+
+

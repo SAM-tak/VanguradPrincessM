@@ -247,6 +247,9 @@ public^let^Round = def^{
         elseif^self^.phase = "ready":
             self^.phase := "fight"
         elseif^self^.phase = "ko":
+            # KO's display timer is a minimum, not permission to cut off a move.
+            let^w = if^self^.winner = 1: p1 el^self^.winner = 2: p2 el^: nil^;
+            if^w != nil^ and^!w.readyForResult() { return^ }
             if^self^.winner = 1 {
                 self^.wins1 += 1
                 self^.awardMark(0, self^.wins1)

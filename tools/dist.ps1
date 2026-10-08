@@ -27,6 +27,10 @@ if ($RebuildEngine -or -not (Test-Path $vmDll) -or
     if ($LASTEXITCODE -ne 0) { throw "engine build failed ($LASTEXITCODE)" }
 }
 
+# Exercise the exact compiler and VM pair before copying assets or deleting
+# the previous output. DLL timestamps alone cannot detect stale signatures.
+& (Join-Path $PSScriptRoot "check.ps1") -Love $Love
+
 $build = Join-Path $root "build"
 $stage = Join-Path $build "stage"
 $game = Join-Path $build "game"

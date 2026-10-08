@@ -324,6 +324,23 @@ public^let^Fighter = def^{
         }
     },
 
+    # Ground recovery turns before the next input is interpreted (0x411B3F).
+    # Do not turn a running attack, its cancel, or an airborne actor.
+    faceOpponent = p^self^{
+        let^other = self^.enemy
+        if^other is^nil^ or^self^.stop > 0 or^self^.eventPending or^self^.airborne() or^self^.life <= 0 { return^ }
+        if^!self^.groundNeutral() and^!self^.finished() { return^ }
+        if^other.x > self^.x + 1 { self^.facing := 1 }
+        if^other.x < self^.x - 1 { self^.facing := -1 }
+    },
+    groundNeutral = f^self^-> bool^{
+        let^n = self^.skillNo
+        return^!self^.airborne() and^(n = 1 or^n = 2 or^n = 3 or^n = 11 or^n = 12 or^n = 13)
+    },
+    readyForResult = p^self^-> bool^{
+        return^self^.stop <= 0 and^!self^.eventPending and^!self^.airborne() and^(self^.groundNeutral() or^self^.finished())
+    },
+
     # Starts generated skill n from its first block, as the engine does.
     begin = p^self^, n:number^{
         let^proc = self^.skills[n]
@@ -876,6 +893,7 @@ public^let^Fighter = def^{
         if^box.connected or^(self^.attackConnected and^box.flags.find("combo") is^nil^) { return^false^ }
         if^target.shadowOf or^target.system { return^false^ }
         if^target.owner != nil^ { return^true^ }
+        if^target.life <= 0 { return^false^ }
         # These FA flags exclude target states; they do not grant extra hits.
         if^target.receiving and^box.flags.find("duringReceipt") != nil^ { return^false^ }
         if^target.blocking and^box.flags.find("noSkyDetection") != nil^ { return^false^ }
