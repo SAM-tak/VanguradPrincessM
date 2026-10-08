@@ -96,6 +96,7 @@ is actually used by multiple supports, return only those assets to the pool:
 
 ```sh
 python tools/fm2k_convert/organize_support_media.py assets --restore-common-only --apply
+python tools/fm2k_convert/support_palettes.py assets --support えこ --apply
 ```
 
 This updates every manifest and verifies copies before removing the old files.

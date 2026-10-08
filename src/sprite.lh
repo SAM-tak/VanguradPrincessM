@@ -60,6 +60,12 @@ public^let^assetPath = f^dir:string^, e:any^-> string^|nil^{
     return^nil^
 }
 
+# An indexed image may own its palette independently of its script owner.
+public^let^palettePath = f^dir:string^, e:any^-> string^{
+    if^e fits^t^{ palette : string^ } { return^e.palette }
+    return^$"{dir}/palettes.png"
+}
+
 # A converted folder's listing (images.lton, sounds.lton): one entry per
 # FM2K number, at that position; nil^ for an unused number. Read once per
 # file; nil^ when the folder has none.
@@ -81,6 +87,8 @@ public^let^Sheet = def^{
         dir = "",
         palette : love.graphics.Texture|nil^= nil^,
         paletteTried = false^,     # stages have no palettes.png
+        imagePalettes : t^{[number^]:love.graphics.Texture|nil^} = {},
+        imagePalettesTried : t^{[number^]:bool^|nil^} = {},
         images : t^{[number^]:love.graphics.Texture|nil^} = {},
         missing : t^{[number^]:bool^|nil^} = {},    # asked for, not there (logged once)
         gen = -1,                   # the scene (vp.arena) its images were loaded in
@@ -98,6 +106,8 @@ public^let^Sheet = def^{
         self^.images := {}
         self^.palette := nil^
         self^.paletteTried := false^
+        self^.imagePalettes := {}
+        self^.imagePalettesTried := {}
     },
 
     # Whether image i is palette-indexed (images.lton says "indexed" or "rgba").
@@ -145,12 +155,19 @@ public^let^Sheet = def^{
             shader := love.graphics.newShader(spriteCode) catch^nil^
         }
         self^.fresh()
-        if^!self^.paletteTried {
+        let^list = self^.listing()
+        let^entry : any^= if^list != nil^: list[i] el^: nil^;
+        let^custom = entry fits^t^{palette:string^}
+        if^custom and^self^.imagePalettesTried[i] is^nil^ {
+            self^.imagePalettesTried[i] := true^
+            self^.imagePalettes[i] := vp.arena.texture(palettePath(self^.dir, entry))
+        }
+        if^!custom and^!self^.paletteTried {
             self^.paletteTried := true^
             self^.palette := vp.arena.texture($"{self^.dir}/palettes.png")
         }
         let^s = shader
-        let^pal = self^.palette
+        let^pal = if^custom: self^.imagePalettes[i] el^: self^.palette;
         if^s fits^love.graphics.Shader {
             let^useIndex = pal fits^love.graphics.Texture and^self^.isIndexed(i)
             if^pal fits^love.graphics.Texture { s.send("palette", pal) }

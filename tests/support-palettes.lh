@@ -1,0 +1,68 @@
+# Exercise per-image palette loading, shader selection and arena cache reset.
+module^vp.supportpalettetest
+import^love.event
+import^love.timer
+import^love.graphics
+require^"../src/preload.lh"
+require^"../src/resource.lh"
+require^"../src/sprite.lh"
+require^"../src/arena.lh"
+require^"../src/script.lh"
+require^"../src/scriptdata.lh"
+let^OWNERS = {"ゆい", "はるか", "サキ", "リリス", "えり", "かえで", "ナタリア", "ルナ", "くるみ", "あやね", "ヒルダ"}
+var^caseNo = 0
+var^pending : vp.preload.Load|nil^= nil^
+var^began = 0
+let^queue = p^{
+    let^l = vp.preload.Load.new("palette-test")
+    l.character($"assets/characters/{OWNERS[caseNo]}", 101)
+    pending := l
+}
+public^let^load = p^{ began := love.timer.getTime() queue() }
+public^let^update = p^dt:number^{
+    vp.resource.pump(0.006)
+    let^l = pending
+    if^l != nil^ and^l.ready() {
+        l.batch.arena.attach()
+        let^dir = $"assets/characters/{OWNERS[caseNo]}"
+        let^list = vp.sprite.listing($"{dir}/images.lton")
+        let^sheet = vp.sprite.sheetFor(dir)
+        var^used : t^{[number^]:bool^|nil^} = {}
+        let^sc = vp.script.loadFor($"{dir}/script.lton", 101)
+        if^sc? {
+            for^n:number^, sk:vp.scriptdata.Skill in^sc.byId {
+                if^sk.space = "" or^sk.space = "えこ" or^sk.space = "common" {
+                    for^b in^sk.blocks { if^b.op = "I" { used[b.n[0] ?? 0] := true^ } }
+                }
+            }
+        }
+        var^checked = 0
+        if^list? {
+            for^i:number^, entry:any^ in^list {
+                let^path = vp.sprite.assetPath(dir, entry)
+                if^used[i]? and^entry fits^t^{palette:string^} and^path != nil^ {
+                    if^l.batch.arena.textures[path] is^nil^ { panic^$"Image not preloaded: {path}" }
+                    if^l.batch.arena.textures[entry.palette] is^nil^ { panic^$"Palette not preloaded: {entry.palette}" }
+                    for^row from^0 to^7 { sheet.draw(i, 0, 0, row, 1, 1, 0, 0, 0) }
+                    if^sheet.imagePalettes[i] is^nil^ { panic^"Custom palette not selected" }
+                    checked += 1
+                }
+            }
+        }
+        if^checked = 0 and^OWNERS[caseNo] != "ヒルダ" { panic^"No support images checked" }
+        print($"PASS: {OWNERS[caseNo]}: {checked} indexed images, all eight palettes")
+        vp.arena.pop()
+        l.batch.cancel()
+        caseNo += 1
+        if^caseNo < OWNERS.length^ { queue()
+        else^:
+            if^vp.resource.fallbackReads() != 0 or^vp.arena.fallbacks() != 0 { panic^"Synchronous fallback while drawing" }
+            print("PASS: independent support palettes, all owners, no synchronous reads")
+            pending := nil^
+            love.event.quit()
+        }
+    }
+    if^love.timer.getTime() - began > 180 { panic^"Palette test timeout" }
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

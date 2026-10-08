@@ -48,7 +48,7 @@ public^let^Load = def^{
         if^path is^nil^ { return^ }
         if^op = "I" {
             if^e fits^t^{format:string^} and^e.format = "indexed" {
-                self^.batch.request($"{dir}/palettes.png", "image", false^)
+                self^.batch.request(vp.sprite.palettePath(dir, e), "image", false^)
             }
             self^.batch.request(path, "image", false^)
         else^:
@@ -107,7 +107,7 @@ public^let^Load = def^{
                 if^index^ % 32 = 0 and^love.timer.getTime() >= self^.deadline { yield^ }
                 let^e = images[n]
                 if^e fits^t^{format:string^} and^e.format = "indexed" {
-                    self^.batch.request($"{dir}/palettes.png", "image", false^)
+                    self^.batch.request(vp.sprite.palettePath(dir, e), "image", false^)
                 }
                 let^path = vp.sprite.assetPath(dir, images[n])
                 if^path? { self^.batch.request(path, "image", false^) }
