@@ -34,43 +34,8 @@ def export():
         if name not in CHARACTERS[:11]: continue
         folder = ROOT / 'data/characters' / name
         data = folder.joinpath('data.lton').read_text(encoding='utf-8')
-        patterns = []
-        def entries(table):
-            depth = 0
-            start = 0
-            for i, c in enumerate(table):
-                if c == '{':
-                    depth += 1
-                    if depth == 2: start = i
-                if c == '}':
-                    if depth == 2: yield table[start:i + 1]
-                    depth -= 1
-        def number(text, field, default=0):
-            m = re.search(r'\b' + field + r' = (\d+)', text)
-            return int(m[1]) if m else default
-        commands = list(entries(table_field(data, 'commands')))
-        for p in entries(table_field(data, 'cpu')):
-            steps = []
-            for s in entries(table_field(p, 'steps')):
-                if 'active = true^' not in s: continue
-                command = number(s, 'number')
-                assert 0 <= command <= len(commands), (name, command)
-                skills = [0, 0, 0, 0]
-                if command:
-                    c = commands[command - 1]
-                    for k, field in enumerate(['airSkill', 'standSkill', 'standFarSkill', 'crouchedSkill']):
-                        skills[k] = number(table_field(c, field), 'number')
-                    expected = re.search(r'command = \{ name = "([^"]*)"', s)
-                    assert expected and ('name = "' + expected[1] + '"') in c.split('time =')[0], (name, command)
-                steps.append('{ skills = { %s }, amount = %d, direction = %d, repeatInput = %s }' % (
-                    ', '.join(map(str, skills)), number(s, 'amount', 1), number(s, 'direction'),
-                    'true^' if 'continue = true^' in s else 'false^'))
-            if not steps: continue
-            patterns.append('    { weight = %d, near = %d, far = %d, air = %s, enemyAir = %s, steps = { %s } },' % (
-                number(p, 'probability'), number(p, 'close'), number(p, 'far'),
-                'true^' if 'characterInAir = true^' in p else 'false^',
-                'true^' if 'enemyInAir = true^' in p else 'false^', ', '.join(steps)))
-        folder.joinpath('cpu.lton').write_text('# Original CPU patterns, exported by story.py.\npatterns = {\n' + '\n'.join(patterns) + '\n},\n', encoding='utf-8')
+        from cpu_data import export_cpu
+        export_cpu(source, table_field(data, 'commands'), table_field(data, 'cpu'), folder / 'cpu.lton')
         if name == 'ヒルダ': continue
         raw = source.read_bytes()
         start = len(raw) - 4524 - 20600
@@ -102,7 +67,7 @@ def export():
         assert [sum('"fight"' in e for e in r) for r in routes] == [7, 7, 11], name
         text = f'# Original opponents and presentation assets, exported by story.py.\nintro = "{path}",\nroutes = {{\n'
         text += ''.join('    {\n' + ''.join('        ' + e + ',\n' for e in r) + '    },\n' for r in routes)
-        folder.joinpath('story.lton').write_text(text + '},\n', encoding='utf-8')
+        folder.joinpath('story.lton').write_text(text + '},\n', encoding='utf-8', newline='\n')
         print(name, 'routes: 7 / 7 / 11')
 
 

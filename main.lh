@@ -182,7 +182,7 @@ let^endsCrouched = p^p:Fighter, n:number^-> bool^{
 
 # What the built-in part of FM2K does: pick the next skill from the input.
 # forward / back are relative to the way the fighter faces.
-let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, held:number^{
+let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, held:number^, cpu:vp.cpu.Brain|nil^{
     # Result scripts own the pose after KO. Even neutral input must not
     # replace a completed loss/victory script with standing or buffered attacks.
     if^flow.phase = "ko" or^flow.phase = "win" or^flow.phase = "end" or^me.life <= 0 or^foe.life <= 0 {
@@ -195,13 +195,16 @@ let^control = p^p:Fighter, up:bool^, down:bool^, forward:bool^, back:bool^, held
 
     let^dx = if^forward: 1 el^back: -1 el^: 0;
     let^dy = if^up: 1 el^down: -1 el^: 0;
-    p.recordHeld(5 + dx + 3 * dy, held)
+    if^cpu != nil^ { cpu.record(p) else^: p.recordHeld(5 + dx + 3 * dy, held) }
     # moveStep may have crossed the floor last tick. Let stepScript dispatch
     # landing before a ground command can clear its handler and vertical speed.
     if^p.stop > 0 or^p.eventPending or^p.landingDue() { return^ }
 
     # The command table (buttons, motions, jumps), where the running skill allows it.
-    if^p.takeCommand(down) { return^ }
+    if^p.takeCommand(down) {
+        if^cpu != nil^ { cpu.actions += 1 }
+        return^
+    }
 
     if^p.finished() {
         if^air {
@@ -993,13 +996,10 @@ let^tick = p^{
     if^firstCPU != nil^ {
         if^live { firstInput := firstCPU.step(me, foe) }
         let^d = firstInput.dir
-        control(me, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, firstInput.buttons)
-        if^live and^firstInput.skill > 0 and^(me.skillNo != firstInput.skill or^me.finished()) and^me.mayStart(firstInput.skill) {
-            me.begin(firstInput.skill)
-            firstCPU.actions += 1
-        }
+        control(me, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, firstInput.buttons, firstCPU)
+
     else^:
-        control(me, live and^vp.input.isDown(Key.up), live and^vp.input.isDown(Key.down), live and^forward, live and^back, if^live: vp.input.heldButtons(0) el^: 0;)
+        control(me, live and^vp.input.isDown(Key.up), live and^vp.input.isDown(Key.down), live and^forward, live and^back, if^live: vp.input.heldButtons(0) el^: 0;, nil^)
     }
     # Discard menu direction presses during battle so they cannot reach select.
     upPressed := false^
@@ -1014,13 +1014,10 @@ let^tick = p^{
     if^cpu != nil^ and^live { cpuInput := cpu.step(foe, me) }
     if^cpu != nil^ {
         let^d = cpuInput.dir
-        control(foe, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, cpuInput.buttons)
-        if^live and^cpuInput.skill > 0 and^(foe.skillNo != cpuInput.skill or^foe.finished()) and^foe.mayStart(cpuInput.skill) {
-            foe.begin(cpuInput.skill)
-            cpu.actions += 1
-        }
+        control(foe, live and^d >= 7, live and^d <= 3, live and^d % 3 = 0, live and^d % 3 = 1, cpuInput.buttons, cpu)
+
     else^:
-        control(foe, live and^vp.input.isDown(Key.u), live and^(vp.input.isDown(Key.j) or^dummyGuard = 2), live and^forward2, live and^back2, if^live: vp.input.heldButtons(1) el^: 0;)
+        control(foe, live and^vp.input.isDown(Key.u), live and^(vp.input.isDown(Key.j) or^dummyGuard = 2), live and^forward2, live and^back2, if^live: vp.input.heldButtons(1) el^: 0;, nil^)
     }
     clear2()
 

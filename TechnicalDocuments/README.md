@@ -179,3 +179,5 @@
 - [0122-round-curtain-handoff.md](0122-round-curtain-handoff.md) — 次ラウンドの黒幕を描画前に初期化し、境界の1フレーム露出を修正。
 
 - [0123-luna-stance-ko-exit.md](0123-luna-stance-ko-exit.md) — ルナの構え待機8箇所をKO後に解除し、通常の勝利ポーズへ移行。
+
+- [0124-native-cpu-scheduler.md](0124-native-cpu-scheduler.md) — 原作CPUの登録選択・入力履歴生成を再現し、独自の接近・ガード・サポート判断を撤去。

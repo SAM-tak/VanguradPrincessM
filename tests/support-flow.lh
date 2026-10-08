@@ -164,18 +164,15 @@ let^cpuAndBoss = p^{
             }
             if^controller is^nil^ { panic^"Missing support controller" }
             let^cpu = vp.cpu.Brain.new("ゆい", 100)
-            cpu.supportCooldown := 0
+            cpu.patterns := {{probability = 100, near = 0, far = 9999, air = false^, enemyAir = false^,
+                steps = {{command = 61, amount = 1, direction = 2, active = true^}}}}
             let^input = cpu.step(p, enemy)
             if^input.buttons != 8 or^input.dir != 6 { panic^"CPU did not issue distant support input" }
-            p.record(input.dir, input.buttons)
+            cpu.record(p)
             controller.step()
             # Kanae's HUD delegates resource handling to the spawned attack.
             if^p.v(76) != 110 or^(hi != 3 and^p.v(71) >= 100) { panic^$"CPU D: {hud} side={side} request={p.v(76)} gauge={p.v(71)}" }
-            if^cpu.step(p, enemy).buttons != 0 { panic^"CPU repeated support every frame" }
-            cpu.supportCooldown := 0
-            p.setv(76, 0)
-            p.setv(71, 0)
-            if^cpu.step(p, enemy).buttons != 0 { panic^"CPU requested support with empty gauge" }
+
         }
     }
     for^selected from^101 to^105 {

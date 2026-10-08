@@ -97,6 +97,7 @@ public^let^Fighter = def^{
         inPress : t^{[number^]:number^|nil^} = {},   # buttons pressed that frame
         inHeld : t^{[number^]:number^|nil^} = {},
         inputFrame = 0, consumedThrough = 0,
+        cpuHistorySpan = 0,
         lastButtonPress : t^{[number^]:number^|nil^} = {}, # newest matching press for each A-F mask
         closeRange = 0,             # settings.interval, inclusive pixel distance
         cancelWhen = "", cancelFrom = 0, cancelTo = 0, cancelSkill = -1,
@@ -702,6 +703,38 @@ public^let^Fighter = def^{
         for^mask from^1 to^std.math.min(pressed, 63) {
             if^hasButtons(pressed, mask) { self^.lastButtonPress[mask] := std.math.max(frame, self^.lastButtonPress[mask] ?? 0) }
         }
+    },
+    # Native CPU clears the input ring, then writes a complete command from
+    # newest to oldest. Only the previously populated span needs clearing.
+    recordCPU = p^self^, samples:t^{number^[]}{
+        if^self^.cpuHistorySpan = 0 {
+            self^.inDirs := {} self^.inHeld := {} self^.inPress := {}
+        }
+        self^.inputFrame := std.math.max(self^.inputFrame + 1, HISTORY)
+        self^.lastButtonPress := {}
+        let^span = std.math.min(HISTORY, std.math.max(samples.length^, self^.cpuHistorySpan + 1))
+        for^age from^0 to^span - 1 {
+            let^mask = samples[age] ?? 0
+            let^dx = if^(mask / 2).floor() % 2 = 1: 1 el^mask % 2 = 1: -1 el^: 0;
+            let^dy = if^(mask / 4).floor() % 2 = 1: 1 el^(mask / 8).floor() % 2 = 1: -1 el^: 0;
+            let^slot = (self^.inputFrame - age) % HISTORY
+            self^.inDirs[slot] := 5 + dx + 3 * dy
+            self^.inHeld[slot] := (mask / 16).floor() % 64
+            self^.inPress[slot] := 0
+        }
+        for^age from^0 to^samples.length^ - 1 {
+            let^frame = self^.inputFrame - age
+            let^held = self^.inHeld[frame % HISTORY] ?? 0
+            let^previous = self^.inHeld[(frame - 1) % HISTORY] ?? 0
+            var^pressed = 0 var^bit = 1
+            repeat^while^bit <= 32 {
+                if^(held / bit).floor() % 2 = 1 and^(previous / bit).floor() % 2 = 0 { pressed += bit }
+                bit *= 2
+            }
+            self^.recordPress(frame, pressed)
+        }
+        self^.cpuHistorySpan := std.math.max(1, samples.length^)
+        self^.consumedThrough := self^.inputFrame - HISTORY
     },
     # 0x41073E: a matched table command with time > 29 clears all but the
     # newest twenty samples, before posture/skill availability is checked.

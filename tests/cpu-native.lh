@@ -1,0 +1,33 @@
+module^vp.cpunativetest
+import^love.event
+require^"../src/cpu.lh"
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/resource.lh"
+public^let^load = p^{
+ let^raw = vp.resource.data("tests/fixtures/native-cpu-trace.lton")
+ if^!(raw fits^t^{cases:t^{t^{level:number^, rows:t^{t^{number^[]}[]}}[]}}) { panic^"Missing native trace" }
+ let^a = vp.fighter.Fighter.new("assets/characters/あやね",500,920)
+ let^b = vp.fighter.Fighter.new(a.dir,800,920)
+ a.enemy := b b.enemy := a
+ for^c in^raw.cases {
+  let^cpu = vp.cpu.Brain.new("あやね",c.level)
+  var^seed = 123
+  cpu.randomWord := p^-> number^{ seed := (seed * 214013 + 2531011) % 4294967296 return^(seed / 65536).floor() % 32768 }
+  for^frame,row in^c.rows {
+   b.x := 500 + ({80,240,400,600}[(frame / 100).floor()] ?? 0)
+   a.y := if^frame % 100 >= 50: 900 el^: 920;
+   b.y := if^frame % 160 >= 80: 900 el^: 920;
+   let^out = cpu.step(a,b)
+   if^cpu.selected + 1 != row[0] or^cpu.at != row[1] or^cpu.remaining != row[2] or^cpu.cooldown != row[3] or^(cpu.history[0] ?? 0) != row[4] {
+    panic^$"Native CPU mismatch level={c.level} frame={frame} selected={cpu.selected+1}/{row[0]} at={cpu.at}/{row[1]} remaining={cpu.remaining}/{row[2]} cooldown={cpu.cooldown}/{row[3]} mask={cpu.history[0] ?? 0}/{row[4]}"
+   }
+   if^out.skill != 0 { panic^"CPU bypassed command input" }
+   cpu.record(a)
+  }
+ }
+ print("PASS: native scheduler trace, four difficulties, 1600 frames, distance boundaries and complete current input")
+ love.event.quit()
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

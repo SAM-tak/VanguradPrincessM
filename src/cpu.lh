@@ -1,97 +1,83 @@
-# Weighted original command patterns with an explicit L^ decision scheduler.
+# Native VP CPU scheduler and command-history generation (0x411270).
 module^vp.cpu
-
 import^love.math
 require^"fighter.lh"
 require^"resource.lh"
-
-let^Step = t^{skills:t^{number^[]}, amount:number^, direction:number^, repeatInput:bool^}
-let^Pattern = t^{weight:number^, near:number^, far:number^, air:bool^, enemyAir:bool^, steps:t^{Step[]}}
-
+let^Step = t^{command:number^, amount:number^, direction:number^, active:bool^}
+let^Pattern = t^{probability:number^, near:number^, far:number^, air:bool^, enemyAir:bool^, steps:t^{Step[]}}
 public^let^Input = t^{dir:number^, skill:number^, guard:bool^, buttons:number^}
-
+let^DIRECTIONS : t^{number^[]} = {0,0,2,10,8,9,1,5,4,6,1,4,2,8,0,0}
+let^merge = f^a:number^, b:number^-> number^{
+ var^out = a var^bit = 1
+ repeat^while^bit <= 512 {
+  if^(b / bit).floor() % 2 = 1 and^(a / bit).floor() % 2 = 0 { out += bit }
+  bit *= 2
+ }
+ return^out
+}
 public^let^Brain = def^{
-    self^{
-        patterns : t^{Pattern[]} = {},
-        steps : t^{Step[]} = {},
-        at = 0, remaining = 0, cooldown = 0, level = 20, actions = 0,
-        supportCooldown = 100,
-    },
-    override^new = p^name:string^, level:number^{
-        let^raw = vp.resource.data($"assets/characters/{name}/cpu.lton")
-        if^!(raw fits^t^{patterns:t^{Pattern[]}}) { panic^$"Missing CPU patterns: {name}" }
-        self^{patterns = raw.patterns, level = level}
-    },
-
-    reset = p^self^{ self^.steps := {} self^.at := 0 self^.remaining := 0 self^.cooldown := 20 self^.supportCooldown := 100 },
-    step = p^self^, me:vp.fighter.Fighter, enemy:vp.fighter.Fighter-> Input {
-        let^distance = (me.x - enemy.x).abs()
-        var^out : Input = {dir = 5, skill = 0, guard = false^, buttons = 0}
-        if^me.stop > 0 or^me.blocking {
-            out.dir := me.inputDirection()
-            out.guard := out.dir % 3 = 1
-            return^out
-        }
-        if^self^.remaining <= 0 {
-            if^self^.at < self^.steps.length^ { self^.at += 1 }
-            if^self^.at >= self^.steps.length^ {
-                self^.steps := {}
-                self^.at := 0
-                self^.cooldown -= 1
-                if^self^.cooldown <= 0 {
-                    var^eligible : t^{Pattern[]} = {}
-                    var^weight = 0
-                    for^p in^self^.patterns {
-                        if^p.weight > 0 and^distance >= p.near and^distance <= p.far and^p.air = me.airborne() and^p.enemyAir = enemy.airborne() {
-                            eligible.push^(p)
-                            weight += p.weight
-                        }
-                    }
-                    if^weight > 0 {
-                        var^roll = love.math.random(1, weight)
-                        for^p in^eligible {
-                            roll -= p.weight
-                            if^roll <= 0 { self^.steps := p.steps break^ }
-                        }
-                    }
-                    self^.cooldown := (35 - self^.level * 0.25).clamp(4, 35)
-                }
-            }
-            let^next = self^.steps[self^.at]
-            if^next != nil^ { self^.remaining := next.amount.clamp(1, 180) }
-        }
-        let^s = self^.steps[self^.at]
-        if^s != nil^ {
-            out.dir := if^s.direction >= 1 and^s.direction <= 9: s.direction el^: 5;
-            if^s.repeatInput or^self^.remaining = s.amount.clamp(1, 180) {
-                let^variant = if^me.airborne(): 0 el^out.dir <= 3: 3 el^distance > 160 and^(s.skills[2] ?? 0) > 0: 2 el^: 1;
-                out.skill := s.skills[variant] ?? 0
-            }
-            self^.remaining -= 1
-        else^:
-            out.dir := if^distance > 100: 6 el^: 5;
-            if^distance < 220 and^enemy.hits.length^ > 0 and^love.math.random(0, 100) < self^.level {
-                out.dir := 4
-                out.guard := true^
-            }
-        }
-        if^out.dir % 3 = 1 { out.guard := true^ }
-        self^.supportCooldown -= 1
-        # Body command patterns do not supply D. Feed a real D press through
-        # the support HUD's COM checks: its gauge costs and lockouts stay intact.
-        let^support = me.slots[5]
-        if^self^.supportCooldown <= 0 and^support != nil^ and^support.alive and^me.life > 0 and^me.v(71) >= 10 and^me.v(76) < 99 and^!me.receiving {
-            var^dir = 5
-            if^distance < 220 and^enemy.hits.length^ > 0 { dir := 4
-            elseif^enemy.airborne(): dir := 2
-            elseif^distance > 280: dir := 6
-            elseif^love.math.random(0, 1) = 1: dir := 3
-            }
-            out.dir := dir
-            out.buttons := 8
-            out.guard := dir = 4
-            self^.supportCooldown := (280 - self^.level * 2).clamp(80, 280)
-        }
-        return^out
-    },
+ self^{
+  patterns : t^{Pattern[]} = {},
+  commands : t^{t^{number^[]}[]} = {},
+  selected = -1, at = -1, remaining = 0, cooldown = 0, level = 20, actions = 0,
+  history : t^{number^[]} = {},
+  randomWord = p^-> number^{ return^love.math.random(0,32767) },
+ },
+ override^new = p^name:string^, level:number^{
+  let^raw = vp.resource.data($"assets/characters/{name}/cpu.lton")
+  if^!(raw fits^t^{patterns:t^{Pattern[]}, commands:t^{t^{number^[]}[]}}) { panic^$"Missing native CPU data: {name}" }
+  self^{patterns = raw.patterns, commands = raw.commands, level = level.clamp(0,100)}
+ },
+ reset = p^self^{ self^.selected := -1 self^.at := -1 self^.remaining := 0 self^.cooldown := 0 self^.history := {} },
+ # Native rand() is a 15-bit value, followed by integer remainder.
+ random = p^self^, range:number^-> number^{ return^self^.randomWord() % range },
+ step = p^self^, me:vp.fighter.Fighter, enemy:vp.fighter.Fighter-> Input {
+  self^.history := {}
+  if^self^.selected < 0 and^self^.level > 0 {
+   self^.cooldown -= 1
+   if^self^.cooldown <= 0 {
+    self^.cooldown := self^.random(101 - self^.level) - self^.level + 50
+    let^distance = (me.x - enemy.x).abs().floor()
+    # Each registration gets its own roll. Later matches overwrite earlier ones.
+    for^i,p in^self^.patterns {
+     let^roll = self^.random(100)
+     if^roll < p.probability and^distance >= p.near and^distance <= p.far and^p.air = me.airborne() and^p.enemyAir = enemy.airborne() {
+      self^.selected := i self^.at := -1 self^.remaining := 0
+     }
+    }
+   }
+  }
+  let^pattern = self^.patterns[self^.selected]
+  if^pattern != nil^ {
+   self^.remaining -= 1
+   if^self^.remaining < 0 {
+    self^.at += 1
+    let^next = pattern.steps[self^.at]
+    if^next is^nil^ { self^.selected := -1
+    else^:
+     self^.remaining := next.amount + self^.random(101 - self^.level)
+     if^!next.active { self^.selected := -1 }
+    }
+   }
+   let^s = pattern.steps[self^.at]
+   if^self^.selected >= 0 and^s != nil^ {
+    let^direction = DIRECTIONS[s.direction] ?? 0
+    if^s.command = 0 { self^.history.push^(direction)
+    else^:
+     let^command = self^.commands[s.command]
+     if^command != nil^ {
+      for^mask in^command { self^.history.push^(if^mask < 0: 0 el^: merge(mask,direction);) }
+     }
+    }
+   }
+  }
+  let^mask = self^.history[0] ?? 0
+  let^forward = (mask / 2).floor() % 2 = 1
+  let^back = mask % 2 = 1
+  let^up = (mask / 4).floor() % 2 = 1
+  let^down = (mask / 8).floor() % 2 = 1
+  let^dir = 5 + (if^forward: 1 el^back: -1 el^: 0;) + 3 * (if^up: 1 el^down: -1 el^: 0;)
+  return^{dir = dir, skill = 0, guard = back, buttons = (mask / 16).floor() % 64}
+ },
+ record = p^self^, me:vp.fighter.Fighter { me.recordCPU(self^.history) },
 }
