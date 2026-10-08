@@ -153,3 +153,5 @@
 - [0111-natalia-official-name.md](0111-natalia-official-name.md) — 内部名カテジナを正式名ナタリアへ統一し、素材・生成データ・変換処理を更新。
 
 - [0113-natalia-throw-reaction-input.md](0113-natalia-throw-reaction-input.md) — ナタリア投げのレベル0やられ動作へのコマンド割り込みを原作の被弾状態制限で防止。
+
+- [0114-select-confirmed-palette.md](0114-select-confirmed-palette.md) — キャラ決定時に顔グラ本体と既存の子オブジェクトへ確定パレットを即時反映。

@@ -114,6 +114,14 @@ public^let^Select = def^{
                 elseif^b != 0:
                     side.confirmed := true^
                     side.colour := firstButton(b)
+                    let^p = side.portrait
+                    if^p != nil^ {
+                        let^portrait : Fighter = p
+                        # Existing portrait objects copied the initial palette;
+                        # future objects inherit the confirmed palette from p.
+                        portrait.palette := side.colour
+                        for^o in^portrait.objects { o.palette := side.colour }
+                    }
                     side.cursor := self^.systemRun(if^k = 0: CONFIRMED_1P el^: CONFIRMED_2P;, GRID_X, slotY(side.row))
                 }
             }
