@@ -145,3 +145,7 @@
 - [0105-turn-and-ko-completion.md](0105-turn-and-ko-completion.md) — 着地硬直後の先行入力前の振り向き、KO後の演出保護と技終了待ち。
 
 - [0106-distribution-engine-check.md](0106-distribution-engine-check.md) — 配布ビルド前にコンパイラとVMの互換性を実行検証。
+
+- [0107-air-attack-landing-facing.md](0107-air-attack-landing-facing.md) — 空中C後の着地硬直中の振り向きと、着地未処理時の地上技開始防止。
+
+- [0109-sierra-aim-direction.md](0109-sierra-aim-direction.md) — シエラ6Dの照準方向を射撃終了まで維持する生成時パッチ。

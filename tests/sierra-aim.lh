@@ -1,0 +1,58 @@
+module^vp.sierraaimtest
+import^love.event
+require^"../src/fighter.lh"
+require^"../src/script.lh"
+require^"../src/resource.lh"
+public^let^load = p^{
+ for^name in^{"ゆい","えり","はるか","サキ","リリス","かえで","カテジナ","ルナ","くるみ","あやね"} {
+  let^dir = $"assets/characters/{name}"
+  let^sc = vp.script.loadFor($"{dir}/script.lton",102)
+  if^sc is^nil^ { panic^"Missing script" }
+  var^aim = 0 var^shot = 0
+  for^id,sk in^sc.byId { if^sk != nil^ and^sk.space = "シエラ" {
+   if^sk.name = "待機" { aim := id }
+   if^sk.name = "サポートショット" { shot := id }
+  } }
+  if^aim = 0 or^shot = 0 { panic^"Missing Sierra entries" }
+  for^face in^{1,-1} { for^direction in^{0,1} { for^early in^{false^,true^} {
+   vp.fighter.clearSystemVars()
+   let^p = vp.fighter.Fighter.new(dir,640,920) sc.install(p)
+   p.facing := face p.setv(75,direction) p.setv(76,110) p.setv(71,30)
+   let^a = p.makeObject(aim,0,640,920,80) a.step()
+   if^a.turnX != (direction = 1) { panic^"Wrong initial aim" }
+   p.setv(75,1-direction)
+   if^early { p.setv(76,101) }
+   var^seen = false^
+   for^tick from^0 to^250 {
+    a.step()
+    if^a.skillNo = shot {
+     seen := true^
+     if^a.turnX != (direction = 1) { panic^$"{name}: 6D changed direction" }
+    elseif^seen: break^
+    }
+   }
+   var^flashes = 0
+   for^o in^p.objects {
+    if^o.skillNo = shot+1 or^o.skillNo = shot+2 {
+     flashes += 1
+     let^expected = shot + 1 + direction
+     if^o.skillNo != expected { panic^"Wrong firing effect / attack branch" }
+     o.step()
+     let^box = o.hits[0]
+     if^box is^nil^ { panic^"Missing firing attack" }
+     let^dx = o.x + box.x * o.facing - a.x
+     let^sign = face * (if^direction = 1: -1 el^: 1;)
+     if^dx * sign <= 0 { panic^"Attack box faces away from initial aim" }
+    }
+   }
+   if^!seen or^flashes != 4 { panic^$"{name}: missing full salvo: {flashes}" }
+   # 5D still consults the current direction, not a saved 6D direction.
+   let^direct = p.makeObject(shot,0,640,920,80) direct.step()
+   if^direct.turnX != (direction = 0) { panic^"5D direction was changed" }
+  } } }
+  print($"PASS: {name}: both facings/directions, timed and early shot, all four attacks, independent 5D")
+ }
+ love.event.quit()
+}
+public^let^draw = p^{}
+public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }

@@ -328,8 +328,11 @@ public^let^Fighter = def^{
     # Do not turn a running attack, its cancel, or an airborne actor.
     faceOpponent = p^self^{
         let^other = self^.enemy
-        if^other is^nil^ or^self^.stop > 0 or^self^.eventPending or^self^.airborne() or^self^.life <= 0 { return^ }
-        if^!self^.groundNeutral() and^!self^.finished() { return^ }
+        if^other is^nil^ or^self^.stop > 0 or^self^.eventPending or^self^.landingDue() or^self^.airborne() or^self^.life <= 0 { return^ }
+        # Basic ground skills with level 0 can already accept commands before
+        # E (notably Yui's air-C landing #10). Turn at that same input boundary.
+        let^basic = self^.skillNo >= 8 and^self^.skillNo <= 19 and^self^.skillLevel(self^.skillNo) = 0
+        if^!self^.groundNeutral() and^!basic and^!self^.finished() { return^ }
         if^other.x > self^.x + 1 { self^.facing := 1 }
         if^other.x < self^.x - 1 { self^.facing := -1 }
     },
@@ -461,6 +464,9 @@ public^let^Fighter = def^{
     },
     # Landing is NOT a generic pending DS: it clears only collision slots,
     # preserves R, C and the other DS registrations, and consumes landing.
+    landingDue = f^self^-> bool^{
+        return^self^.y >= self^.ground and^self^.vy > 0 and^(self^.owner is^nil^ or^self^.onSkill["landing"] != nil^)
+    },
     land = p^self^{
         self^.y := self^.ground
         self^.vx := 0 self^.ax := 0 self^.vy := 0 self^.ay := 0
@@ -496,7 +502,7 @@ public^let^Fighter = def^{
             self^.finishDamageChain()
             return^
         }
-        if^self^.y >= self^.ground and^self^.vy > 0 and^(self^.owner is^nil^ or^self^.onSkill["landing"] != nil^) { self^.land() }
+        if^self^.landingDue() { self^.land() }
         if^self^.owner != nil^ and^!self^.onScreen and^!self^.system and^!self^.shadowOf {
             if^self^.x < -50 or^self^.x > 1330 or^self^.y < -500 or^self^.y > 980 { self^.alive := false^ return^ }
         }
@@ -820,7 +826,7 @@ public^let^Fighter = def^{
     # Input is recorded during recovery/hitstop. Only execute once the move
     # can start; a completed skill must not retain its old cancel restriction.
     takeCommand = p^self^, crouching:bool^-> bool^{
-        if^self^.stop > 0 or^self^.eventPending { return^false^ }
+        if^self^.stop > 0 or^self^.eventPending or^self^.landingDue() { return^false^ }
         let^n = self^.fromCommands(crouching)
         if^n > 0 and^(n != self^.skillNo or^self^.finished()) and^self^.mayStart(n) {
             self^.begin(n)
@@ -835,7 +841,7 @@ public^let^Fighter = def^{
     #     "fails" means not cancellable at all.
     # FA cancel arms C's hit condition; it never bypasses the C destination.
     mayStart = p^self^, n:number^-> bool^{
-        if^self^.stop > 0 or^self^.eventPending { return^false^ }
+        if^self^.stop > 0 or^self^.eventPending or^self^.landingDue() { return^false^ }
         if^self^.finished() { return^true^ }
         let^current = self^.skillLevel(self^.skillNo)
         if^current = 0 { return^true^ }

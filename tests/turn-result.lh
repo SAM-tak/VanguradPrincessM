@@ -29,6 +29,33 @@ public^let^load = p^{
   if^p.facing != -side { panic^"Turned a running attack" }
  }
  print("PASS: real jump landing, both crossover directions, buffered A, active attack facing")
+ for^side in^{1,-1} {
+  let^p = Fighter.new("assets/characters/ゆい",640,900)
+  let^e = Fighter.new(p.dir,640-side*100,920)
+  sc.install(p) p.enemy := e p.facing := side p.ground := 920 p.vy := 8
+  p.begin(232) p.stepScript()
+  p.y := 921 p.stepScript()
+  if^p.skillNo != 10 or^p.finished() { panic^"Missing active air-C landing recovery" }
+  p.recordHeld(5,4) p.faceOpponent()
+  if^!p.takeCommand(false^) or^p.skillNo != 224 { panic^"Missing landing C" }
+  if^p.facing != -side { panic^"Air C -> landing -> ground C still faces away" }
+ }
+ print("PASS: video path #232 -> active #10 -> #224, both directions")
+ for^side in^{1,-1} {
+  let^p = Fighter.new("assets/characters/ゆい",640,900)
+  let^e = Fighter.new(p.dir,640-side*100,920)
+  sc.install(p) p.enemy := e p.facing := side p.ground := 920 p.vy := 8
+  p.begin(7) p.stepScript()
+  p.y := 921 p.vy := 8
+  p.recordHeld(5,4) p.faceOpponent()
+  if^p.mayStart(224) or^p.takeCommand(false^) { panic^"Ground command bypassed pending landing" }
+  p.stepScript()
+  if^p.skillNo != 9 { panic^"Landing DS was lost" }
+  for^tick from^0 to^8 { if^!p.finished() { p.recordHeld(5,0) p.stepScript() } }
+  p.faceOpponent()
+  if^!p.takeCommand(false^) or^p.skillNo != 224 or^p.facing != -side { panic^"Landing boundary lost buffered C or facing" }
+ }
+ print("PASS: input before landing DS cannot erase it, buffered C retained, both directions")
  for^winner in^{1,2} {
   vp.fighter.clearSystemVars()
   let^a = Fighter.new("assets/characters/ゆい",500,920)
@@ -64,6 +91,3 @@ public^let^load = p^{
 }
 public^let^draw = p^{}
 public^let^quit = p^-> bool^{ vp.resource.stop() return^false^ }
-
-
-
