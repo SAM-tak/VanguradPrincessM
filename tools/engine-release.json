@@ -1,14 +1,46 @@
 {
   "repository": "SAM-tak/lhat-love",
   "tag": "v12.0.0-alpha.2",
-  "windows": {
-    "compiler": {
-      "asset": "lhat-love-v12.0.0-alpha.2-win-x64-relwithdebinfo.zip",
-      "sha256": "a00cb5ecb03c2a0752ca5766465beeb08f4ac3bd1e204b3023519e156c924355"
+  "platforms": {
+    "windows-x64": {
+      "compiler": {
+        "asset": "lhat-love-v12.0.0-alpha.2-win-x64-relwithdebinfo.zip",
+        "sha256": "a00cb5ecb03c2a0752ca5766465beeb08f4ac3bd1e204b3023519e156c924355"
+      },
+      "runtime": {
+        "asset": "lhat-love-v12.0.0-alpha.2-win-x64-vmonly-shipping.zip",
+        "sha256": "b27df2cc3753a52fe2eee48a3b572f332db767deec906ff7644dafe5daff10ad"
+      }
     },
-    "runtime": {
-      "asset": "lhat-love-v12.0.0-alpha.2-win-x64-vmonly-shipping.zip",
-      "sha256": "b27df2cc3753a52fe2eee48a3b572f332db767deec906ff7644dafe5daff10ad"
+    "linux-x64": {
+      "compiler": {
+        "asset": "lhat-love-v12.0.0-alpha.2-linux-x64-relwithdebinfo.tar.gz",
+        "sha256": "e1b65a8aae06582ab076535864579f2f0262420d23e109e597d0e0b1a9899ad7"
+      },
+      "runtime": {
+        "asset": "lhat-love-v12.0.0-alpha.2-linux-x64-vmonly-shipping.tar.gz",
+        "sha256": "5c60d3e56105b738fdd9c625d1aa7cc3af890b9335866ffdeaa6cf5f90902795"
+      }
+    },
+    "macos-arm64": {
+      "compiler": {
+        "asset": "lhat-love-v12.0.0-alpha.2-macos-arm64-relwithdebinfo.tar.gz",
+        "sha256": "1410f3594ef45603c253081580b9232227ac82fe5019c5d61d0b33960f090aa1"
+      },
+      "runtime": {
+        "asset": "lhat-love-v12.0.0-alpha.2-macos-arm64-vmonly-shipping.tar.gz",
+        "sha256": "a2502d8e53da0be3a1fd2055367edee8b07af6ae11efa0dd071d67f007e9846e"
+      }
+    },
+    "macos-x64": {
+      "compiler": {
+        "asset": "lhat-love-v12.0.0-alpha.2-macos-x64-relwithdebinfo.tar.gz",
+        "sha256": "a89ecb609cf6899b6f22c2d2be2540e7e0f35bb08b0b292cd56cb8875422c3c8"
+      },
+      "runtime": {
+        "asset": "lhat-love-v12.0.0-alpha.2-macos-x64-vmonly-shipping.tar.gz",
+        "sha256": "8247a439b818c44716ff9e2ef3a4c55187ce6afca542e2ec4ed4ce57b3967458"
+      }
     }
   }
 }

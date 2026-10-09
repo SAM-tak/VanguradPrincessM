@@ -3,7 +3,7 @@ param([string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $venv = Join-Path $root 'build/asset-builder-venv'
-$interpreter = Join-Path $venv 'Scripts/python.exe'
+$interpreter = Join-Path $venv $(if ($IsWindows) { 'Scripts/python.exe' } else { 'bin/python' })
 if (-not (Test-Path -LiteralPath $interpreter)) {
     & $Python -m venv $venv
     if ($LASTEXITCODE -ne 0) { throw 'Failed to create asset builder environment' }

@@ -8,7 +8,9 @@
 # it is rebuilt when it is older than the full lovec (or with -RebuildEngine).
 # It cannot parse text LTON either; --compile-game compiles every .lton.
 #
-# Output: dist/VanguardPrincess/ (exe + the engine's DLLs). Work files go to build/.
+# Output: dist/VanguardPrincess/ (launcher + engine files; see fuse-game.ps1).
+# Work files go to build/. On Linux and macOS, pass -Lovec and -ShippingDirectory
+# from release packages (download-engine.ps1); local engine builds are Windows-only.
 param(
     [string]$Love = "C:\Users\Owner\source\repos\lhat-love",
     [string]$Lovec,
@@ -22,6 +24,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 $prebuilt = [bool]$Lovec -or [bool]$ShippingDirectory
 if ($prebuilt -and (-not $Lovec -or -not $ShippingDirectory)) { throw 'Specify both -Lovec and -ShippingDirectory' }
+if (-not $prebuilt -and -not $IsWindows) { throw 'Outside Windows, specify -Lovec and -ShippingDirectory from a release package' }
 if ($prebuilt -and $RebuildEngine) { throw '-RebuildEngine cannot be used with prebuilt binaries' }
 if (-not $Lovec) { $Lovec = Join-Path $Love "build\love\Release\lovec.exe" }
 $vm = if ($ShippingDirectory) { $ShippingDirectory } else { Join-Path $Love "build-vmonly-shipping\love\Release" }
@@ -76,29 +79,28 @@ if (Test-Path -LiteralPath $out) {
 New-Item -ItemType Directory -Force $out | Out-Null
 
 Write-Host "fusing"
-$exe = Join-Path $out "VanguardPrincess.exe"
-$fs = [System.IO.File]::Create($exe)
-try {
-    foreach ($part in (Join-Path $vm "love.exe"), $zip) {
-        $in = [System.IO.File]::OpenRead($part)
-        try { $in.CopyTo($fs) } finally { $in.Dispose() }
-    }
-} finally { $fs.Dispose() }
-Copy-Item (Join-Path $vm "*.dll") $out
-if (Test-Path -LiteralPath (Join-Path $vm 'license.txt')) {
-    Copy-Item -LiteralPath (Join-Path $vm 'license.txt') -Destination (Join-Path $out 'lhat-love-license.txt')
+$launcher = & (Join-Path $PSScriptRoot 'fuse-game.ps1') -ShippingDirectory $vm -Archive $zip -OutputDirectory $out
+$notices = [ordered]@{
+    'license.txt' = 'lhat-love-license.txt'
+    'build-info.txt' = 'lhat-love-build-info.txt'
+    'dependencies.txt' = 'lhat-love-dependencies.txt'
+    'licenses' = 'lhat-love-licenses'
 }
-if (Test-Path -LiteralPath (Join-Path $vm 'build-info.txt')) {
-    Copy-Item -LiteralPath (Join-Path $vm 'build-info.txt') -Destination (Join-Path $out 'lhat-love-build-info.txt')
+foreach ($name in $notices.Keys) {
+    $notice = Join-Path $vm $name
+    if (Test-Path -LiteralPath $notice) {
+        Copy-Item -LiteralPath $notice -Destination (Join-Path $out $notices[$name]) -Recurse
+    }
 }
 
 # Portable media builder: no original game media or FM2K definitions included.
 $converter = Join-Path $root 'tools/fm2k_convert'
-Copy-Item -LiteralPath (Join-Path $build 'asset-builder-native/BuildAssets.exe') -Destination $out
+$builder = if ($IsWindows) { 'BuildAssets.exe' } else { 'BuildAssets' }
+Copy-Item -LiteralPath (Join-Path $build "asset-builder-native/$builder") -Destination $out
 Copy-Item -LiteralPath (Join-Path $build 'asset-builder-native/asset-builder-licenses') -Destination $out -Recurse
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $out
 Copy-Item -LiteralPath (Join-Path $converter 'ASSETS.md') -Destination (Join-Path $out 'ASSETS.md')
 
-$size = (Get-Item $exe).Length / 1MB
-Write-Host ("done: {0} ({1:N1} MB)" -f $exe, $size)
-if ($Run) { & $exe }
+$size = (Get-Item $zip).Length / 1MB
+Write-Host ("done: {0} (game archive {1:N1} MB)" -f $launcher, $size)
+if ($Run) { & $launcher }

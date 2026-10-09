@@ -13,15 +13,33 @@ try {
 } finally { $archive.Dispose() }
 $out = if ($DistributionDirectory) { $DistributionDirectory } else { Join-Path $root 'dist/VanguardPrincess' }
 if (Test-Path -LiteralPath (Join-Path $out 'assets')) { throw 'Public distribution contains external assets' }
-foreach ($name in 'VanguardPrincess.exe', 'BuildAssets.exe', 'ASSETS.md', 'LICENSE', 'lhat-love-license.txt') {
+$builder = if ($IsWindows) { 'BuildAssets.exe' } else { 'BuildAssets' }
+$programs = @(
+    $builder
+    if ($IsWindows) { 'VanguardPrincess.exe' }
+    elseif ($IsLinux) { 'VanguardPrincess', 'lib/liblove-12.0.so' }
+    else { 'VanguardPrincess.command', 'lhat-love.app/Contents/MacOS/love' }
+)
+foreach ($name in @($programs) + @('ASSETS.md', 'LICENSE', 'lhat-love-license.txt') + @(if ($IsMacOS) { 'VanguardPrincess.love' })) {
     if (-not (Test-Path -LiteralPath (Join-Path $out $name) -PathType Leaf)) { throw "Missing distribution file: $name" }
+}
+if (-not $IsWindows) {
+    foreach ($name in $programs | Where-Object { $_ -notlike 'lib/*' }) {
+        $mode = [IO.File]::GetUnixFileMode((Join-Path $out $name))
+        if (-not ($mode -band [IO.UnixFileMode]::UserExecute)) { throw "Not executable: $name" }
+    }
+}
+if ($IsMacOS) {
+    # The bundle must stay as signed; the game is beside it, not inside it.
+    & codesign --verify --deep --strict (Join-Path $out 'lhat-love.app')
+    if ($LASTEXITCODE -ne 0) { throw 'Engine bundle signature is broken' }
 }
 $savedPath = $env:PATH
 $savedPythonPath = $env:PYTHONPATH
 try {
-    $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+    $env:PATH = if ($IsWindows) { "$env:SystemRoot\System32;$env:SystemRoot" } else { '/usr/bin:/bin' }
     $env:PYTHONPATH = ''
-    & (Join-Path $out 'BuildAssets.exe') --help
+    & (Join-Path $out $builder) --help
     if ($LASTEXITCODE -ne 0) { throw 'Standalone builder failed' }
 } finally {
     $env:PATH = $savedPath

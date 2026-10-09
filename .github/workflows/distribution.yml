@@ -1,0 +1,87 @@
+name: Distribution
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: distribution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-2022
+          - platform: linux-x64
+            os: ubuntu-24.04
+          - platform: macos-arm64
+            os: macos-15
+          - platform: macos-x64
+            os: macos-15-intel
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.11.9'
+          cache: pip
+          cache-dependency-path: tools/fm2k_convert/requirements*.txt
+      - name: Install patchelf
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf
+      - name: Download pinned engine release
+        run: ./tools/download-engine.ps1 -Platform ${{ matrix.platform }}
+      - name: Test external assets with the fused launcher
+        run: |
+          . ./tools/engine-platform.ps1
+          ./tools/test-external-media.ps1 -Lovec (Get-EngineExecutable build/release-engine/compiler -Compiler) -ShippingDirectory build/release-engine/runtime
+      - name: Build game and standalone asset builder
+        run: |
+          . ./tools/engine-platform.ps1
+          ./tools/dist.ps1 -Lovec (Get-EngineExecutable build/release-engine/compiler -Compiler) -ShippingDirectory build/release-engine/runtime
+      - name: Test asset builder and package contents
+        run: |
+          $python = if ($IsWindows) { 'build/asset-builder-venv/Scripts/python.exe' } else { 'build/asset-builder-venv/bin/python' }
+          & $python -m unittest discover -s tests -p test_build_assets.py
+          if ($LASTEXITCODE -ne 0) { throw 'Asset builder tests failed' }
+          & $python -m unittest discover -s tests -p test_extract_original.py
+          if ($LASTEXITCODE -ne 0) { throw 'Archive tests failed' }
+          & tools/check-distribution.ps1
+      # upload-artifact zips without Unix permissions; a tarball keeps them.
+      - name: Archive Unix distribution
+        if: runner.os != 'Windows'
+        run: |
+          & tar -czf build/VanguardPrincess-${{ matrix.platform }}.tar.gz -C dist VanguardPrincess
+          if ($LASTEXITCODE -ne 0) { throw 'Could not archive the distribution' }
+      - name: Upload distribution
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: VanguardPrincess-${{ matrix.platform }}
+          path: ${{ runner.os == 'Windows' && 'dist/VanguardPrincess/' || format('build/VanguardPrincess-{0}.tar.gz', matrix.platform) }}
+          if-no-files-found: error
+      - name: Upload engine check logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: engine-check-logs-${{ matrix.platform }}
+          path: build/engine-check/**/*.log
+          if-no-files-found: ignore

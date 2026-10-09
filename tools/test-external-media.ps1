@@ -1,6 +1,14 @@
-param([string]$Love = 'C:/Users/Owner/source/repos/lhat-love')
+# Fuse a probe game the way the distribution does and check external assets.
+# Runs without a display: the probe only needs love.filesystem and love.event.
+param(
+    [string]$Love = 'C:/Users/Owner/source/repos/lhat-love',
+    [string]$Lovec,
+    [string]$ShippingDirectory
+)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+if (-not $Lovec) { $Lovec = "$Love/build/love/Release/lovec.exe" }
+if (-not $ShippingDirectory) { $ShippingDirectory = "$Love/build-vmonly-shipping/love/Release" }
 $work = Join-Path $root ('build/external-media-test/' + [guid]::NewGuid().ToString('N'))
 $source = Join-Path $work 'source'
 $run = Join-Path $work 'run'
@@ -22,17 +30,16 @@ public^let^load = p^{
 }
 public^let^draw = p^{}
 '@ | Set-Content -LiteralPath "$source/main.lh" -Encoding utf8
-'window = { visible = false^ },' | Set-Content -LiteralPath "$source/conf.lton"
+'modules = { window = false^, graphics = false^, audio = false^ },' | Set-Content -LiteralPath "$source/conf.lton"
 [IO.File]::WriteAllText("$source/data/probe.txt", 'internal')
 [IO.File]::WriteAllText("$source/assets/probe.txt", 'media')
 foreach ($f in 'data/_conversion/excluded.txt', 'data/skills/excluded.txt', 'data/data.lton', 'data/support-source.lton') {
  [IO.File]::WriteAllText("$source/$f", 'excluded')
 }
-Copy-Item "$Love/build-vmonly-shipping/love/Release/*.dll" $run
 function Package([bool]$Include) {
  $name = if ($Include) { 'embedded' } else { 'external' }
  $archive = "$work/$name.love"
- & "$root/tools/package-game.ps1" -SourceRoot $source -Lovec "$Love/build/love/Release/lovec.exe" -WorkDirectory "$work/$name" -Archive $archive -IncludeAssets:$Include
+ & "$root/tools/package-game.ps1" -SourceRoot $source -Lovec $Lovec -WorkDirectory "$work/$name" -Archive $archive -IncludeAssets:$Include
  $zip = [IO.Compression.ZipFile]::OpenRead($archive)
  try {
   foreach ($e in $zip.Entries) {
@@ -40,15 +47,11 @@ function Package([bool]$Include) {
    if (!$Include -and $e.FullName.StartsWith('assets/')) { throw 'Assets bundled by default' }
   }
  } finally { $zip.Dispose() }
- $stream = [IO.File]::Create("$run/game.exe")
- try { foreach ($part in "$Love/build-vmonly-shipping/love/Release/love.exe", $archive) {
-  $inputStream = [IO.File]::OpenRead($part)
-  try { $inputStream.CopyTo($stream) } finally { $inputStream.Dispose() }
- } } finally { $stream.Dispose() }
+ $script:launcher = & "$root/tools/fuse-game.ps1" -ShippingDirectory $ShippingDirectory -Archive $archive -OutputDirectory $run -Name game
 }
 function Run([string]$Expected) {
  $info = [Diagnostics.ProcessStartInfo]::new()
- $info.FileName = "$run/game.exe"
+ $info.FileName = $script:launcher
  $info.WorkingDirectory = $root
  $info.UseShellExecute = $false
  $info.CreateNoWindow = $true
@@ -68,7 +71,7 @@ function Run([string]$Expected) {
  } finally { $process.Dispose() }
 }
 Package $false
-Run 'assets folder is missing beside the executable'
+Run 'assets folder is missing beside the game'
 New-Item -ItemType Directory -Force "$run/assets", "$run/data" | Out-Null
 [IO.File]::WriteAllText("$run/assets/probe.txt", 'media')
 [IO.File]::WriteAllText("$run/data/probe.txt", 'external')

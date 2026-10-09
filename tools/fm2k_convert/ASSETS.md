@@ -1,10 +1,18 @@
 # 原作から assets を構築する
 
-Windows配布版は `BuildAssets.exe` を使用します。Pythonのインストールは不要です。
-配布exeと同じフォルダでPowerShellを開き、次を実行します。
+配布版に同梱の `BuildAssets`（Windowsでは `BuildAssets.exe`）を使用します。
+Pythonのインストールは不要です。ゲームと同じフォルダに `assets` を作成します。
+
+Windowsでは配布フォルダでPowerShellを開き、次を実行します。
 
 ```powershell
 .\BuildAssets.exe "C:\Downloads\vanpri108.exe" assets
+```
+
+macOS/Linuxでは配布フォルダでターミナルを開き、次を実行します。
+
+```sh
+./BuildAssets ~/Downloads/vanpri108.exe assets
 ```
 
 Windowsでも手動解凍は不要です。パスに空白がある場合は引用符で囲んでください。
@@ -16,7 +24,18 @@ Windowsでも手動解凍は不要です。パスに空白がある場合は引�
 
 `.7z` も指定できます。フォルダは原作 `.kgt` が一つだけ含まれるものを指定してください。
 
-完了後はゲームを起動できます。処理は原作exeを実行せず、画像・音声だけを取り出します。
+完了後はゲームを起動できます。Windowsは `VanguardPrincess.exe`、Linuxは `VanguardPrincess`、
+macOSは `VanguardPrincess.command` を実行します。macOS版はゲーム本体
+`VanguardPrincess.love` とエンジン `lhat-love.app` を同じフォルダに置いたまま使ってください。
+
+macOS版は公証していません。ダウンロードした配布フォルダは、初回に次を実行して
+隔離属性を外してください（フォルダ名は展開先に合わせます）。
+
+```sh
+xattr -dr com.apple.quarantine VanguardPrincess
+```
+
+処理は原作exeを実行せず、画像・音声だけを取り出します。
 配布された技定義やパレットデータは変更しません。Windows用の原作exe/DLLは解凍対象外です。
 7-Zipコマンド、Wine、.NETは不要です。
 

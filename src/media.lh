@@ -12,6 +12,6 @@ public^let^prepare = p^{
     if^!love.filesystem.mount(base, "", true^) { panic^"Could not access the executable directory for external assets." }
     let^mounted = love.filesystem.mount("assets", "assets", true^)
     love.filesystem.unmount(base)
-    if^!mounted { panic^"assets folder is missing beside the executable. Place the converted assets folder next to VanguardPrincess.exe." }
+    if^!mounted { panic^"assets folder is missing beside the game. Build it into the game folder as described in ASSETS.md." }
     ready := true^
 }

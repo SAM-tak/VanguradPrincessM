@@ -9,13 +9,14 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'engine-platform.ps1')
 if (-not $Lovec) { $Lovec = Join-Path $Love "build\love\Release\lovec.exe" }
 if (-not $ShippingDirectory) { $ShippingDirectory = Join-Path $Love "build-vmonly-shipping\love\Release" }
-$vm = Join-Path $ShippingDirectory 'love.exe'
+$vm = Get-EngineExecutable $ShippingDirectory
 foreach ($exe in $lovec, $vm) {
     if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Engine check: missing $exe" }
 }
-$work = Join-Path $root ("build\engine-check\" + [guid]::NewGuid().ToString("N"))
+$work = Join-Path $root ("build/engine-check/" + [guid]::NewGuid().ToString("N"))
 $source = Join-Path $work "source"
 $compiled = Join-Path $work "compiled"
 New-Item -ItemType Directory -Path $source -Force | Out-Null
@@ -77,7 +78,7 @@ Write-Host "checking compiler / shipping VM compatibility"
 try {
     $null = Invoke-CheckProcess $lovec @("--no-error-screen", "--compile-game", $compiled, $source) "compile"
     if (-not (Test-Path -LiteralPath (Join-Path $compiled $unicodeUnit) -PathType Leaf)) {
-        throw "Compiler did not preserve Unicode output path '$unicodeUnit'. Check the compiler's Windows UTF-8 filesystem handling."
+        throw "Compiler did not preserve Unicode output path '$unicodeUnit'. Check the compiler's UTF-8 filesystem handling."
     }
     $output = Invoke-CheckProcess $vm @("--no-error-screen", $compiled) "vm"
     if (-not ($output -split '\r?\n' -contains $marker)) {
