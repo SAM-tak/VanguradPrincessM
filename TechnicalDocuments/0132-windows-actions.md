@@ -5,7 +5,7 @@ Windows 2022 x64とPython 3.11.9を使用する。成果物はActionsの
 `VanguardPrincess-windows-x64` ZIPから取得する。Releaseの自動公開は行わない。
 
 エンジンは `tools/engine-release.json` の指定に従い、lhat-love
-v12.0.0-alpha.1のrelwithdebinfo（コンパイル用）とvmonly-shipping（配布用）を取得。
+v12.0.0-alpha.2のrelwithdebinfo（コンパイル用）とvmonly-shipping（配布用）を取得。
 SHA256を照合する。更新時はタグ、アセット名、ハッシュをまとめて変更する。
 
 `dist.ps1 -Lovec <exe> -ShippingDirectory <dir>` によりエンジンのソースツリーを

@@ -31,6 +31,13 @@ identity = "vanguard-engine-check",
 modules = { window = false^, graphics = false^, audio = false^ },
 '@ | Set-Content -LiteralPath (Join-Path $source "conf.lton") -Encoding utf8
 
+# Windows runners may use a non-UTF-8 ANSI code page. Exercise a real game's
+# non-ASCII paths before building the asset tool or compiling the full game.
+$unicodeUnit = 'data/あやね/cpu.lton'
+$unicodeSource = Join-Path $source $unicodeUnit
+New-Item -ItemType Directory -Path (Split-Path $unicodeSource) -Force | Out-Null
+'value = 1,' | Set-Content -LiteralPath $unicodeSource -Encoding utf8
+
 function Invoke-CheckProcess {
     param([string]$Exe, [string[]]$Arguments, [string]$Label)
     $info = [System.Diagnostics.ProcessStartInfo]::new()
@@ -69,6 +76,9 @@ function Invoke-CheckProcess {
 Write-Host "checking compiler / shipping VM compatibility"
 try {
     $null = Invoke-CheckProcess $lovec @("--no-error-screen", "--compile-game", $compiled, $source) "compile"
+    if (-not (Test-Path -LiteralPath (Join-Path $compiled $unicodeUnit) -PathType Leaf)) {
+        throw "Compiler did not preserve Unicode output path '$unicodeUnit'. Check the compiler's Windows UTF-8 filesystem handling."
+    }
     $output = Invoke-CheckProcess $vm @("--no-error-screen", $compiled) "vm"
     if (-not ($output -split '\r?\n' -contains $marker)) {
         throw "VM exited without the game's success marker"
