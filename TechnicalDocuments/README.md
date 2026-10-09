@@ -199,3 +199,5 @@
 - [0132-windows-actions.md](0132-windows-actions.md) — 指定エンジンリリースを取得してWindows配布をActionsでビルド。
 
 - [0133-development-font.md](0133-development-font.md) — Notoフォントをdataで管理し、デバッグ表示とともに配布版から除外。
+
+- [0134-headless-engine-check.md](0134-headless-engine-check.md) — GPUのないCIでもVM互換性を確認できるよう、チェックを画面なしで実行。

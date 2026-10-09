@@ -1,4 +1,5 @@
 # Compile a tiny game with the full engine, then run it with the shipping VM.
+# API registration is checked without initializing graphics or audio devices.
 # Run before staging assets or replacing an existing distribution.
 param(
     [string]$Love = "C:\Users\Owner\source\repos\lhat-love",
@@ -27,7 +28,7 @@ public^let^draw = p^{}
 "@ | Set-Content -LiteralPath (Join-Path $source "main.lh") -Encoding utf8
 @'
 identity = "vanguard-engine-check",
-window = { title = "Engine check", width = 64, height = 64, visible = false^ },
+modules = { window = false^, graphics = false^, audio = false^ },
 '@ | Set-Content -LiteralPath (Join-Path $source "conf.lton") -Encoding utf8
 
 function Invoke-CheckProcess {
@@ -76,7 +77,8 @@ try {
     throw @"
 Engine compatibility check failed: $($_.Exception.Message)
 Logs: $work
-If signatures or compiled units are incompatible, rebuild the full engine, run
+Read the logs for the underlying error; a startup failure alone does not imply
+an incompatible VM. If signatures or compiled units are incompatible, rebuild the full engine, run
   & '$Love\scripts\regen-generated.ps1' -Lovec '$lovec'
 then rebuild the VM-only shipping engine:
   & '$Love\scripts\build.ps1' -VmOnly -Shipping
