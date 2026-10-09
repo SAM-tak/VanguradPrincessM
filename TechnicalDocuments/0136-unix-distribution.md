@@ -40,4 +40,10 @@ venvのPythonは `bin/python`。クロスビルドはしない。
 - check-distribution.ps1: OS別の必須ファイル、Unixの実行権限、macOSの `codesign --verify`。
 
 ローカル検証はWindowsのみ（test-external-media、dist、check-distribution成功）。
-Linux/macOSはActionsで確認する。
+
+Actions run 37925998821（c875e85）で4プラットフォームとも成功した。
+各OSでcheck.ps1、test-external-media.ps1の全項目、check-distribution.ps1が通過。
+成果物はwindows-x64 約31MB、linux-x64 約51MB、macos-arm64 約28MB、macos-x64 約31MB。
+
+CIは画面なしのため、素材入りでの描画・音声、macOSでの `.command` のダブルクリック起動、
+隔離属性の解除手順は実機で未確認。
