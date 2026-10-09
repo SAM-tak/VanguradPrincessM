@@ -25,7 +25,7 @@ function Get-PackageFiles([string]$Directory) {
                 $included++
                 Get-PackageFiles $item.FullName
             }
-        } elseif ($item.Name -notin @('data.lton', 'support-source.lton')) {
+        } elseif ($item.Name -notin @('data.lton', 'support-source.lton', 'NotoSansMonoCJKjp-Regular.otf')) {
             $included++
             $item
         }

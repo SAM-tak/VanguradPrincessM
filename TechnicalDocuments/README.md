@@ -193,3 +193,9 @@
 - [0129-original-sfx-extraction.md](0129-original-sfx-extraction.md) — 原作SFXの7z部分を検出し、Windows用exeを実行せずPythonで素材を展開。
 
 - [0130-automatic-assets-builder.md](0130-automatic-assets-builder.md) — 原作exe/7z/フォルダから、配布版に合うassets全体をPythonだけで自動構築。
+
+- [0131-standalone-asset-builder.md](0131-standalone-asset-builder.md) — Pythonと依存ライブラリを内蔵したBuildAssets.exeをWindows配布に同梱。
+
+- [0132-windows-actions.md](0132-windows-actions.md) — 指定エンジンリリースを取得してWindows配布をActionsでビルド。
+
+- [0133-development-font.md](0133-development-font.md) — Notoフォントをdataで管理し、デバッグ表示とともに配布版から除外。

@@ -11,6 +11,8 @@
 # Output: dist/VanguardPrincess/ (exe + the engine's DLLs). Work files go to build/.
 param(
     [string]$Love = "C:\Users\Owner\source\repos\lhat-love",
+    [string]$Lovec,
+    [string]$ShippingDirectory,
     [switch]$RebuildEngine,
     [switch]$Run,
     [switch]$IncludeAssets,
@@ -18,13 +20,16 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
-$lovec = Join-Path $Love "build\love\Release\lovec.exe"
-$vm = Join-Path $Love "build-vmonly-shipping\love\Release"
+$prebuilt = [bool]$Lovec -or [bool]$ShippingDirectory
+if ($prebuilt -and (-not $Lovec -or -not $ShippingDirectory)) { throw 'Specify both -Lovec and -ShippingDirectory' }
+if ($prebuilt -and $RebuildEngine) { throw '-RebuildEngine cannot be used with prebuilt binaries' }
+if (-not $Lovec) { $Lovec = Join-Path $Love "build\love\Release\lovec.exe" }
+$vm = if ($ShippingDirectory) { $ShippingDirectory } else { Join-Path $Love "build-vmonly-shipping\love\Release" }
 if (-not (Test-Path $lovec)) { throw "missing $lovec" }
 $vmDll = Join-Path $vm "love.dll"
 $fullDll = Join-Path (Split-Path $lovec) "love.dll"
-if ($RebuildEngine -or -not (Test-Path $vmDll) -or
-    (Get-Item $vmDll).LastWriteTime -lt (Get-Item $fullDll).LastWriteTime) {
+if (-not $prebuilt -and ($RebuildEngine -or -not (Test-Path $vmDll) -or
+    (Get-Item $vmDll).LastWriteTime -lt (Get-Item $fullDll).LastWriteTime)) {
     Write-Host "building the VM-only shipping engine"
     & (Join-Path $Love "scripts\build.ps1") -VmOnly -Shipping
     if ($LASTEXITCODE -ne 0) { throw "engine build failed ($LASTEXITCODE)" }
@@ -32,7 +37,10 @@ if ($RebuildEngine -or -not (Test-Path $vmDll) -or
 
 # Exercise the exact compiler and VM pair before copying assets or deleting
 # the previous output. DLL timestamps alone cannot detect stale signatures.
-& (Join-Path $PSScriptRoot "check.ps1") -Love $Love
+& (Join-Path $PSScriptRoot "check.ps1") -Love $Love -Lovec $Lovec -ShippingDirectory $vm
+
+# Build before removing the previous distribution, so failures preserve it.
+& (Join-Path $PSScriptRoot 'build-asset-builder.ps1')
 
 $build = Join-Path $root "build"
 $work = Join-Path $build "package"
@@ -77,14 +85,18 @@ try {
     }
 } finally { $fs.Dispose() }
 Copy-Item (Join-Path $vm "*.dll") $out
+if (Test-Path -LiteralPath (Join-Path $vm 'license.txt')) {
+    Copy-Item -LiteralPath (Join-Path $vm 'license.txt') -Destination (Join-Path $out 'lhat-love-license.txt')
+}
+if (Test-Path -LiteralPath (Join-Path $vm 'build-info.txt')) {
+    Copy-Item -LiteralPath (Join-Path $vm 'build-info.txt') -Destination (Join-Path $out 'lhat-love-build-info.txt')
+}
 
 # Portable media builder: no original game media or FM2K definitions included.
-$builder = Join-Path $out 'asset-builder'
-New-Item -ItemType Directory -Force "$builder/patches", "$builder/licenses" | Out-Null
 $converter = Join-Path $root 'tools/fm2k_convert'
-foreach ($file in 'build_assets.py', 'extract_original.py', 'raw_media.py', 'convert.py', 'share_assets.py', 'layout.py', 'names.py', 'assets-recipe.json', 'requirements.txt', 'ASSETS.md', 'patches/__init__.py', 'licenses/fm2ndparser.txt') {
-    Copy-Item -LiteralPath (Join-Path $converter $file) -Destination (Join-Path $builder $file)
-}
+Copy-Item -LiteralPath (Join-Path $build 'asset-builder-native/BuildAssets.exe') -Destination $out
+Copy-Item -LiteralPath (Join-Path $build 'asset-builder-native/asset-builder-licenses') -Destination $out -Recurse
+Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $out
 Copy-Item -LiteralPath (Join-Path $converter 'ASSETS.md') -Destination (Join-Path $out 'ASSETS.md')
 
 $size = (Get-Item $exe).Length / 1MB

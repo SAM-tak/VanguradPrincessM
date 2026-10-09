@@ -2,12 +2,15 @@
 # Run before staging assets or replacing an existing distribution.
 param(
     [string]$Love = "C:\Users\Owner\source\repos\lhat-love",
+    [string]$Lovec,
+    [string]$ShippingDirectory,
     [ValidateRange(1, 600)][int]$TimeoutSeconds = 30
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
-$lovec = Join-Path $Love "build\love\Release\lovec.exe"
-$vm = Join-Path $Love "build-vmonly-shipping\love\Release\love.exe"
+if (-not $Lovec) { $Lovec = Join-Path $Love "build\love\Release\lovec.exe" }
+if (-not $ShippingDirectory) { $ShippingDirectory = Join-Path $Love "build-vmonly-shipping\love\Release" }
+$vm = Join-Path $ShippingDirectory 'love.exe'
 foreach ($exe in $lovec, $vm) {
     if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Engine check: missing $exe" }
 }

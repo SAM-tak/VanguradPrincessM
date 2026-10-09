@@ -25,6 +25,7 @@ import^love.event
 import^love.timer
 import^love.math
 import^love.audio
+import^love.filesystem
 import^std.math
 
 require^"src/arena.lh"
@@ -1178,9 +1179,11 @@ var^debugFont : love.graphics.Font|nil^= nil^
 var^debugFontTried = false^
 
 let^debugText = p^text:string^, x:number^, y:number^{
+    # Debug overlays and their large font are only used by source runs.
+    if^love.filesystem.isFused() { return^ }
     if^!debugFontTried {
         debugFontTried := true^
-        let^f = love.graphics.newFont("assets/NotoSansMonoCJKjp-Regular.otf", 13) catch^nil^
+        let^f = love.graphics.newFont("data/NotoSansMonoCJKjp-Regular.otf", 13) catch^nil^
         if^f fits^love.graphics.Font { debugFont := f }
     }
     let^font = debugFont

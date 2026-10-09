@@ -1,0 +1,14 @@
+{
+  "repository": "SAM-tak/lhat-love",
+  "tag": "v12.0.0-alpha.1",
+  "windows": {
+    "compiler": {
+      "asset": "lhat-love-v12.0.0-alpha.1-win-x64-relwithdebinfo.zip",
+      "sha256": "78863f2ee14cc6a6be9bc4ac84751e54dc5ea70c3804ca43ab25c222f51e8767"
+    },
+    "runtime": {
+      "asset": "lhat-love-v12.0.0-alpha.1-win-x64-vmonly-shipping.zip",
+      "sha256": "ff21563c67c6b10a3416af8e909bc945088a2973cec07d805fc44a9d7278ff76"
+    }
+  }
+}

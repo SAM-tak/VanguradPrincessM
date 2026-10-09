@@ -20,6 +20,18 @@ directory and directly builds organized media in one command. It does not
 need fm2ndparser/.NET and never regenerates runtime definitions. The full
 developer conversion pipeline below is only needed to regenerate definitions.
 
+### Standalone release builder
+
+Windows distributions include `BuildAssets.exe`; users do not need Python.
+`tools/dist.ps1` builds it automatically, or run `pwsh tools/build-asset-builder.ps1`.
+The build uses an isolated environment under `build/asset-builder-venv`.
+
+For a native macOS/Linux build (not yet verified), create a Python virtual
+environment, install `requirements-build.txt`, and run `freeze_builder.py`.
+Output is `build/asset-builder-native/BuildAssets` plus dependency notices.
+Build separately on each target OS/architecture; this is not a cross compiler.
+Distribute the notices alongside the executable. The media recipe is embedded.
+
 ### Unpack the original self-extracting download first
 
 The Windows SFX does not need to run. On Windows, macOS or Linux, install the
